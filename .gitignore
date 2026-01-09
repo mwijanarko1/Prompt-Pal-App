@@ -39,3 +39,14 @@ temp/
 
 # Cursor specific
 .cursor/
+
+# React Native/Expo specific
+ios/Pods/
+ios/build/
+android/app/build/
+android/build/
+*.jks
+*.keystore
+*.mobileprovision
+.xcode.env
+
