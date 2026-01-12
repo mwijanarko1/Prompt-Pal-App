@@ -1,10 +1,10 @@
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
-import * as SecureStore from 'expo-secure-store';
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import * as SecureStore from "expo-secure-store";
 
 export interface Level {
   id: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  difficulty: "beginner" | "intermediate" | "advanced";
   targetImageUrl: string;
   hiddenPromptKeywords: string[];
   passingScore: number;
@@ -37,7 +37,7 @@ const initialState = {
   lives: 3,
   score: 0,
   isPlaying: false,
-  unlockedLevels: ['level_01'], // First level always unlocked
+  unlockedLevels: ["level_01"], // First level always unlocked
   completedLevels: [],
 };
 
@@ -124,14 +124,14 @@ export const useGameStore = create<GameState>()(
       },
     }),
     {
-      name: 'promptpal-game-storage',
+      name: "promptpal-game-storage",
       storage: createJSONStorage(() => secureStorage),
       // Add error handling for corrupted storage
       onRehydrateStorage: () => (state) => {
         // If state is undefined or corrupted, reset to initial state
-        if (!state || typeof state !== 'object') {
-          console.warn('Game store corrupted, resetting to initial state');
-          set(initialState);
+        if (!state || typeof state !== "object") {
+          console.warn("Game store corrupted, resetting to initial state");
+          return initialState;
         }
       },
     }

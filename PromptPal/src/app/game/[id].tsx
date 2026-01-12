@@ -1,15 +1,15 @@
-import { View, Text, Image, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { Button, Input } from '../../components/ui';
-import { getLevelById } from '../../features/levels/data';
-import { geminiService } from '../../lib/gemini';
-import { useGameStore } from '../../features/game/store';
+import { View, Text, Image, Alert } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState, useEffect } from "react";
+import { Button, Input } from "../../components/ui";
+import { getLevelById } from "../../features/levels/data";
+import { geminiService } from "../../lib/gemini";
+import { useGameStore } from "../../features/game/store";
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
@@ -35,7 +35,7 @@ export default function GameScreen() {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
-      Alert.alert('Error', 'Please enter a prompt');
+      Alert.alert("Error", "Please enter a prompt");
       return;
     }
 
@@ -45,28 +45,34 @@ export default function GameScreen() {
       setGeneratedImage(imageUrl);
 
       // Simulate scoring (Phase 2 will implement real scoring)
-      const score = await geminiService.compareImages(level.targetImageUrl, imageUrl);
+      const score = await geminiService.compareImages(
+        level.targetImageUrl,
+        imageUrl
+      );
 
       Alert.alert(
-        'Result',
-        `Your prompt scored: ${score}% similarity!\n\n${score >= level.passingScore ? 'Level passed!' : 'Try again!'}`,
+        "Result",
+        `Your prompt scored: ${score}% similarity!\n\n${
+          score >= level.passingScore ? "Level passed!" : "Try again!"
+        }`,
         [
           {
-            text: score >= level.passingScore ? 'Next Level' : 'Try Again',
+            text: score >= level.passingScore ? "Next Level" : "Try Again",
             onPress: () => {
               if (score >= level.passingScore) {
                 router.back();
               } else {
                 loseLife();
                 setGeneratedImage(null);
-                setPrompt('');
+                setPrompt("");
               }
             },
           },
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to generate image. Please try again.');
+      console.error("Image generation failed", error);
+      Alert.alert("Error", "Failed to generate image. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -102,9 +108,7 @@ export default function GameScreen() {
         />
 
         <View className="flex-row justify-between items-center mt-4">
-          <Text className="text-onSurface">
-            Lives: {lives}
-          </Text>
+          <Text className="text-onSurface">Lives: {lives}</Text>
           <Button
             onPress={handleGenerate}
             loading={isGenerating}
