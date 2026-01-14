@@ -9,8 +9,9 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "expo": "~54.0.30",
+    "expo": "~54.0.31",
     "expo-asset": "~12.0.12",
+    "expo-constants": "~18.0.13",
     "expo-haptics": "^15.0.8",
     "expo-linking": "^8.0.11",
     "expo-router": "^6.0.21",
@@ -27,6 +28,8 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@babel/plugin-transform-modules-commonjs": "^7.28.6",
+    "@types/node": "^25.0.8",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },
