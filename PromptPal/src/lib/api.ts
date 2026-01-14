@@ -81,6 +81,28 @@ export interface SubmissionResponse {
   submissionId?: string;
 }
 
+export interface SubquestionResult {
+  subquestionId: string;
+  score: number;
+}
+
+export interface CriterionResult {
+  criterionId: string;
+  score: number;
+  subquestionResults: SubquestionResult[];
+}
+
+export interface TaskResult {
+  taskId: string;
+  score: number;
+  criterionResults: CriterionResult[];
+}
+
+export interface UserResultsResponse {
+  score: number | null;
+  taskResults: TaskResult[];
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -257,8 +279,10 @@ class ApiClient {
   }
 
   // User results and progress
-  async getUserResults(userId: string): Promise<any> {
-    return this.request(`/api/analyzer/users/${userId}/results`);
+  async getUserResults(userId: string): Promise<UserResultsResponse> {
+    return this.request<UserResultsResponse>(
+      `/api/analyzer/users/${userId}/results`
+    );
   }
 
   async getUserStreak(userId: string): Promise<number> {
