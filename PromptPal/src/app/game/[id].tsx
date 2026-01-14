@@ -1,21 +1,139 @@
-import { View, Text, Image, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { Button, Input } from '../../components/ui';
-import { getLevelById } from '../../features/levels/data';
-import { geminiService } from '../../lib/gemini';
-import { useGameStore } from '../../features/game/store';
+import { View, Text, Image, Alert, ActivityIndicator } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState, useEffect } from "react";
+import { Button, Input } from "../../components/ui";
+import { getLevelById, fetchLevelById } from "../../features/levels/data";
+import { geminiService } from "../../lib/gemini";
+import { useGameStore } from "../../features/game/store";
+import { Level } from "../../features/game/store";
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [level, setLevel] = useState<Level | null>(null);
+  const [isLoadingLevel, setIsLoadingLevel] = useState(true);
 
   const { lives, loseLife, startLevel } = useGameStore();
 
-  const level = getLevelById(id as string);
+  // Fetch level from API or fallback
+  useEffect(() => {
+    const loadLevel = async () => {
+      setIsLoadingLevel(true);
+      console.log(`[GameScreen] Loading level: ${id}`);
+      try {
+        // Try to fetch from API first
+        console.log(`[GameScreen] Attempting to fetch level from API...`);
+        const apiLevel = await fetchLevelById(id as string);
+        if (apiLevel) {
+          console.log(`[GameScreen] ✅ Level loaded from API:`, apiLevel.id);
+          setLevel(apiLevel);
+        } else {
+          console.log(`[GameScreen] ⚠️ No level found in API, using fallback`);
+          // Fallback to local data
+          const localLevel = getLevelById(id as string);
+          setLevel(localLevel || null);
+        }
+      } catch (error) {
+        console.error("[GameScreen] ❌ Failed to load level from API:", error);
+        // Fallback to local data
+        const localLevel = getLevelById(id as string);
+        if (localLevel) {
+          console.log(`[GameScreen] ✅ Using fallback level:`, localLevel.id);
+        }
+        setLevel(localLevel || null);
+      } finally {
+        setIsLoadingLevel(false);
+      }
+    };
+
+    loadLevel();
+  }, [id]);
+
+  // Start the level when component mounts and level is loaded
+  useEffect(() => {
+    if (level) {
+      startLevel(level.id);
+    }
+  }, [startLevel, level]);
+
+  const handleGenerate = async () => {
+    if (!prompt.trim()) {
+      Alert.alert("Error", "Please enter a prompt");
+      return;
+    }
+
+    if (!level) {
+      Alert.alert("Error", "Level not loaded");
+      return;
+    }
+
+    console.log(
+      `[GameScreen] 🎨 Generating image for prompt: "${prompt.substring(
+        0,
+        50
+      )}..."`
+    );
+    setIsGenerating(true);
+    try {
+      const imageUrl = await geminiService.generateImage(prompt);
+      console.log(`[GameScreen] ✅ Image generated:`, imageUrl);
+      setGeneratedImage(imageUrl);
+
+      // Compare images - pass taskId if available for API evaluation
+      console.log(`[GameScreen] 🔍 Comparing images...`);
+      const score = await geminiService.compareImages(
+        level.targetImageUrl,
+        imageUrl,
+        level.id // Pass level ID as taskId for API evaluation
+      );
+      console.log(
+        `[GameScreen] 📊 Similarity score: ${score}% (passing: ${level.passingScore}%)`
+      );
+
+      Alert.alert(
+        "Result",
+        `Your prompt scored: ${score}% similarity!\n\n${
+          score >= level.passingScore ? "Level passed!" : "Try again!"
+        }`,
+        [
+          {
+            text: score >= level.passingScore ? "Next Level" : "Try Again",
+            onPress: () => {
+              if (score >= level.passingScore) {
+                router.back();
+              } else {
+                loseLife();
+                setGeneratedImage(null);
+                setPrompt("");
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("[GameScreen] ❌ Image generation failed:", error);
+      const errorMessage =
+        error && typeof error === "object" && "details" in error
+          ? (error as { details?: string; error?: string }).details ||
+            (error as { error?: string }).error
+          : "Failed to generate image. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (isLoadingLevel) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#03DAC6" />
+        <Text className="text-onSurface mt-4">Loading level...</Text>
+      </View>
+    );
+  }
 
   if (!level) {
     return (
@@ -27,50 +145,6 @@ export default function GameScreen() {
       </View>
     );
   }
-
-  // Start the level when component mounts
-  useEffect(() => {
-    startLevel(level.id);
-  }, [startLevel, level.id]);
-
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      Alert.alert('Error', 'Please enter a prompt');
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const imageUrl = await geminiService.generateImage(prompt);
-      setGeneratedImage(imageUrl);
-
-      // Simulate scoring (Phase 2 will implement real scoring)
-      const score = await geminiService.compareImages(level.targetImageUrl, imageUrl);
-
-      Alert.alert(
-        'Result',
-        `Your prompt scored: ${score}% similarity!\n\n${score >= level.passingScore ? 'Level passed!' : 'Try again!'}`,
-        [
-          {
-            text: score >= level.passingScore ? 'Next Level' : 'Try Again',
-            onPress: () => {
-              if (score >= level.passingScore) {
-                router.back();
-              } else {
-                loseLife();
-                setGeneratedImage(null);
-                setPrompt('');
-              }
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to generate image. Please try again.');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   return (
     <View className="flex-1 bg-background">
@@ -102,9 +176,7 @@ export default function GameScreen() {
         />
 
         <View className="flex-row justify-between items-center mt-4">
-          <Text className="text-onSurface">
-            Lives: {lives}
-          </Text>
+          <Text className="text-onSurface">Lives: {lives}</Text>
           <Button
             onPress={handleGenerate}
             loading={isGenerating}
