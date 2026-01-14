@@ -39,7 +39,7 @@ export class GeminiService {
       } catch (error) {
         console.error('[Gemini] ❌ Backend API failed:', error);
         if (error && typeof error === 'object' && 'details' in error) {
-          console.error('[Gemini] Error details:', (error as any).details);
+          console.error('[Gemini] Error details:', (error as { details?: string }).details);
         }
         console.warn('[Gemini] ⚠️ Falling back to placeholder image');
         // Fall through to placeholder
@@ -66,7 +66,7 @@ export class GeminiService {
       } catch (error) {
         console.error('[Gemini] ❌ Backend API failed:', error);
         if (error && typeof error === 'object' && 'details' in error) {
-          console.error('[Gemini] Error details:', (error as any).details);
+          console.error('[Gemini] Error details:', (error as { details?: string }).details);
         }
         console.warn('[Gemini] ⚠️ Falling back to placeholder score');
         // Fall through to placeholder
