@@ -1,11 +1,13 @@
 import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LEVELS } from '../features/levels/data';
 import { useGameStore } from '../features/game/store';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { unlockedLevels, completedLevels } = useGameStore();
+  const insets = useSafeAreaInsets();
 
   const isLevelUnlocked = (levelId: string) => {
     return unlockedLevels.includes(levelId);
@@ -35,9 +37,9 @@ export default function HomeScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Header */}
-      <View className="pt-12 pb-6 px-6 items-center">
+      <View className="pb-6 px-6 items-center pt-12">
         <View className="flex-row">
           <Text className="text-[#FF770F] text-5xl font-bold">Prompt</Text>
           <Text className="text-[#553EFF] text-5xl font-bold">Pal</Text>
@@ -48,7 +50,11 @@ export default function HomeScreen() {
       </View>
 
       {/* Level List */}
-      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        className="flex-1 px-4" 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text className="text-onSurface text-xl font-semibold mb-4 px-2">
           Levels
         </Text>

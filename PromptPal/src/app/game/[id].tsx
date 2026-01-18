@@ -1,6 +1,7 @@
-import { View, Text, Image } from 'react-native';
+import { View, Text, Image, Keyboard, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Input, ResultModal } from '../../components/ui';
 import { getLevelById, getNextLevel } from '../../features/levels/data';
 import { geminiService } from '../../lib/gemini';
@@ -16,6 +17,7 @@ export default function GameScreen() {
   const [score, setScore] = useState(0);
 
   const { lives, loseLife, startLevel, unlockLevel, completeLevel, endLevel } = useGameStore();
+  const insets = useSafeAreaInsets();
 
   const level = getLevelById(id as string);
 
@@ -101,10 +103,20 @@ export default function GameScreen() {
     router.back();
   };
 
+  const handleDismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
   return (
-    <View className="flex-1 bg-background">
-      {/* Top half: Target Image */}
-      <View className="flex-1 p-4">
+    <KeyboardAvoidingView 
+      className="flex-1 bg-background" 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ paddingTop: insets.top }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <Pressable onPress={handleDismissKeyboard} style={{ flex: 1 }}>
+        {/* Top half: Target Image */}
+        <View className="flex-1 p-4">
         <View className="flex-row items-center justify-between mb-2">
           <Text className="text-onSurface text-lg font-semibold">
             Target Image
@@ -178,6 +190,7 @@ export default function GameScreen() {
         onNextLevel={handleNextLevel}
         onRetry={handleRetry}
       />
-    </View>
+      </Pressable>
+    </KeyboardAvoidingView>
   );
 }
