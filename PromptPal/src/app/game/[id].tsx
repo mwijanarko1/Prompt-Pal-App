@@ -1,138 +1,174 @@
-import { View, Text, Image, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { Button, Input } from '../../components/ui';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getLevelById } from '@/features/levels/data';
-import { AIProxyClient } from '@/lib/aiProxy';
-import { UsageClient } from '@/lib/usage';
-import { useGameStore } from '@/features/game/store';
+import { useGameStore, Level } from '@/features/game/store';
 import { logger } from '@/lib/logger';
+
+// Import module-specific game views
+import { ImageGameView } from '@/features/game/components/ImageGameView';
+import { CodeGameView } from '@/features/game/components/CodeGameView';
+import { CopyGameView } from '@/features/game/components/CopyGameView';
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [prompt, setPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const { updateLevelProgress, completeLevel, loseLife, currentLives } = useGameStore();
 
-  const { lives, loseLife, startLevel } = useGameStore();
+  const [level, setLevel] = useState<Level | null>(null);
+  const [startTime, setStartTime] = useState<Date>(new Date());
 
-  const level = getLevelById(id as string);
-
-  if (!level) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-error text-xl">Level not found</Text>
-        <Button onPress={() => router.back()} className="mt-4">
-          Go Back
-        </Button>
-      </View>
-    );
-  }
-
-  // Start the level when component mounts
   useEffect(() => {
-    startLevel(level.id);
-  }, [startLevel, level.id]);
-
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      Alert.alert('Error', 'Please enter a prompt');
+    const foundLevel = getLevelById(id as string);
+    if (!foundLevel) {
+      Alert.alert('Error', 'Level not found', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
       return;
     }
 
-    setIsGenerating(true);
-    try {
-      const result = await AIProxyClient.generateImage(prompt);
-      setGeneratedImage(result.imageUrl!);
+    setLevel(foundLevel);
+    setStartTime(new Date());
 
-      // For now, use a simple scoring mechanism (Phase 3 will implement real AI comparison)
-      const score = Math.floor(Math.random() * 41) + 60; // Random score between 60-100
+    // Mark level as attempted
+    updateLevelProgress(foundLevel.id, {
+      attempts: (foundLevel.progress?.attempts || 0) + 1,
+    });
+  }, [id]);
 
+  const handleLevelComplete = (score: number, feedback: string[]) => {
+    if (!level) return;
+
+    const timeSpent = Math.floor((new Date().getTime() - startTime.getTime()) / 1000);
+
+    // Update progress
+    updateLevelProgress(level.id, {
+      timeSpent: (level.progress?.timeSpent || 0) + timeSpent,
+    });
+
+    // Complete level
+    completeLevel(level.id, score, level.points);
+
+    // Show results
+    Alert.alert(
+      score >= level.passingScore ? 'Level Complete!' : 'Try Again',
+      `Score: ${score}%\n\n${feedback.join('\n')}`,
+      [
+        {
+          text: score >= level.passingScore ? 'Continue' : 'Retry',
+          onPress: () => {
+            if (score >= level.passingScore) {
+              router.back();
+            } else if (currentLives > 0) {
+              // Reset for retry
+              setStartTime(new Date());
+            } else {
+              router.back();
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleLevelFailed = () => {
+    loseLife();
+
+    if (currentLives > 1) {
       Alert.alert(
-        'Result',
-        `Your prompt scored: ${score}% similarity!\n\n${score >= level.passingScore ? 'Level passed!' : 'Try again!'}`,
+        'Level Failed',
+        `You have ${currentLives - 1} lives remaining.`,
         [
-          {
-            text: score >= level.passingScore ? 'Next Level' : 'Try Again',
-            onPress: () => {
-              if (score >= level.passingScore) {
-                router.back();
-              } else {
-                loseLife();
-                setGeneratedImage(null);
-                setPrompt('');
-              }
-            },
-          },
+          { text: 'Retry', onPress: () => setStartTime(new Date()) },
+          { text: 'Quit', onPress: () => router.back(), style: 'cancel' }
         ]
       );
-    } catch (error) {
-      logger.error('GameScreen', error, { operation: 'handleGenerate', promptLength: prompt.length });
+    } else {
+      Alert.alert(
+        'Game Over',
+        'You\'ve run out of lives. Better luck next time!',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    }
+  };
 
-      if (error.response?.status === 429) {
-        Alert.alert('Quota Exceeded', 'You\'ve reached your usage limit. Upgrade to Pro for more calls.');
-      } else {
-        Alert.alert('Error', 'Failed to generate image. Please try again.');
-      }
-    } finally {
-      setIsGenerating(false);
+  if (!level) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loading}>
+          <Text style={styles.loadingText}>Loading level...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const renderGameView = () => {
+    switch (level.module) {
+      case 'image':
+        return (
+          <ImageGameView
+            level={level}
+            onComplete={handleLevelComplete}
+            onFail={handleLevelFailed}
+          />
+        );
+      case 'code':
+        return (
+          <CodeGameView
+            level={level}
+            onComplete={handleLevelComplete}
+            onFail={handleLevelFailed}
+          />
+        );
+      case 'copy':
+        return (
+          <CopyGameView
+            level={level}
+            onComplete={handleLevelComplete}
+            onFail={handleLevelFailed}
+          />
+        );
+      default:
+        return (
+          <View style={styles.error}>
+            <Text style={styles.errorText}>Unsupported module type</Text>
+          </View>
+        );
     }
   };
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Top half: Target Image */}
-      <View className="flex-1 p-4">
-        <Text className="text-onSurface text-lg font-semibold mb-2 text-center">
-          Target Image
-        </Text>
-        <Image
-          source={{ uri: level.targetImageUrl }}
-          className="flex-1 rounded-lg"
-          resizeMode="contain"
-        />
-      </View>
-
-      {/* Bottom half: Input and Controls */}
-      <View className="flex-1 p-4">
-        <Text className="text-onSurface text-lg font-semibold mb-2">
-          Your Prompt
-        </Text>
-
-        <Input
-          value={prompt}
-          onChangeText={setPrompt}
-          placeholder="Describe what you see in the image above..."
-          multiline
-          numberOfLines={4}
-          className="flex-1"
-        />
-
-        <View className="flex-row justify-between items-center mt-4">
-          <Text className="text-onSurface">
-            Lives: {lives}
-          </Text>
-          <Button
-            onPress={handleGenerate}
-            loading={isGenerating}
-            disabled={!prompt.trim()}
-          >
-            Generate
-          </Button>
-        </View>
-
-        {generatedImage && (
-          <View className="mt-4">
-            <Text className="text-onSurface text-sm mb-2">Your Result:</Text>
-            <Image
-              source={{ uri: generatedImage }}
-              className="w-24 h-24 rounded-lg"
-              resizeMode="cover"
-            />
-          </View>
-        )}
-      </View>
-    </View>
+    <SafeAreaView style={styles.container}>
+      {renderGameView()}
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  error: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#F44336',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+});

@@ -1,17 +1,17 @@
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { LEVELS, getUnlockedLevels } from '@/features/levels/data';
+import { LEVELS } from '@/features/levels/data';
 import { UsageDisplay } from '@/components/UsageDisplay';
 import { UsageClient, UsageStats } from '@/lib/usage';
-import { useGameStore } from '@/features/game/store';
+import { useGameStore, ModuleType } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const { unlockedLevels } = useGameStore();
+  const { unlockedLevels, completedLevels } = useGameStore();
 
   useEffect(() => {
     loadUsage();
@@ -42,6 +42,28 @@ export default function HomeScreen() {
     }
 
     router.push(`/game/${levelId}`);
+  };
+
+  const getLevelsByModule = (module: ModuleType) => {
+    return LEVELS.filter(level => level.module === module);
+  };
+
+  const getModuleDisplayName = (module: ModuleType) => {
+    switch (module) {
+      case 'image': return '🎨 Image Generation';
+      case 'code': return '💻 Code Writing';
+      case 'copy': return '📝 Copywriting';
+      default: return module;
+    }
+  };
+
+  const getModuleColor = (module: ModuleType) => {
+    switch (module) {
+      case 'image': return '#2196F3';
+      case 'code': return '#4CAF50';
+      case 'copy': return '#FF9800';
+      default: return '#666';
+    }
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -75,54 +97,73 @@ export default function HomeScreen() {
 
       {/* Level Selection */}
       <ScrollView className="flex-1 px-6">
-        <Text className="text-onSurface text-xl font-semibold mb-4">Select Level</Text>
+        <Text className="text-onSurface text-xl font-semibold mb-4">Select Module</Text>
 
-        {LEVELS.map((level) => {
-          const isUnlocked = unlockedLevels.includes(level.id);
-          const isCompleted = useGameStore.getState().completedLevels.includes(level.id);
+        {(['image', 'code', 'copy'] as ModuleType[]).map((module) => {
+          const moduleLevels = getLevelsByModule(module);
+          const unlockedCount = moduleLevels.filter(level => unlockedLevels.includes(level.id)).length;
+          const completedCount = moduleLevels.filter(level => completedLevels.includes(level.id)).length;
 
           return (
-            <TouchableOpacity
-              key={level.id}
-              onPress={() => handleLevelPress(level.id)}
-              disabled={!isUnlocked}
-              className={`p-4 rounded-lg mb-3 border-2 ${
-                isUnlocked
-                  ? 'border-primary bg-surfaceVariant'
-                  : 'border-outline bg-surfaceVariant opacity-50'
-              }`}
-            >
-              <View className="flex-row justify-between items-center">
-                <View className="flex-1">
-                  <Text className={`text-lg font-semibold ${
-                    isUnlocked ? 'text-onSurface' : 'text-outline'
-                  }`}>
-                    Level {level.id.split('_')[1]}
-                  </Text>
-                  <Text className={`text-sm capitalize ${
-                    isUnlocked ? 'text-onSurfaceVariant' : 'text-outline'
-                  }`}>
-                    {level.difficulty}
-                  </Text>
-                </View>
-
-                <View className="items-end">
-                  {isCompleted && (
-                    <Text className="text-success text-sm font-semibold mb-1">
-                      ✓ Completed
-                    </Text>
-                  )}
-                  <View
-                    className="px-2 py-1 rounded"
-                    style={{ backgroundColor: getDifficultyColor(level.difficulty) }}
-                  >
-                    <Text className="text-white text-xs font-medium">
-                      {level.passingScore}% to pass
-                    </Text>
-                  </View>
-                </View>
+            <View key={module} className="mb-6">
+              <View className="flex-row justify-between items-center mb-3">
+                <Text className="text-onSurface text-lg font-semibold">
+                  {getModuleDisplayName(module)}
+                </Text>
+                <Text className="text-outline text-sm">
+                  {completedCount}/{moduleLevels.length} completed
+                </Text>
               </View>
-            </TouchableOpacity>
+
+              {moduleLevels.map((level) => {
+                const isUnlocked = unlockedLevels.includes(level.id);
+                const isCompleted = completedLevels.includes(level.id);
+
+                return (
+                  <TouchableOpacity
+                    key={level.id}
+                    onPress={() => handleLevelPress(level.id)}
+                    disabled={!isUnlocked}
+                    className={`p-4 rounded-lg mb-2 border-2 ${
+                      isUnlocked
+                        ? 'border-primary bg-surfaceVariant'
+                        : 'border-outline bg-surfaceVariant opacity-50'
+                    }`}
+                  >
+                    <View className="flex-row justify-between items-center">
+                      <View className="flex-1">
+                        <Text className={`text-base font-semibold ${
+                          isUnlocked ? 'text-onSurface' : 'text-outline'
+                        }`}>
+                          {level.title}
+                        </Text>
+                        <Text className={`text-sm capitalize ${
+                          isUnlocked ? 'text-onSurfaceVariant' : 'text-outline'
+                        }`}>
+                          {level.difficulty} • {level.points} pts
+                        </Text>
+                      </View>
+
+                      <View className="items-end">
+                        {isCompleted && (
+                          <Text className="text-success text-sm font-semibold mb-1">
+                            ✓ Completed
+                          </Text>
+                        )}
+                        <View
+                          className="px-2 py-1 rounded"
+                          style={{ backgroundColor: getModuleColor(level.module) }}
+                        >
+                          <Text className="text-white text-xs font-medium">
+                            {level.passingScore}% to pass
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           );
         })}
       </ScrollView>
