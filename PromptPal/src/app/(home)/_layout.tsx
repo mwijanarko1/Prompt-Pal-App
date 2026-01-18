@@ -22,7 +22,7 @@ export default function Layout() {
             <Text className="text-primary text-4xl font-bold">Prompt</Text>
             <Text className="text-secondary text-4xl font-bold">Pal</Text>
           </View>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color="#FF6B00" />
           <Text className="text-onSurfaceVariant text-base mt-4 text-center">
             Loading your dashboard...
           </Text>

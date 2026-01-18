@@ -11,14 +11,14 @@ module.exports = {
         surfaceVariant: "#2A2A2A",
         surfaceElevated: "#252525",
 
-        // Primary colors (Purple theme)
-        primary: "#8B5CF6",
-        primaryVariant: "#7C3AED",
+        // Primary colors (Orange theme - from "Prompt")
+        primary: "#FF6B00",
+        primaryVariant: "#E66000",
         onPrimary: "#FFFFFF",
 
-        // Secondary colors (Teal theme)
-        secondary: "#06B6D4",
-        secondaryVariant: "#0891B2",
+        // Secondary colors (Blue theme - from "Pal")
+        secondary: "#4151FF",
+        secondaryVariant: "#3644E6",
         onSecondary: "#FFFFFF",
 
         // Accent colors
@@ -50,8 +50,8 @@ module.exports = {
 
         // Gradients (custom utility classes)
         gradient: {
-          primary: "linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)",
-          secondary: "linear-gradient(135deg, #06B6D4 0%, #0891B2 100%)",
+          primary: "linear-gradient(135deg, #FF6B00 0%, #E66000 100%)",
+          secondary: "linear-gradient(135deg, #4151FF 0%, #3644E6 100%)",
           surface: "linear-gradient(135deg, #1A1A1A 0%, #252525 100%)",
         }
       },
@@ -79,14 +79,14 @@ module.exports = {
         '2xl': '16px',
         '3xl': '20px',
       },
-      boxShadow: {
-        'sm': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-        'md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-        'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        'glow': '0 0 20px rgba(139, 92, 246, 0.3)',
-        'glow-secondary': '0 0 20px rgba(6, 182, 212, 0.3)',
-      },
+        boxShadow: {
+          'sm': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+          'md': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+          'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          'glow': '0 0 20px rgba(255, 107, 0, 0.3)',
+          'glow-secondary': '0 0 20px rgba(65, 81, 255, 0.3)',
+        },
     },
   },
   plugins: [],

@@ -132,7 +132,7 @@ export default function SignUpScreen() {
             {/* Header */}
             <View className="items-center mb-10">
               <View className="w-16 h-16 bg-info/10 rounded-2xl items-center justify-center mb-6 border border-info/20">
-                <Ionicons name="mail-unread" size={32} color="#06B6D4" />
+                <Ionicons name="mail-unread" size={32} color="#4151FF" />
               </View>
               <Text className="text-white text-3xl font-bold mb-3 tracking-tight">
                 Verify Email
@@ -214,11 +214,11 @@ export default function SignUpScreen() {
           {/* Header */}
           <View className="items-center mb-10">
             <View className="w-16 h-16 bg-secondary/10 rounded-2xl items-center justify-center mb-6 border border-secondary/20">
-              <Ionicons name="person-add" size={32} color="#06B6D4" />
+              <Ionicons name="person-add" size={32} color="#4151FF" />
             </View>
             <View className="flex-row items-center mb-3">
-              <Text className="text-secondary text-4xl font-bold tracking-tight">Prompt</Text>
-              <Text className="text-white text-4xl font-bold tracking-tight">Pal</Text>
+              <Text className="text-primary text-4xl font-bold tracking-tight">Prompt</Text>
+              <Text className="text-secondary text-4xl font-bold tracking-tight">Pal</Text>
             </View>
             <Text className="text-onSurfaceVariant text-center text-base">
               Create an account to start your{'\n'}mastery journey

@@ -91,9 +91,9 @@ const ModuleCard = ({
         <View className={`h-full ${accentColor} rounded-full`} style={{ width: `${progress}%` }} />
       </View>
       
-      <TouchableOpacity className="bg-[#1C1C2D] py-4 rounded-2xl items-center flex-row justify-center border border-outline/10">
+      <TouchableOpacity className="bg-surfaceVariant/50 py-4 rounded-2xl items-center flex-row justify-center border border-outline/10">
         <Text className="text-primary font-bold text-base mr-2">{buttonText}</Text>
-        {buttonText === "Continue Learning" && <Ionicons name="arrow-forward" size={18} color="#8B5CF6" />}
+        {buttonText === "Continue Learning" && <Ionicons name="arrow-forward" size={18} color="#FF6B00" />}
       </TouchableOpacity>
     </View>
   </View>
@@ -171,7 +171,7 @@ export default function HomeScreen() {
                 {user?.imageUrl ? (
                   <Image source={{ uri: user.imageUrl }} className="w-full h-full" />
                 ) : (
-                  <Ionicons name="person" size={24} color="#8B5CF6" />
+                  <Ionicons name="person" size={24} color="#FF6B00" />
                 )}
               </View>
               <View>
@@ -194,8 +194,8 @@ export default function HomeScreen() {
 
           {/* Stats Bar */}
           <View className="px-5 flex-row mb-8">
-            <StatCard label="Level" value="14" icon="trophy-outline" color="#8B5CF6" />
-            <StatCard label="XP" value="2,450" icon="flash-outline" color="#06B6D4" />
+            <StatCard label="Level" value="14" icon="trophy-outline" color="#FF6B00" />
+            <StatCard label="XP" value="2,450" icon="flash-outline" color="#4151FF" />
             <StatCard label="Streak" value="5" icon="flame-outline" color="#F59E0B" />
           </View>
 
@@ -233,7 +233,7 @@ export default function HomeScreen() {
         {/* Mock Bottom Tab Bar - Since we can't easily change the real tab bar here without layout edits */}
         <View className="absolute bottom-0 left-0 right-0 h-24 bg-[#0F0F0F]/95 border-t border-outline/20 flex-row justify-around items-center px-4 pb-6">
           <View className="items-center">
-            <Ionicons name="home" size={24} color="#8B5CF6" />
+            <Ionicons name="home" size={24} color="#FF6B00" />
             <Text className="text-primary text-[10px] font-bold mt-1">Home</Text>
           </View>
           <View className="items-center opacity-40">
@@ -261,12 +261,12 @@ export default function HomeScreen() {
             
             <View className="items-center z-10">
               <View className="w-24 h-24 bg-surfaceVariant/50 rounded-[32px] items-center justify-center mb-8 border border-outline/20">
-                <Ionicons name="flash" size={48} color="#8B5CF6" />
+                <Ionicons name="flash" size={48} color="#FF6B00" />
               </View>
               
               <View className="flex-row items-center mb-4">
                 <Text className="text-primary text-6xl font-bold tracking-tight">Prompt</Text>
-                <Text className="text-white text-6xl font-bold tracking-tight">Pal</Text>
+                <Text className="text-secondary text-6xl font-bold tracking-tight">Pal</Text>
               </View>
               
               <Text className="text-white text-2xl font-bold text-center mb-4 px-4 leading-8">
@@ -284,7 +284,7 @@ export default function HomeScreen() {
             <View className="flex-row flex-wrap justify-between mb-10">
               <View className="w-[48%] bg-surfaceVariant/40 p-5 rounded-3xl mb-4 border border-outline/10">
                 <View className="w-10 h-10 bg-primary/20 rounded-xl items-center justify-center mb-4">
-                  <Ionicons name="game-controller" size={20} color="#8B5CF6" />
+                  <Ionicons name="game-controller" size={20} color="#FF6B00" />
                 </View>
                 <Text className="text-white font-bold text-sm mb-1">Gamified</Text>
                 <Text className="text-onSurfaceVariant text-[10px] leading-4">Progressive levels and rewarding challenges.</Text>
@@ -292,7 +292,7 @@ export default function HomeScreen() {
               
               <View className="w-[48%] bg-surfaceVariant/40 p-5 rounded-3xl mb-4 border border-outline/10">
                 <View className="w-10 h-10 bg-info/20 rounded-xl items-center justify-center mb-4">
-                  <Ionicons name="rocket" size={20} color="#06B6D4" />
+                  <Ionicons name="rocket" size={20} color="#4151FF" />
                 </View>
                 <Text className="text-white font-bold text-sm mb-1">Real-time</Text>
                 <Text className="text-onSurfaceVariant text-[10px] leading-4">Instant AI feedback on your prompt quality.</Text>

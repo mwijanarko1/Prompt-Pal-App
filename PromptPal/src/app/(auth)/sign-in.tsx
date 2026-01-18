@@ -86,11 +86,11 @@ export default function SignInScreen() {
           {/* Header */}
           <View className="items-center mb-10">
             <View className="w-16 h-16 bg-surfaceVariant/50 rounded-2xl items-center justify-center mb-6 border border-outline/20">
-              <Ionicons name="lock-closed" size={32} color="#8B5CF6" />
+              <Ionicons name="lock-closed" size={32} color="#FF6B00" />
             </View>
             <View className="flex-row items-center mb-3">
               <Text className="text-primary text-4xl font-bold tracking-tight">Prompt</Text>
-              <Text className="text-white text-4xl font-bold tracking-tight">Pal</Text>
+              <Text className="text-secondary text-4xl font-bold tracking-tight">Pal</Text>
             </View>
             <Text className="text-onSurfaceVariant text-center text-base">
               Enter your credentials to continue{'\n'}your engineering journey

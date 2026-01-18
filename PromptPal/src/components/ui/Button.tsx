@@ -63,7 +63,7 @@ export function Button({
         <View className="flex-row items-center">
           <ActivityIndicator
             size="small"
-            color={variant === 'primary' || variant === 'secondary' ? '#FFFFFF' : '#8B5CF6'}
+            color={variant === 'primary' || variant === 'secondary' ? '#FFFFFF' : '#FF6B00'}
             className="mr-2"
           />
           <Text className={`${textColorClasses[variant]} ${textSizeClasses[size]} font-semibold`}>
