@@ -1,7 +1,7 @@
-import { View, Text, Image, Alert } from 'react-native';
+import { View, Text, Image, Alert, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Button, Input } from '../../components/ui';
+import { Button, Input, Card } from '@/components/ui';
 import { getLevelById } from '@/features/levels/data';
 import { AIProxyClient } from '@/lib/aiProxy';
 import { UsageClient } from '@/lib/usage';
@@ -21,12 +21,19 @@ export default function GameScreen() {
 
   if (!level) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-error text-xl">Level not found</Text>
-        <Button onPress={() => router.back()} className="mt-4">
-          Go Back
-        </Button>
-      </View>
+      <SafeAreaView className="flex-1 bg-background">
+        <View className="flex-1 items-center justify-center px-6">
+          <Card className="w-full items-center p-8">
+            <Text className="text-error text-xl font-bold mb-4">Level Not Found</Text>
+            <Text className="text-onSurfaceVariant text-center mb-6">
+              The level you're looking for doesn't exist or has been removed.
+            </Text>
+            <Button onPress={() => router.back()} variant="primary">
+              Go Back
+            </Button>
+          </Card>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -80,58 +87,105 @@ export default function GameScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Top half: Target Image */}
-      <View className="flex-1 p-4">
-        <Text className="text-onSurface text-lg font-semibold mb-2 text-center">
-          Target Image
-        </Text>
-        <Image
-          source={{ uri: level.targetImageUrl }}
-          className="flex-1 rounded-lg"
-          resizeMode="contain"
-        />
-      </View>
-
-      {/* Bottom half: Input and Controls */}
-      <View className="flex-1 p-4">
-        <Text className="text-onSurface text-lg font-semibold mb-2">
-          Your Prompt
-        </Text>
-
-        <Input
-          value={prompt}
-          onChangeText={setPrompt}
-          placeholder="Describe what you see in the image above..."
-          multiline
-          numberOfLines={4}
-          className="flex-1"
-        />
-
-        <View className="flex-row justify-between items-center mt-4">
-          <Text className="text-onSurface">
-            Lives: {lives}
-          </Text>
-          <Button
-            onPress={handleGenerate}
-            loading={isGenerating}
-            disabled={!prompt.trim()}
+    <SafeAreaView className="flex-1 bg-background">
+      {/* Header */}
+      <View className="px-6 py-4 border-b border-outline">
+        <View className="flex-row justify-between items-center">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="flex-row items-center"
           >
-            Generate
-          </Button>
+            <Text className="text-primary text-2xl mr-2">←</Text>
+            <Text className="text-primary text-base font-medium">Back</Text>
+          </TouchableOpacity>
+
+          <View className="flex-row items-center bg-surfaceVariant px-3 py-2 rounded-full">
+            <Text className="text-primary text-sm mr-2">❤️</Text>
+            <Text className="text-onSurface font-bold">{lives}</Text>
+          </View>
         </View>
 
-        {generatedImage && (
-          <View className="mt-4">
-            <Text className="text-onSurface text-sm mb-2">Your Result:</Text>
-            <Image
-              source={{ uri: generatedImage }}
-              className="w-24 h-24 rounded-lg"
-              resizeMode="cover"
+        <View className="mt-4">
+          <Text className="text-onSurface text-xl font-bold mb-1">
+            Level {level.id.split('_')[1]}
+          </Text>
+          <Text className="text-onSurfaceVariant text-sm capitalize">
+            {level.difficulty} Challenge • {level.passingScore}% to pass
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Target Image Section */}
+        <View className="px-6 py-6">
+          <Card className="p-0 overflow-hidden">
+            <View className="px-4 py-3 border-b border-outline bg-surfaceVariant">
+              <Text className="text-onSurface text-lg font-semibold text-center">
+                🎯 Target Image
+              </Text>
+            </View>
+            <View className="aspect-square">
+              <Image
+                source={{ uri: level.targetImageUrl }}
+                className="w-full h-full"
+                resizeMode="cover"
+              />
+            </View>
+          </Card>
+        </View>
+
+        {/* Prompt Input Section */}
+        <View className="px-6 pb-6">
+          <Card>
+            <Text className="text-onSurface text-lg font-semibold mb-4">
+              ✏️ Your Prompt
+            </Text>
+
+            <Input
+              value={prompt}
+              onChangeText={setPrompt}
+              placeholder="Describe what you see in the image above in detail..."
+              multiline
+              numberOfLines={6}
+              className="mb-6"
             />
+
+            <Button
+              onPress={handleGenerate}
+              loading={isGenerating}
+              disabled={!prompt.trim()}
+              variant="primary"
+              size="lg"
+              fullWidth
+            >
+              {isGenerating ? 'Generating...' : 'Generate Image'}
+            </Button>
+          </Card>
+        </View>
+
+        {/* Generated Image Section */}
+        {generatedImage && (
+          <View className="px-6 pb-8">
+            <Card>
+              <Text className="text-onSurface text-lg font-semibold mb-4">
+                🖼️ Your Result
+              </Text>
+
+              <View className="items-center">
+                <Image
+                  source={{ uri: generatedImage }}
+                  className="w-64 h-64 rounded-xl shadow-lg"
+                  resizeMode="cover"
+                />
+              </View>
+
+              <Text className="text-onSurfaceVariant text-sm text-center mt-4">
+                AI will evaluate your prompt and provide feedback
+              </Text>
+            </Card>
           </View>
         )}
-      </View>
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

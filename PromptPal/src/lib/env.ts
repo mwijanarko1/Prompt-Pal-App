@@ -17,8 +17,11 @@ const REQUIRED_ENV_VARS = [
 export function validateEnvironment(): void {
   const missingVars: string[] = [];
 
+  console.log('[Environment] Validating environment variables...');
   for (const varName of REQUIRED_ENV_VARS) {
-    if (!process.env[varName]) {
+    const value = process.env[varName];
+    console.log(`[Environment] ${varName}: ${value ? 'SET' : 'MISSING'} (${value || 'undefined'})`);
+    if (!value) {
       missingVars.push(varName);
     }
   }
@@ -29,6 +32,7 @@ export function validateEnvironment(): void {
       'Please check your .env file and ensure all required variables are set.'
     );
   }
+  console.log('[Environment] All required variables are set');
 }
 
 /**

@@ -13,6 +13,14 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
-    "plugins": ["expo-router"]
+    "plugins": [
+      "expo-router",
+      [
+        "@clerk/clerk-expo",
+        {
+          "buildCache": false
+        }
+      ]
+    ]
   }
 }

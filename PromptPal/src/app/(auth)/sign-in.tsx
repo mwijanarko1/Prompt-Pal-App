@@ -1,20 +1,48 @@
 import { useSignIn } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
-import { Text, TextInput, TouchableOpacity, View, Alert } from 'react-native'
-import React from 'react'
+import { Text, View, Alert, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import React, { useState } from 'react'
+import { Button, Input, Card } from '@/components/ui'
+import { Ionicons } from '@expo/vector-icons'
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn()
   const router = useRouter()
 
-  const [emailAddress, setEmailAddress] = React.useState('')
-  const [password, setPassword] = React.useState('')
+  const [emailAddress, setEmailAddress] = useState('')
+  const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [errors, setErrors] = useState<{email?: string; password?: string; general?: string}>({})
+
+  // Validate form inputs
+  const validateForm = () => {
+    const newErrors: {email?: string; password?: string} = {}
+
+    if (!emailAddress.trim()) {
+      newErrors.email = 'Email is required'
+    } else if (!/\S+@\S+\.\S+/.test(emailAddress)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+
+    if (!password.trim()) {
+      newErrors.password = 'Password is required'
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   // Handle the submission of the sign-in form
   const onSignInPress = async () => {
-    if (!isLoaded) return
+    if (!isLoaded || isLoading) return
 
-    // Start the sign-in process using the email and password provided
+    if (!validateForm()) return
+
+    setIsLoading(true)
+    setErrors({})
+
     try {
       const signInAttempt = await signIn.create({
         identifier: emailAddress,
@@ -29,47 +57,131 @@ export default function SignInScreen() {
       } else {
         // If the status isn't complete, check why. User might need to
         // complete further steps.
-        Alert.alert('Error', 'Sign in failed. Please try again.')
+        setErrors({ general: 'Sign in failed. Please try again.' })
       }
     } catch (err: any) {
       // See Clerk docs: custom flows error handling
-      // for more info on error handling
-      Alert.alert('Error', err.errors?.[0]?.message || 'Sign in failed')
+      const errorMessage = err.errors?.[0]?.message || 'Sign in failed'
+      setErrors({ general: errorMessage })
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
-    <View className="flex-1 bg-background p-6 justify-center">
-      <Text className="text-onSurface text-3xl font-bold text-center mb-8">
-        Sign in
-      </Text>
-      <TextInput
-        autoCapitalize="none"
-        value={emailAddress}
-        placeholder="Enter email"
-        onChangeText={(emailAddress) => setEmailAddress(emailAddress)}
-        className="bg-surface border border-outline rounded-lg p-4 text-onSurface mb-4"
-        keyboardType="email-address"
-      />
-      <TextInput
-        value={password}
-        placeholder="Enter password"
-        secureTextEntry={true}
-        onChangeText={(password) => setPassword(password)}
-        className="bg-surface border border-outline rounded-lg p-4 text-onSurface mb-6"
-      />
-      <TouchableOpacity
-        onPress={onSignInPress}
-        className="bg-primary p-4 rounded-lg mb-6"
+    <SafeAreaView className="flex-1 bg-background">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1"
       >
-        <Text className="text-onPrimary text-center font-semibold">Continue</Text>
-      </TouchableOpacity>
-      <View className="flex-row justify-center">
-        <Text className="text-onSurfaceVariant">Don't have an account? </Text>
-        <Link href="/(auth)/sign-up">
-          <Text className="text-primary font-semibold">Sign up</Text>
-        </Link>
-      </View>
-    </View>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          showsVerticalScrollIndicator={false}
+          className="px-6"
+        >
+          {/* Decorative Background Elements */}
+          <View className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full" />
+          <View className="absolute bottom-20 left-[-20] w-60 h-60 bg-secondary/5 rounded-full" />
+
+          {/* Header */}
+          <View className="items-center mb-10">
+            <View className="w-16 h-16 bg-surfaceVariant/50 rounded-2xl items-center justify-center mb-6 border border-outline/20">
+              <Ionicons name="lock-closed" size={32} color="#8B5CF6" />
+            </View>
+            <View className="flex-row items-center mb-3">
+              <Text className="text-primary text-4xl font-bold tracking-tight">Prompt</Text>
+              <Text className="text-white text-4xl font-bold tracking-tight">Pal</Text>
+            </View>
+            <Text className="text-onSurfaceVariant text-center text-base">
+              Enter your credentials to continue{'\n'}your engineering journey
+            </Text>
+          </View>
+
+          {/* Sign In Form */}
+          <View className="bg-surface border border-outline/20 rounded-[32px] p-8 shadow-2xl shadow-black/50 mb-8">
+            <Text className="text-white text-2xl font-bold mb-8 text-center">
+              Welcome Back
+            </Text>
+
+            {errors.general && (
+              <View className="bg-error/10 border border-error/30 rounded-2xl p-4 mb-6">
+                <Text className="text-error text-sm text-center font-medium">
+                  {errors.general}
+                </Text>
+              </View>
+            )}
+
+            <View className="space-y-5">
+              <View>
+                <Text className="text-onSurfaceVariant text-xs font-bold uppercase mb-2 ml-1 tracking-wider">Email Address</Text>
+                <View className={`bg-surfaceVariant/50 border ${errors.email ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-4 flex-row items-center`}>
+                  <Ionicons name="mail-outline" size={20} color={errors.email ? "#EF4444" : "#9CA3AF"} />
+                  <TextInput
+                    className="flex-1 ml-3 text-white text-base"
+                    value={emailAddress}
+                    onChangeText={(text) => {
+                      setEmailAddress(text)
+                      if (errors.email) setErrors({ ...errors, email: undefined })
+                    }}
+                    placeholder="name@example.com"
+                    placeholderTextColor="#4B5563"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+                {errors.email && <Text className="text-error text-[10px] mt-1.5 ml-1 font-medium">{errors.email}</Text>}
+              </View>
+
+              <View>
+                <Text className="text-onSurfaceVariant text-xs font-bold uppercase mb-2 ml-1 tracking-wider">Password</Text>
+                <View className={`bg-surfaceVariant/50 border ${errors.password ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-4 flex-row items-center`}>
+                  <Ionicons name="key-outline" size={20} color={errors.password ? "#EF4444" : "#9CA3AF"} />
+                  <TextInput
+                    className="flex-1 ml-3 text-white text-base"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text)
+                      if (errors.password) setErrors({ ...errors, password: undefined })
+                    }}
+                    placeholder="••••••••"
+                    placeholderTextColor="#4B5563"
+                    secureTextEntry
+                  />
+                </View>
+                {errors.password && <Text className="text-error text-[10px] mt-1.5 ml-1 font-medium">{errors.password}</Text>}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={onSignInPress}
+              disabled={isLoading}
+              className={`bg-primary h-16 rounded-2xl items-center justify-center mt-10 shadow-lg shadow-primary/20 ${isLoading ? 'opacity-70' : ''}`}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-white font-bold text-lg">Sign In</Text>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity className="mt-4 self-center">
+              <Text className="text-onSurfaceVariant text-xs font-medium">Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Sign Up Link */}
+          <View className="flex-row justify-center items-center mb-10">
+            <Text className="text-onSurfaceVariant text-base">
+              Don't have an account?
+            </Text>
+            <Link href="/(auth)/sign-up" className="ml-2">
+              <Text className="text-primary text-base font-bold">
+                Create Account
+              </Text>
+            </Link>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }

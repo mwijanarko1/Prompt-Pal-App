@@ -1,4 +1,5 @@
-import { TextInput, View, Text } from 'react-native';
+import React from 'react';
+import { TextInput as RNTextInput, View, Text } from 'react-native';
 
 interface InputProps {
   value: string;
@@ -8,6 +9,9 @@ interface InputProps {
   error?: string;
   multiline?: boolean;
   numberOfLines?: number;
+  secureTextEntry?: boolean;
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   className?: string;
 }
 
@@ -19,31 +23,48 @@ export function Input({
   error,
   multiline = false,
   numberOfLines = 1,
+  secureTextEntry = false,
+  keyboardType = 'default',
+  autoCapitalize = 'sentences',
   className = '',
 }: InputProps) {
+  const hasError = !!error;
+  const borderColor = hasError ? 'border-error' : 'border-outline';
+
   return (
-    <View className={`mb-4 ${className}`}>
+    <View className={`mb-6 ${className}`}>
       {label && (
-        <Text className="text-onSurface text-sm font-medium mb-2">
+        <Text className="text-onSurface text-sm font-semibold mb-2 capitalize">
           {label}
         </Text>
       )}
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#888888"
-        multiline={multiline}
-        numberOfLines={numberOfLines}
-        className={`bg-surface border border-accent/20 rounded-lg px-4 py-3 text-onSurface text-base ${
-          multiline ? 'min-h-[100px]' : ''
-        }`}
-        style={{ textAlignVertical: multiline ? 'top' : 'center' }}
-      />
+      <View className={`bg-surface border-2 rounded-xl overflow-hidden ${borderColor}`}>
+        <RNTextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#6B7280"
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+          secureTextEntry={secureTextEntry}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            color: '#F5F5F5',
+            fontSize: 16,
+            textAlignVertical: multiline ? 'top' : 'center',
+            minHeight: multiline ? 100 : 48
+          }}
+        />
+      </View>
       {error && (
-        <Text className="text-error text-sm mt-1">
-          {error}
-        </Text>
+        <View className="flex-row items-center mt-2">
+          <Text className="text-error text-sm ml-1">
+            {error}
+          </Text>
+        </View>
       )}
     </View>
   );

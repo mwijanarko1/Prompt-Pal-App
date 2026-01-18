@@ -10,6 +10,18 @@ const API_TIMEOUT_MS = 30000; // 30 seconds for AI requests
 const MAX_PROMPT_LENGTH = 4000;
 const MIN_PROMPT_LENGTH = 1;
 
+// Type for token provider
+type TokenProvider = () => Promise<string | null>;
+let authTokenProvider: TokenProvider | null = null;
+
+/**
+ * Sets the token provider for the AI Proxy client.
+ * This should be called from a React component using useAuth().
+ */
+export const setTokenProvider = (provider: TokenProvider) => {
+  authTokenProvider = provider;
+};
+
 export const aiProxy = axios.create({
   baseURL: AI_PROXY_URL,
   timeout: API_TIMEOUT_MS,
@@ -36,7 +48,13 @@ axiosRetry(aiProxy, {
 // Request interceptor for JWT token
 aiProxy.interceptors.request.use(async (config) => {
   try {
-    const token = await tokenCache.getToken('__clerk_client_jwt');
+    let token = null;
+    if (authTokenProvider) {
+      token = await authTokenProvider();
+    } else {
+      // Fallback to cache if provider not set (e.g. during early initialization)
+      token = await tokenCache.getToken('__clerk_client_jwt');
+    }
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -65,20 +83,19 @@ aiProxy.interceptors.response.use(
       logger.warn('AI Proxy', 'Token expired, attempting refresh');
 
       try {
-        // Clear the expired token
-        await tokenCache.saveToken('__clerk_client_jwt', '');
-
-        // Try to get a fresh token
-        const freshToken = await tokenCache.getToken('__clerk_client_jwt');
-
-        if (freshToken) {
-          // Retry the original request with fresh token
-          originalRequest.headers.Authorization = `Bearer ${freshToken}`;
-          originalRequest._retry = true;
-          return aiProxy(originalRequest);
-        } else {
-          logger.error('AI Proxy', 'No fresh token available after refresh attempt');
+        originalRequest._retry = true;
+        
+        // If we have a provider, it should handle the refresh (Clerk does this automatically)
+        if (authTokenProvider) {
+          const freshToken = await authTokenProvider();
+          if (freshToken) {
+            originalRequest.headers.Authorization = `Bearer ${freshToken}`;
+            return aiProxy(originalRequest);
+          }
         }
+        
+        // Fallback or if refresh failed
+        logger.error('AI Proxy', 'No fresh token available after refresh attempt');
       } catch (refreshError) {
         logger.error('AI Proxy', refreshError as Error);
       }

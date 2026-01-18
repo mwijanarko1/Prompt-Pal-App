@@ -21,18 +21,22 @@ An innovative multi-module mobile game that teaches players to craft perfect AI 
 - **❤️ Lives System**: Limited attempts per level with retry mechanics
 - **🎯 Module Filtering**: Switch between Image, Code, and Copywriting challenges
 
-### 🚀 Upcoming Features (Phase 2-5)
-- **🤖 Real Gemini API**: Integration with Google's Gemini 2.5 Flash (text/vision) and Gemini 2.5 Flash Image (images)
+### 🚀 Upcoming Features (Phase 2-6)
+- **🔗 Backend API Integration**: Strapi-powered CMS with PostgreSQL for content management
+- **🔐 User Authentication**: Secure user accounts with cross-device progress sync
+- **🤖 AI Services API**: Proxied Gemini API calls through secure backend
 - **🧠 "Nano Banana"**: Local Gemini Nano AI assistance on supported Android devices
 - **💻 Code Execution Engine**: Sandbox environment for testing generated code
 - **📝 Content Analysis AI**: Advanced copywriting evaluation and feedback
 - **📊 Advanced Scoring**: AI-powered analysis across all three modules (0-100% accuracy)
 - **🎪 Interactive UI**: Before/after comparisons, animated counters, loading terminals
 - **📈 Progress Analytics**: Detailed statistics and improvement tracking per module
+- **🏆 Leaderboards**: Global rankings and achievements system
+- **📱 Cross-Platform Sync**: Play on multiple devices with seamless progress
 
 ## 🛠️ Technology Stack
 
-### Core Framework
+### Frontend (Mobile App)
 - **Expo SDK 54**: Latest Expo platform for cross-platform development
 - **React Native 0.81.5**: Modern React Native with new architecture
 - **TypeScript 5.9**: Type-safe development with latest TypeScript features
@@ -46,10 +50,19 @@ An innovative multi-module mobile game that teaches players to craft perfect AI 
 - **Zustand**: Lightweight, scalable state management
 - **Expo SecureStore**: Encrypted persistent storage
 
-### AI Integration (Phase 2)
+### Backend API
+- **Strapi**: Headless CMS with REST API and admin panel
+- **PostgreSQL**: Robust database for user data and content
+- **Node.js**: Server runtime for API and business logic
+
+### AI Integration
 - **Google Gemini API**: Advanced multimodal AI for image generation and analysis
-- **Gemini Nano**: On-device AI for instant prompt assistance
+- **Gemini Nano**: On-device AI for instant prompt assistance (Android)
 - **React Native Bridge**: Native modules for Android AICore integration
+
+### API & Networking
+- **Axios**: HTTP client for API communication
+- **React Query**: Efficient server state management and caching
 
 ## 🚀 Quick Start
 
@@ -90,7 +103,7 @@ An innovative multi-module mobile game that teaches players to craft perfect AI 
 ## 📁 Project Structure
 
 ```
-PromptPal/
+PromptPal/                    # React Native/Expo Mobile App
 ├── src/
 │   ├── app/                    # Expo Router pages
 │   │   ├── _layout.tsx        # Root layout with navigation
@@ -121,7 +134,8 @@ PromptPal/
 │   │       ├── store.ts       # Onboarding state
 │   │       └── OnboardingOverlay.tsx # Tutorial component
 │   └── lib/
-│       ├── gemini.ts          # Image generation service
+│       ├── api.ts             # Backend API client and configuration
+│       ├── gemini.ts          # AI service calls through API
 │       ├── codeExecution.ts   # Code execution and testing
 │       ├── copywriting.ts     # Content analysis service
 │       ├── scoring.ts         # Multi-module scoring algorithms
@@ -134,6 +148,19 @@ PromptPal/
 ├── app.json                   # Expo configuration
 ├── tailwind.config.js         # Tailwind CSS configuration
 └── package.json               # Dependencies and scripts
+
+prompt-pal-api/               # Strapi Backend API (Separate Repository)
+├── src/
+│   ├── api/                  # API routes and controllers
+│   │   ├── level/            # Level content management
+│   │   ├── user-progress/    # User progress tracking
+│   │   └── ai/               # AI service proxy endpoints
+│   ├── components/           # Strapi components
+│   └── policies/             # Security and access policies
+├── config/                   # Strapi configuration
+├── database/                 # Database migrations
+├── public/                   # Static assets and uploads
+└── types/                    # Generated TypeScript types
 ```
 
 ## 🎯 How to Play
@@ -173,23 +200,24 @@ PromptPal/
 - **Duration**: 3 days
 - **Deliverables**: Multi-module app foundation with adaptive UI, persistent state, module filtering
 
-### 🚀 Phase 2: Core Service Layer (Ready to Start)
-- **Timeline**: January 4-15, 2026 (8-12 hours)
-- **Focus**: Real Gemini API integration across all three modules
-- **Milestone**: Functional AI services for Image Generation, Code Execution, and Copywriting Analysis
+### 🚀 Phase 2: Backend Integration & API Setup (Ready to Start)
+- **Timeline**: January 4-10, 2026 (6-10 hours)
+- **Focus**: Connect mobile app to Strapi backend and implement API client
+- **Milestone**: Functional API integration with data synchronization
 
 ### 📅 Development Roadmap
 
 | Phase | Duration | Focus Area | Status | Time Estimate |
 |-------|----------|------------|---------|---------------|
 | 1 | Jan 1-3 | Multi-Module Architecture & UI | ✅ Complete | 3 days |
-| 2 | Jan 4-7 | AI Services & Scoring Systems | 🚀 In Progress | 8-12 hours |
-| 3 | Jan 8-11 | Level Design & Persistence | 📋 Planned | 6-10 hours |
-| 4 | Jan 12-15 | Gameplay Implementation | 📋 Planned | 10-14 hours |
-| 5 | Jan 16-19 | Polish, Testing & Deployment | 📋 Planned | 8-12 hours |
+| 2 | Jan 4-7 | Backend API Integration | 🚀 In Progress | 6-10 hours |
+| 3 | Jan 8-13 | AI Services through Backend | 📋 Planned | 8-12 hours |
+| 4 | Jan 14-17 | Level Design & Persistence | 📋 Planned | 6-10 hours |
+| 5 | Jan 18-23 | Gameplay Implementation | 📋 Planned | 10-14 hours |
+| 6 | Jan 24-29 | Polish, Testing & Deployment | 📋 Planned | 8-12 hours |
 
-**Total Development Time**: 50-70 hours across all phases
-**Target Launch**: January 25th, 2026 (Polishing completion)
+**Total Development Time**: 60-80 hours across all phases
+**Target Launch**: February 15th, 2026 (Polishing completion)
 
 ## 🤝 Contributing
 

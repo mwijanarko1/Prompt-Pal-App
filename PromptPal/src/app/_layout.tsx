@@ -5,7 +5,9 @@ import { AppState, AppStateStatus } from 'react-native';
 import { ClerkProviderWrapper } from '@/lib/clerk';
 import { validateEnvironment } from '@/lib/env';
 import { SyncManager } from '@/lib/syncManager';
+import { AuthTokenSync } from '@/lib/auth-sync';
 import { logger } from '@/lib/logger';
+import "./global.css";
 
 // Validate environment variables on app startup
 validateEnvironment();
@@ -44,6 +46,7 @@ export default function RootLayout() {
 
   return (
     <ClerkProviderWrapper>
+      <AuthTokenSync />
       <Slot />
       <StatusBar style="light" />
     </ClerkProviderWrapper>

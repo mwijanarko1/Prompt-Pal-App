@@ -25,7 +25,6 @@ export class GeminiService {
   async generateImage(prompt: string): Promise<string> {
     // TODO: Implement Gemini Imagen 2 API call
     const model = this.getModelForOperation('image');
-    console.log(`Generating image for prompt using ${model}:`, prompt);
 
     // Placeholder: return a mock image URL
     await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
@@ -36,7 +35,6 @@ export class GeminiService {
   async compareImages(targetUrl: string, resultUrl: string): Promise<number> {
     // TODO: Implement Gemini Pro Vision API call
     const model = this.getModelForOperation('vision');
-    console.log(`Comparing images using ${model}:`, { targetUrl, resultUrl });
 
     // Placeholder: return a random score between 0-100
     await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
@@ -47,7 +45,6 @@ export class GeminiService {
   async getPromptHints(prompt: string): Promise<string[]> {
     // TODO: Implement Gemini Flash API call
     const model = this.getModelForOperation('text');
-    console.log(`Getting hints for prompt using ${model}:`, prompt);
 
     // Placeholder: return generic hints
     const hints = [
