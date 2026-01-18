@@ -1,8 +1,8 @@
-import { View, Text, Image, Alert } from 'react-native';
+import { View, Text, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Button, Input } from '../../components/ui';
-import { getLevelById } from '../../features/levels/data';
+import { Button, Input, ResultModal } from '../../components/ui';
+import { getLevelById, getNextLevel } from '../../features/levels/data';
 import { geminiService } from '../../lib/gemini';
 import { useGameStore } from '../../features/game/store';
 
@@ -12,8 +12,10 @@ export default function GameScreen() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [score, setScore] = useState(0);
 
-  const { lives, loseLife, startLevel } = useGameStore();
+  const { lives, loseLife, startLevel, unlockLevel, completeLevel, endLevel } = useGameStore();
 
   const level = getLevelById(id as string);
 
@@ -31,11 +33,13 @@ export default function GameScreen() {
   // Start the level when component mounts
   useEffect(() => {
     startLevel(level.id);
-  }, [startLevel, level.id]);
+    return () => {
+      endLevel();
+    };
+  }, [startLevel, endLevel, level.id]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
-      Alert.alert('Error', 'Please enter a prompt');
       return;
     }
 
@@ -44,41 +48,81 @@ export default function GameScreen() {
       const imageUrl = await geminiService.generateImage(prompt);
       setGeneratedImage(imageUrl);
 
-      // Simulate scoring (Phase 2 will implement real scoring)
-      const score = await geminiService.compareImages(level.targetImageUrl, imageUrl);
-
-      Alert.alert(
-        'Result',
-        `Your prompt scored: ${score}% similarity!\n\n${score >= level.passingScore ? 'Level passed!' : 'Try again!'}`,
-        [
-          {
-            text: score >= level.passingScore ? 'Next Level' : 'Try Again',
-            onPress: () => {
-              if (score >= level.passingScore) {
-                router.back();
-              } else {
-                loseLife();
-                setGeneratedImage(null);
-                setPrompt('');
-              }
-            },
-          },
-        ]
+      // Compare images and get score
+      const similarityScore = await geminiService.compareImages(
+        level.targetImageUrl,
+        imageUrl
       );
+      
+      setScore(similarityScore);
+      setShowResultModal(true);
+
+      // Handle level completion
+      if (similarityScore >= level.passingScore) {
+        completeLevel(level.id);
+        
+        // Unlock next level
+        const nextLevel = getNextLevel(level.id);
+        if (nextLevel) {
+          unlockLevel(nextLevel.id);
+        }
+      } else {
+        loseLife();
+      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to generate image. Please try again.');
+      console.error('Error generating image:', error);
+      // You might want to show an error toast here
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleNextLevel = () => {
+    const nextLevel = getNextLevel(level.id);
+    if (nextLevel) {
+      setShowResultModal(false);
+      setGeneratedImage(null);
+      setPrompt('');
+      router.replace(`/game/${nextLevel.id}`);
+    } else {
+      // No more levels - go back to home
+      handleClose();
+    }
+  };
+
+  const handleRetry = () => {
+    setShowResultModal(false);
+    setGeneratedImage(null);
+    setPrompt('');
+  };
+
+  const handleClose = () => {
+    setShowResultModal(false);
+    router.back();
   };
 
   return (
     <View className="flex-1 bg-background">
       {/* Top half: Target Image */}
       <View className="flex-1 p-4">
-        <Text className="text-onSurface text-lg font-semibold mb-2 text-center">
-          Target Image
-        </Text>
+        <View className="flex-row items-center justify-between mb-2">
+          <Text className="text-onSurface text-lg font-semibold">
+            Target Image
+          </Text>
+          <View className="flex-row items-center gap-2">
+            <Text className="text-onSurface/70 text-sm">Lives:</Text>
+            <View className="flex-row gap-1">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <View
+                  key={i}
+                  className={`w-2 h-2 rounded-full ${
+                    i < lives ? 'bg-red-500' : 'bg-surface'
+                  }`}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
         <Image
           source={{ uri: level.targetImageUrl }}
           className="flex-1 rounded-lg"
@@ -101,20 +145,17 @@ export default function GameScreen() {
           className="flex-1"
         />
 
-        <View className="flex-row justify-between items-center mt-4">
-          <Text className="text-onSurface">
-            Lives: {lives}
-          </Text>
+        <View className="flex-row justify-end items-center mt-4">
           <Button
             onPress={handleGenerate}
             loading={isGenerating}
-            disabled={!prompt.trim()}
+            disabled={!prompt.trim() || isGenerating}
           >
             Generate
           </Button>
         </View>
 
-        {generatedImage && (
+        {generatedImage && !showResultModal && (
           <View className="mt-4">
             <Text className="text-onSurface text-sm mb-2">Your Result:</Text>
             <Image
@@ -125,6 +166,18 @@ export default function GameScreen() {
           </View>
         )}
       </View>
+
+      {/* Result Modal */}
+      <ResultModal
+        visible={showResultModal}
+        onClose={handleClose}
+        targetImageUrl={level.targetImageUrl}
+        resultImageUrl={generatedImage || ''}
+        score={score}
+        passingScore={level.passingScore}
+        onNextLevel={handleNextLevel}
+        onRetry={handleRetry}
+      />
     </View>
   );
 }
