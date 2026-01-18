@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { SignIn } from '@clerk/clerk-expo/web';
+import { SignIn } from '@clerk/clerk-expo';
 
 export default function SignInScreen() {
   return (
