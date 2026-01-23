@@ -3,7 +3,11 @@ import { useAuth } from '@clerk/clerk-expo';
 import { useEffect } from 'react';
 import { View, ActivityIndicator, Text, SafeAreaView } from 'react-native';
 
-export default function Layout() {
+/**
+ * Inner layout component that uses Clerk authentication.
+ * Only rendered when Clerk is configured.
+ */
+function LayoutInner() {
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
 
@@ -12,7 +16,7 @@ export default function Layout() {
       // Redirect to sign-in if not signed in and trying to access home
       router.replace('/(auth)/sign-in');
     }
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, router]);
 
   if (!isLoaded) {
     return (
@@ -32,4 +36,20 @@ export default function Layout() {
   }
 
   return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+/**
+ * Layout wrapper that only renders the authenticated layout when Clerk is configured.
+ * When Clerk is not configured, allows access without authentication (for development).
+ */
+export default function Layout() {
+  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const isClerkConfigured = publishableKey && publishableKey !== 'your_clerk_publishable_key_here';
+  
+  // If Clerk is not configured, allow access without authentication (development mode)
+  if (!isClerkConfigured) {
+    return <Stack screenOptions={{ headerShown: false }} />;
+  }
+  
+  return <LayoutInner />;
 }

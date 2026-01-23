@@ -131,7 +131,11 @@ const MODULES = [
   }
 ];
 
-export default function HomeScreen() {
+/**
+ * Inner home screen that uses Clerk authentication.
+ * Only rendered when Clerk is configured.
+ */
+function HomeScreenInner() {
   const { user } = useUser()
   const { isLoaded, isSignedIn } = useAuth()
   const router = useRouter();
@@ -329,4 +333,96 @@ export default function HomeScreen() {
       </SignedOut>
     </SafeAreaView>
   );
+}
+
+/**
+ * Home screen wrapper that only uses Clerk when configured.
+ * When Clerk is not configured, shows the signed-out view (for development).
+ */
+export default function HomeScreen() {
+  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const isClerkConfigured = publishableKey && publishableKey !== 'your_clerk_publishable_key_here';
+  
+  // If Clerk is not configured, show the signed-out view (development mode)
+  if (!isClerkConfigured) {
+    return (
+      <SafeAreaView className="flex-1 bg-background">
+        <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+          {/* Hero Section */}
+          <View className="h-[60%] justify-center items-center px-6 relative">
+            <View className="items-center z-10">
+              <View className="w-24 h-24 bg-surfaceVariant/50 rounded-[32px] items-center justify-center mb-8 border border-outline/20">
+                <Ionicons name="flash" size={48} color="#FF6B00" />
+              </View>
+              
+              <View className="flex-row items-center mb-4">
+                <Text className="text-primary text-6xl font-bold tracking-tight">Prompt</Text>
+                <Text className="text-secondary text-6xl font-bold tracking-tight">Pal</Text>
+              </View>
+              
+              <Text className="text-onSurface text-2xl font-bold text-center mb-4 px-4 leading-8">
+                Master the Art of{'\n'}AI Prompt Engineering
+              </Text>
+              
+              <Text className="text-onSurfaceVariant text-base text-center leading-6 px-10">
+                Level up your AI skills through immersive challenges, real-time feedback, and creative quests.
+              </Text>
+            </View>
+          </View>
+
+          {/* Feature Highlights */}
+          <View className="px-6 py-10 bg-surface/30 rounded-t-[40px] flex-1">
+            <View className="flex-row flex-wrap justify-between mb-10">
+              <View className="w-[48%] bg-surfaceVariant/40 p-5 rounded-3xl mb-4 border border-outline/10">
+                <View className="w-10 h-10 bg-primary/20 rounded-xl items-center justify-center mb-4">
+                  <Ionicons name="game-controller" size={20} color="#FF6B00" />
+                </View>
+                <Text className="text-onSurface font-bold text-sm mb-1">Gamified</Text>
+                <Text className="text-onSurfaceVariant text-[10px] leading-4">Progressive levels and rewarding challenges.</Text>
+              </View>
+              
+              <View className="w-[48%] bg-surfaceVariant/40 p-5 rounded-3xl mb-4 border border-outline/10">
+                <View className="w-10 h-10 bg-info/20 rounded-xl items-center justify-center mb-4">
+                  <Ionicons name="rocket" size={20} color="#4151FF" />
+                </View>
+                <Text className="text-onSurface font-bold text-sm mb-1">Real-time</Text>
+                <Text className="text-onSurfaceVariant text-[10px] leading-4">Instant AI feedback on your prompt quality.</Text>
+              </View>
+
+              <View className="w-[48%] bg-surfaceVariant/40 p-5 rounded-3xl border border-outline/10">
+                <View className="w-10 h-10 bg-success/20 rounded-xl items-center justify-center mb-4">
+                  <Ionicons name="trophy" size={20} color="#10B981" />
+                </View>
+                <Text className="text-onSurface font-bold text-sm mb-1">Mastery</Text>
+                <Text className="text-onSurfaceVariant text-[10px] leading-4">Track your growth with XP and skill streaks.</Text>
+              </View>
+
+              <View className="w-[48%] bg-surfaceVariant/40 p-5 rounded-3xl border border-outline/10">
+                <View className="w-10 h-10 bg-accent/20 rounded-xl items-center justify-center mb-4">
+                  <Ionicons name="create" size={20} color="#F59E0B" />
+                </View>
+                <Text className="text-onSurface font-bold text-sm mb-1">Creative</Text>
+                <Text className="text-onSurfaceVariant text-[10px] leading-4">Daily quests to spark your prompt imagination.</Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View className="space-y-4 mb-10">
+              <Link href="/game/level_01" asChild>
+                <TouchableOpacity className="bg-primary py-5 rounded-2xl items-center shadow-lg shadow-primary/30">
+                  <Text className="text-white font-bold text-lg">Start Playing (Dev Mode)</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+            
+            <Text className="text-onSurfaceVariant text-center text-xs opacity-50 mb-10">
+              Development mode - Clerk authentication not configured
+            </Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+  
+  return <HomeScreenInner />;
 }
