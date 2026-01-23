@@ -12,7 +12,8 @@ const REQUIRED_ENV_VARS = [
 
 /**
  * Validates that all required environment variables are set
- * @throws {Error} If any required environment variable is missing
+ * In development, logs warnings instead of throwing errors
+ * @throws {Error} If any required environment variable is missing (production only)
  */
 export function validateEnvironment(): void {
   const missingVars: string[] = [];
@@ -27,12 +28,20 @@ export function validateEnvironment(): void {
   }
 
   if (missingVars.length > 0) {
-    throw new Error(
-      `Missing required environment variables: ${missingVars.join(', ')}\n` +
-      'Please check your .env file and ensure all required variables are set.'
-    );
+    const errorMessage = `Missing required environment variables: ${missingVars.join(', ')}\n` +
+      'Please check your .env file and ensure all required variables are set.';
+    
+    // In development, log warning instead of throwing to allow app to run
+    if (__DEV__) {
+      console.warn('[Environment] ⚠️', errorMessage);
+      console.warn('[Environment] App will continue in development mode, but some features may not work.');
+    } else {
+      // In production, throw error
+      throw new Error(errorMessage);
+    }
+  } else {
+    console.log('[Environment] ✅ All required variables are set');
   }
-  console.log('[Environment] All required variables are set');
 }
 
 /**
