@@ -19,6 +19,9 @@ export default function LevelSelectScreen() {
   const unlockedLevels = store.unlockedLevels || ["level_01"];
   const completedLevels = store.completedLevels || [];
   const lives = store.lives ?? 3;
+  
+  // Debug: Log lives value to help troubleshoot
+  console.log("[LevelSelect] Current lives:", lives, "Should show reset button:", lives <= 0);
 
   const isLevelUnlocked = (levelId: string) => {
     // Level is unlocked only if:

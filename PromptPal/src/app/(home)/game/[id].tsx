@@ -16,6 +16,25 @@ export default function GameScreen() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
   const { lives, loseLife, startLevel } = useGameStore();
+  
+  // Navigate to level select screen (the root index.tsx, not the home dashboard)
+  // Since both index.tsx files compete for /, we use router.back() to go to previous screen
+  // which should be the level select screen the user came from
+  const navigateToLevelSelect = () => {
+    try {
+      // Try to go back to the previous screen (level select)
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        // If no history, navigate to root
+        // Note: This might go to dashboard if Expo Router prioritizes (home) route group
+        router.replace('/');
+      }
+    } catch (error) {
+      // Fallback: navigate to root
+      router.replace('/');
+    }
+  };
 
   const level = getLevelById(id as string);
 
@@ -28,7 +47,7 @@ export default function GameScreen() {
             <Text className="text-onSurfaceVariant text-center mb-6">
               The level you're looking for doesn't exist or has been removed.
             </Text>
-            <Button onPress={() => router.back()} variant="primary">
+            <Button onPress={() => navigateToLevelSelect()} variant="primary">
               Go Back
             </Button>
           </Card>
@@ -51,7 +70,7 @@ export default function GameScreen() {
     // Check if user has lives remaining
     if (lives <= 0) {
       Alert.alert('No Lives Left', 'You\'ve run out of attempts. Please reset your game to continue.', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => navigateToLevelSelect() }
       ]);
       return;
     }
@@ -76,13 +95,13 @@ export default function GameScreen() {
             text: score >= level.passingScore ? 'Next Level' : remainingLives > 0 ? 'Try Again' : 'Game Over',
             onPress: () => {
               if (score >= level.passingScore) {
-                router.back();
+                navigateToLevelSelect();
               } else {
                 setGeneratedImage(null);
                 setPrompt('');
                 // If no lives left, go back to level select
                 if (remainingLives <= 0) {
-                  router.back();
+                  navigateToLevelSelect();
                 }
               }
             },
@@ -108,7 +127,7 @@ export default function GameScreen() {
       <View className="px-6 py-4 border-b border-outline">
         <View className="flex-row justify-between items-center">
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => navigateToLevelSelect()}
             className="flex-row items-center"
           >
             <Text className="text-primary text-2xl mr-2">←</Text>
