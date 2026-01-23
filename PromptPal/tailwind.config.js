@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./app/**/*.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
+  darkMode: 'class', // Use class-based dark mode for web compatibility
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
