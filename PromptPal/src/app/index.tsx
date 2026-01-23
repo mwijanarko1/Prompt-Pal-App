@@ -13,15 +13,14 @@ import { useGameStore } from "../features/game/store";
 export default function LevelSelectScreen() {
   console.log("[LevelSelect] Component rendering...");
   const router = useRouter();
-  const store = useGameStore();
-
-  // Get store values with safe fallbacks
-  const unlockedLevels = store.unlockedLevels || ["level_01"];
-  const completedLevels = store.completedLevels || [];
-  const lives = store.lives ?? 3;
   
-  // Debug: Log lives value to help troubleshoot
-  console.log("[LevelSelect] Current lives:", lives, "Should show reset button:", lives <= 0);
+  // Use Zustand store - destructure like other components for consistency
+  const { unlockedLevels: storeUnlockedLevels, completedLevels: storeCompletedLevels, lives: storeLives } = useGameStore();
+  
+  // Get store values with safe fallbacks
+  const unlockedLevels = storeUnlockedLevels || ["level_01"];
+  const completedLevels = storeCompletedLevels || [];
+  const lives = storeLives ?? 3;
 
   const isLevelUnlocked = (levelId: string) => {
     // Level is unlocked only if:
@@ -51,17 +50,8 @@ export default function LevelSelectScreen() {
     if (lives <= 0) {
       Alert.alert(
         'No Lives Remaining',
-        'You\'ve run out of attempts. Please reset your game to continue playing.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Reset Game', 
-            onPress: () => {
-              store.resetLives();
-              Alert.alert('Game Reset', 'Your lives have been restored!');
-            }
-          }
-        ]
+        'You\'ve run out of attempts for today. Come back tomorrow to continue playing!',
+        [{ text: 'OK', style: 'default' }]
       );
       return;
     }
@@ -69,23 +59,6 @@ export default function LevelSelectScreen() {
     if (isLevelUnlocked(levelId)) {
       router.push(`/game/${levelId}`);
     }
-  };
-
-  const handleResetGame = () => {
-    Alert.alert(
-      'Reset Game',
-      'This will restore your lives to 3. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Reset', 
-          onPress: () => {
-            store.resetLives();
-            Alert.alert('Game Reset', 'Your lives have been restored!');
-          }
-        }
-      ]
-    );
   };
 
   return (
@@ -98,7 +71,7 @@ export default function LevelSelectScreen() {
         </View>
         <Text style={styles.subtitle}>Select a level to begin</Text>
         
-        {/* Lives Display and Reset Button */}
+        {/* Lives Display */}
         <View style={styles.livesContainer}>
           <View style={styles.livesDisplay}>
             <Text style={styles.livesLabel}>Lives:</Text>
@@ -106,14 +79,6 @@ export default function LevelSelectScreen() {
               {lives}
             </Text>
           </View>
-          {lives <= 0 && (
-            <TouchableOpacity 
-              style={styles.resetButton}
-              onPress={handleResetGame}
-            >
-              <Text style={styles.resetButtonText}>Reset Game</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
@@ -167,11 +132,11 @@ export default function LevelSelectScreen() {
                       {level.difficulty}
                     </Text>
                   </View>
-                  {!unlocked && (
-                    <Text style={styles.lockedText}>
-                      {lives <= 0 ? 'No Lives - Reset to Play' : 'Locked'}
-                    </Text>
-                  )}
+                         {!unlocked && (
+                           <Text style={styles.lockedText}>
+                             {lives <= 0 ? 'No Lives Remaining' : 'Locked'}
+                           </Text>
+                         )}
                 </View>
 
                 <Text
@@ -294,7 +259,7 @@ const styles = StyleSheet.create({
   },
   livesContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
     marginTop: 16,
     paddingHorizontal: 8,
@@ -316,16 +281,5 @@ const styles = StyleSheet.create({
   },
   livesCountZero: {
     color: "#CF6679", // error (red)
-  },
-  resetButton: {
-    backgroundColor: "#BB86FC", // primary
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  resetButtonText: {
-    color: "#000000",
-    fontSize: 14,
-    fontWeight: "bold",
   },
 });
