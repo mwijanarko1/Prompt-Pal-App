@@ -7,7 +7,7 @@ import { logger } from './logger';
  * Component that synchronizes the Clerk authentication token with the AI Proxy client.
  * This must be rendered within a ClerkProvider.
  */
-export function AuthTokenSync() {
+function AuthTokenSyncInner() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
@@ -29,4 +29,21 @@ export function AuthTokenSync() {
   }, [isLoaded, isSignedIn, getToken]);
 
   return null;
+}
+
+/**
+ * Wrapper component that only renders AuthTokenSync when Clerk is configured.
+ * This prevents the "useAuth can only be used within ClerkProvider" error when Clerk is not set up.
+ */
+export function AuthTokenSync() {
+  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const isClerkConfigured = publishableKey && publishableKey !== 'your_clerk_publishable_key_here';
+  
+  // Only render the inner component if Clerk is configured
+  // This prevents useAuth from being called when ClerkProvider is not available
+  if (!isClerkConfigured) {
+    return null;
+  }
+  
+  return <AuthTokenSyncInner />;
 }
