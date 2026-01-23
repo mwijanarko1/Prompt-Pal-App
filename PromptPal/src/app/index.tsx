@@ -4,6 +4,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LEVELS } from "../features/levels/data";
@@ -17,9 +18,13 @@ export default function LevelSelectScreen() {
   // Get store values with safe fallbacks
   const unlockedLevels = store.unlockedLevels || ["level_01"];
   const completedLevels = store.completedLevels || [];
+  const lives = store.lives ?? 3;
 
   const isLevelUnlocked = (levelId: string) => {
-    return unlockedLevels.includes(levelId);
+    // Level is unlocked only if:
+    // 1. It's in the unlockedLevels array AND
+    // 2. Player has lives remaining (lives > 0)
+    return unlockedLevels.includes(levelId) && lives > 0;
   };
 
   const isLevelCompleted = (levelId: string) => {
@@ -40,9 +45,44 @@ export default function LevelSelectScreen() {
   };
 
   const handleLevelPress = (levelId: string) => {
+    if (lives <= 0) {
+      Alert.alert(
+        'No Lives Remaining',
+        'You\'ve run out of attempts. Please reset your game to continue playing.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Reset Game', 
+            onPress: () => {
+              store.resetLives();
+              Alert.alert('Game Reset', 'Your lives have been restored!');
+            }
+          }
+        ]
+      );
+      return;
+    }
+    
     if (isLevelUnlocked(levelId)) {
       router.push(`/game/${levelId}`);
     }
+  };
+
+  const handleResetGame = () => {
+    Alert.alert(
+      'Reset Game',
+      'This will restore your lives to 3. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reset', 
+          onPress: () => {
+            store.resetLives();
+            Alert.alert('Game Reset', 'Your lives have been restored!');
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -54,6 +94,24 @@ export default function LevelSelectScreen() {
           <Text style={styles.titlePal}>Pal</Text>
         </View>
         <Text style={styles.subtitle}>Select a level to begin</Text>
+        
+        {/* Lives Display and Reset Button */}
+        <View style={styles.livesContainer}>
+          <View style={styles.livesDisplay}>
+            <Text style={styles.livesLabel}>Lives:</Text>
+            <Text style={[styles.livesCount, lives <= 0 && styles.livesCountZero]}>
+              {lives}
+            </Text>
+          </View>
+          {lives <= 0 && (
+            <TouchableOpacity 
+              style={styles.resetButton}
+              onPress={handleResetGame}
+            >
+              <Text style={styles.resetButtonText}>Reset Game</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Levels List */}
@@ -106,7 +164,11 @@ export default function LevelSelectScreen() {
                       {level.difficulty}
                     </Text>
                   </View>
-                  {!unlocked && <Text style={styles.lockedText}>Locked</Text>}
+                  {!unlocked && (
+                    <Text style={styles.lockedText}>
+                      {lives <= 0 ? 'No Lives - Reset to Play' : 'Locked'}
+                    </Text>
+                  )}
                 </View>
 
                 <Text
@@ -226,5 +288,41 @@ const styles = StyleSheet.create({
   passingScore: {
     color: "#FFFFFF",
     fontSize: 14,
+  },
+  livesContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+    paddingHorizontal: 8,
+  },
+  livesDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  livesLabel: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  livesCount: {
+    color: "#03DAC6", // secondary
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  livesCountZero: {
+    color: "#CF6679", // error (red)
+  },
+  resetButton: {
+    backgroundColor: "#BB86FC", // primary
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  resetButtonText: {
+    color: "#000000",
+    fontSize: 14,
+    fontWeight: "bold",
   },
 });

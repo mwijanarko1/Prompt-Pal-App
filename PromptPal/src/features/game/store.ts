@@ -91,10 +91,11 @@ export const useGameStore = create<GameState>()(
       ...initialState,
 
       startLevel: (levelId: string) => {
+        // Don't reset lives - preserve them across level attempts
+        // Only reset score for the new level
         set({
           currentLevelId: levelId,
           isPlaying: true,
-          lives: 3, // Reset lives when starting a level
           score: 0,
         });
       },
@@ -108,15 +109,18 @@ export const useGameStore = create<GameState>()(
 
       loseLife: () => {
         const currentLives = get().lives;
-        if (currentLives > 1) {
-          set({ lives: currentLives - 1 });
-        } else {
-          // Game over - reset
-          set({
-            lives: 3,
-            currentLevelId: null,
-            isPlaying: false,
-          });
+        if (currentLives > 0) {
+          const newLives = currentLives - 1;
+          set({ lives: newLives });
+          
+          // If lives reach 0, end the current level but don't reset lives
+          // This allows the level select to show locked state
+          if (newLives === 0) {
+            set({
+              currentLevelId: null,
+              isPlaying: false,
+            });
+          }
         }
       },
 

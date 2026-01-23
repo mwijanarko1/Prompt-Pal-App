@@ -48,8 +48,20 @@ export default function GameScreen() {
       return;
     }
 
+    // Check if user has lives remaining
+    if (lives <= 0) {
+      Alert.alert('No Lives Left', 'You\'ve run out of attempts. Please reset your game to continue.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+      return;
+    }
+
     setIsGenerating(true);
     try {
+      // Consume a life when generating (each attempt costs a life)
+      loseLife();
+      const remainingLives = lives - 1; // Calculate remaining lives after consuming one
+      
       const result = await AIProxyClient.generateImage(prompt);
       setGeneratedImage(result.imageUrl!);
 
@@ -58,17 +70,20 @@ export default function GameScreen() {
 
       Alert.alert(
         'Result',
-        `Your prompt scored: ${score}% similarity!\n\n${score >= level.passingScore ? 'Level passed!' : 'Try again!'}`,
+        `Your prompt scored: ${score}% similarity!\n\n${score >= level.passingScore ? 'Level passed!' : 'Try again!'}\n\nLives remaining: ${remainingLives}`,
         [
           {
-            text: score >= level.passingScore ? 'Next Level' : 'Try Again',
+            text: score >= level.passingScore ? 'Next Level' : remainingLives > 0 ? 'Try Again' : 'Game Over',
             onPress: () => {
               if (score >= level.passingScore) {
                 router.back();
               } else {
-                loseLife();
                 setGeneratedImage(null);
                 setPrompt('');
+                // If no lives left, go back to level select
+                if (remainingLives <= 0) {
+                  router.back();
+                }
               }
             },
           },
@@ -76,10 +91,11 @@ export default function GameScreen() {
       );
     } catch (error) {
       logger.error('GameScreen', error, { operation: 'handleGenerate', promptLength: prompt.length });
+      // Life was already consumed, so we don't refund it on error
       if (error.response?.status === 429) {
         Alert.alert('Quota Exceeded', 'You\'ve reached your usage limit. Upgrade to Pro for more calls.');
       } else {
-        Alert.alert('Error', 'Failed to generate image. Please try again.');
+        Alert.alert('Error', 'Failed to generate image. A life was consumed. Please try again.');
       }
     } finally {
       setIsGenerating(false);
@@ -153,12 +169,12 @@ export default function GameScreen() {
             <Button
               onPress={handleGenerate}
               loading={isGenerating}
-              disabled={!prompt.trim()}
+              disabled={!prompt.trim() || lives <= 0}
               variant="primary"
               size="lg"
               fullWidth
             >
-              {isGenerating ? 'Generating...' : 'Generate Image'}
+              {isGenerating ? 'Generating...' : lives <= 0 ? 'No Lives Remaining' : `Generate Image (${lives} ${lives === 1 ? 'life' : 'lives'} left)`}
             </Button>
           </Card>
         </View>
