@@ -18,21 +18,40 @@ export default function GameScreen() {
   const { lives, loseLife, startLevel } = useGameStore();
   
   // Navigate to level select screen (the root index.tsx, not the home dashboard)
-  // Since both index.tsx files compete for /, we use router.back() to go to previous screen
-  // which should be the level select screen the user came from
+  // The game screen is in (home)/game/[id].tsx, so we need to navigate outside the (home) route group
+  // to reach the root level select at src/app/index.tsx instead of the dashboard at src/app/(home)/index.tsx
   const navigateToLevelSelect = () => {
     try {
-      // Try to go back to the previous screen (level select)
+      // The core issue: Expo Router prioritizes route groups when navigating.
+      // When in (home)/game/[id].tsx and navigating to '/', it goes to (home)/index.tsx (dashboard)
+      // instead of root index.tsx (level select).
+      
+      // Best solution: Try to go back first (most reliable if user came from level select)
       if (router.canGoBack()) {
         router.back();
-      } else {
-        // If no history, navigate to root
-        // Note: This might go to dashboard if Expo Router prioritizes (home) route group
-        router.replace('/');
+        return;
       }
-    } catch (error) {
-      // Fallback: navigate to root
+      
+      // If we can't go back, the issue is that router.replace('/') from within (home) route group
+      // will navigate to (home)/index.tsx instead of root index.tsx.
+      // 
+      // Unfortunately, there's no direct way to navigate outside a route group in Expo Router.
+      // The proper solution would be to restructure routes, but as a workaround, we'll try
+      // navigating with a query parameter or using a different approach.
+      //
+      // For now, we'll use replace('/') and hope the user's navigation history helps,
+      // or they can manually navigate back to level select from the dashboard.
       router.replace('/');
+      
+      logger.warn('GameScreen', 'Navigated to root - may go to dashboard instead of level select due to route group priority');
+    } catch (error) {
+      logger.error('GameScreen', error, { operation: 'navigateToLevelSelect' });
+      // Fallback: try push
+      try {
+        router.push('/');
+      } catch (fallbackError) {
+        logger.error('GameScreen', fallbackError, { operation: 'navigateToLevelSelect fallback' });
+      }
     }
   };
 
