@@ -9,10 +9,12 @@ import { AuthTokenSync } from '@/lib/auth-sync';
 import { logger } from '@/lib/logger';
 import "./global.css";
 
-// Validate environment variables on app startup
-validateEnvironment();
-
 export default function RootLayout() {
+  // Validate environment variables on app startup (non-blocking in development)
+  useEffect(() => {
+    validateEnvironment();
+  }, []);
+
   useEffect(() => {
     // Start background sync when app loads
     SyncManager.startPeriodicSync();

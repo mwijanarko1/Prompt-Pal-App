@@ -4,9 +4,13 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
-    "types": ["nativewind/types"],
+    "types": [
+      "nativewind/types"
+    ],
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "resolveJsonModule": true,
@@ -15,7 +19,8 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    "nativewind-env.d.ts"
   ],
   "exclude": [
     "node_modules"
