@@ -1,4 +1,4 @@
-import { useGameStore } from '@/features/game/store';
+import { useGameStore, GameState } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 
 // Constants
@@ -11,7 +11,7 @@ const SYNC_RETRY_DELAY_MS = 1000; // 1 second
  */
 export class SyncManager {
   private static syncInProgress = false;
-  private static syncIntervalId: NodeJS.Timeout | null = null;
+  private static syncIntervalId: ReturnType<typeof setInterval> | null = null;
   private static isOnline = true;
 
   /**
@@ -81,7 +81,7 @@ export class SyncManager {
    * @param retryCount - Current retry attempt (internal use)
    */
   private static async performSync(
-    gameState: any,
+    gameState: GameState,
     retryCount = 0
   ): Promise<void> {
     try {

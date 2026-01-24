@@ -1,8 +1,7 @@
 import { useSignIn } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
-import { Text, View, Alert, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
 import React, { useState } from 'react'
-import { Button, Input, Card } from '@/components/ui'
 import { Ionicons } from '@expo/vector-icons'
 
 export default function SignInScreen() {
@@ -59,9 +58,11 @@ export default function SignInScreen() {
         // complete further steps.
         setErrors({ general: 'Sign in failed. Please try again.' })
       }
-    } catch (err: any) {
+    } catch (err) {
       // See Clerk docs: custom flows error handling
-      const errorMessage = err.errors?.[0]?.message || 'Sign in failed'
+      const errorMessage = (err && typeof err === 'object' && 'errors' in err && Array.isArray((err as { errors?: Array<{ message?: string }> }).errors))
+        ? (err as { errors: Array<{ message?: string }> }).errors[0]?.message || 'Sign in failed'
+        : 'Sign in failed'
       setErrors({ general: errorMessage })
     } finally {
       setIsLoading(false)

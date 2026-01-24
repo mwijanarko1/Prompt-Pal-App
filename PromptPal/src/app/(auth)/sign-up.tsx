@@ -1,8 +1,7 @@
 import * as React from 'react'
-import { Text, View, Alert, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { useSignUp } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
-import { Button, Input, Card } from '@/components/ui'
 import { Ionicons } from '@expo/vector-icons'
 
 export default function SignUpScreen() {
@@ -78,8 +77,10 @@ export default function SignUpScreen() {
       // Set 'pendingVerification' to true to display second form
       // and capture OTP code
       setPendingVerification(true)
-    } catch (err: any) {
-      const errorMessage = err.errors?.[0]?.message || 'Failed to create account'
+    } catch (err) {
+      const errorMessage = (err && typeof err === 'object' && 'errors' in err && Array.isArray((err as { errors?: Array<{ message?: string }> }).errors))
+        ? (err as { errors: Array<{ message?: string }> }).errors[0]?.message || 'Failed to create account'
+        : 'Failed to create account'
       setErrors({ general: errorMessage })
     } finally {
       setIsLoading(false)
@@ -109,8 +110,10 @@ export default function SignUpScreen() {
       } else {
         setErrors({ general: 'Verification failed. Please try again.' })
       }
-    } catch (err: any) {
-      const errorMessage = err.errors?.[0]?.message || 'Verification failed'
+    } catch (err) {
+      const errorMessage = (err && typeof err === 'object' && 'errors' in err && Array.isArray((err as { errors?: Array<{ message?: string }> }).errors))
+        ? (err as { errors: Array<{ message?: string }> }).errors[0]?.message || 'Verification failed'
+        : 'Verification failed'
       setErrors({ general: errorMessage })
     } finally {
       setIsLoading(false)

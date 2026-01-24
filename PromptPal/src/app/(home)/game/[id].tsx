@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Button, Input, Card } from '@/components/ui';
 import { getLevelById } from '@/features/levels/data';
 import { AIProxyClient } from '@/lib/aiProxy';
-import { UsageClient } from '@/lib/usage';
 import { useGameStore } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 

@@ -18,7 +18,7 @@ export const SignOutButton = () => {
             try {
               await signOut()
               Linking.openURL(Linking.createURL('/'))
-            } catch (err: any) {
+            } catch (err) {
               console.error(JSON.stringify(err, null, 2))
               Alert.alert('Error', 'Failed to sign out. Please try again.')
             }

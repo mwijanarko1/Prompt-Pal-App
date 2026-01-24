@@ -1,15 +1,7 @@
 import { SignedIn, SignedOut, useUser, useAuth } from '@clerk/clerk-expo'
 import { Link } from 'expo-router'
-import { Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, SafeAreaView, Image } from 'react-native'
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { LEVELS, getUnlockedLevels } from '@/features/levels/data';
-import { UsageDisplay } from '@/components/UsageDisplay';
-import { UsageClient, UsageStats } from '@/lib/usage';
-import { useGameStore } from '@/features/game/store';
-import { logger } from '@/lib/logger';
-import { SignOutButton } from '@/components/SignOutButton';
-import { Button, Card } from '@/components/ui';
+import { Text, View, ScrollView, TouchableOpacity, SafeAreaView, Image } from 'react-native'
+import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 
 // --- Sub-components ---
@@ -18,7 +10,7 @@ const StatCard = ({ label, value, icon, color }: { label: string, value: string,
   <View className="bg-surface/50 border border-outline/30 p-4 rounded-2xl flex-1 mx-1 items-center">
     <Text className="text-onSurface text-2xl font-bold mb-1">{value}</Text>
     <View className="flex-row items-center">
-      <Ionicons name={icon as any} size={14} color={color} />
+      <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={14} color={color} />
       <Text className="text-onSurfaceVariant text-[10px] font-bold uppercase ml-1 tracking-wider">{label}</Text>
     </View>
   </View>
@@ -53,6 +45,17 @@ const QuestCard = () => (
   </View>
 );
 
+interface ModuleCardProps {
+  title: string;
+  category: string;
+  level: string;
+  topic: string;
+  progress: number;
+  icon: string; // Icon name as string (will be cast when used)
+  accentColor: string;
+  buttonText?: string;
+}
+
 const ModuleCard = ({ 
   title, 
   category, 
@@ -62,12 +65,12 @@ const ModuleCard = ({
   icon, 
   accentColor,
   buttonText = "Continue Learning"
-}: any) => (
+}: ModuleCardProps) => (
   <View className="bg-surface border border-outline/30 rounded-[32px] mb-8 overflow-hidden shadow-sm">
     {/* Header Pattern Area */}
     <View className="h-44 bg-surfaceVariant relative justify-center items-center">
       <View className={`absolute top-4 left-4 w-12 h-12 rounded-2xl items-center justify-center ${accentColor}`}>
-        <Ionicons name={icon} size={24} color="white" />
+        <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={24} color="white" />
       </View>
     </View>
     
@@ -138,27 +141,21 @@ const MODULES = [
 function HomeScreenInner() {
   const { user } = useUser()
   const { isLoaded, isSignedIn } = useAuth()
-  const router = useRouter();
-  const [usage, setUsage] = useState<UsageStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { unlockedLevels } = useGameStore();
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      loadUsage();
+      // Usage stats loading can be implemented later if needed
+      // const loadUsage = async () => {
+      //   try {
+      //     const usageData = await UsageClient.getUsage();
+      //     // Handle usage data
+      //   } catch (error) {
+      //     logger.error('HomeScreen', error, { operation: 'loadUsage' });
+      //   }
+      // };
+      // loadUsage();
     }
   }, [isLoaded, isSignedIn]);
-
-  const loadUsage = async () => {
-    try {
-      const usageData = await UsageClient.getUsage();
-      setUsage(usageData);
-    } catch (error) {
-      logger.error('HomeScreen', error, { operation: 'loadUsage' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <SafeAreaView className="flex-1 bg-background">

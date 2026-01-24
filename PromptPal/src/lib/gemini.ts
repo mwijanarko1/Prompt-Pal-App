@@ -47,7 +47,7 @@ export class GeminiService {
     }
 
     // TODO: Implement direct Gemini Imagen 2 API call
-    const model = this.getModelForOperation('image');
+    // const model = this.getModelForOperation('image'); // Reserved for future implementation
 
     // Placeholder: return a mock image URL
     await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
@@ -74,7 +74,7 @@ export class GeminiService {
     }
 
     // TODO: Implement direct Gemini Pro Vision API call
-    const model = this.getModelForOperation('vision');
+    // const model = this.getModelForOperation('vision'); // Reserved for future implementation
 
     // Placeholder: return a random score between 0-100
     await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
@@ -82,9 +82,10 @@ export class GeminiService {
   }
 
   // Get contextual hints for prompt improvement
-  async getPromptHints(prompt: string): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getPromptHints(_prompt: string): Promise<string[]> {
     // TODO: Implement Gemini Flash API call
-    const model = this.getModelForOperation('text');
+    // const model = this.getModelForOperation('text'); // Reserved for future implementation
 
     // Placeholder: return generic hints
     const hints = [
