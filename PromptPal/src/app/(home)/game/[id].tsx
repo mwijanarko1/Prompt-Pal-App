@@ -122,8 +122,14 @@ export default function GameScreen() {
     } catch (error) {
       logger.error('GameScreen', error, { operation: 'handleGenerate', promptLength: prompt.length });
       // Life was already consumed, so we don't refund it on error
-      if (error.response?.status === 429) {
-        Alert.alert('Quota Exceeded', 'You\'ve reached your usage limit. Upgrade to Pro for more calls.');
+      // Type guard for AxiosError
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number } };
+        if (axiosError.response?.status === 429) {
+          Alert.alert('Quota Exceeded', 'You\'ve reached your usage limit. Upgrade to Pro for more calls.');
+        } else {
+          Alert.alert('Error', 'Failed to generate image. A life was consumed. Please try again.');
+        }
       } else {
         Alert.alert('Error', 'Failed to generate image. A life was consumed. Please try again.');
       }
