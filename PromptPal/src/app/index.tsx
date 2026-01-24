@@ -57,8 +57,15 @@ export default function LevelSelectScreen() {
     }
     
     if (isLevelUnlocked(levelId)) {
+      // Navigate to game screen - use the root game screen (not the one in route group)
+      // This ensures navigation back goes to level select, not dashboard
       router.push(`/game/${levelId}`);
     }
+  };
+
+  const handleDashboardPress = () => {
+    // Navigate to dashboard (home route group)
+    router.push('/(home)');
   };
 
   return (
@@ -71,7 +78,7 @@ export default function LevelSelectScreen() {
         </View>
         <Text style={styles.subtitle}>Select a level to begin</Text>
         
-        {/* Lives Display */}
+        {/* Lives Display and Dashboard Button */}
         <View style={styles.livesContainer}>
           <View style={styles.livesDisplay}>
             <Text style={styles.livesLabel}>Lives:</Text>
@@ -79,6 +86,12 @@ export default function LevelSelectScreen() {
               {lives}
             </Text>
           </View>
+          <TouchableOpacity
+            onPress={handleDashboardPress}
+            style={styles.dashboardButton}
+          >
+            <Text style={styles.dashboardButtonText}>Dashboard</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -259,7 +272,7 @@ const styles = StyleSheet.create({
   },
   livesContainer: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
     marginTop: 16,
     paddingHorizontal: 8,
@@ -281,5 +294,18 @@ const styles = StyleSheet.create({
   },
   livesCountZero: {
     color: "#CF6679", // error (red)
+  },
+  dashboardButton: {
+    backgroundColor: "#1E1E1E", // surface
+    borderWidth: 1,
+    borderColor: "#BB86FC", // primary
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  dashboardButtonText: {
+    color: "#BB86FC", // primary
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

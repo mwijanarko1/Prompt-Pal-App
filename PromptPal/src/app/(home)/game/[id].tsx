@@ -22,35 +22,27 @@ export default function GameScreen() {
   // to reach the root level select at src/app/index.tsx instead of the dashboard at src/app/(home)/index.tsx
   const navigateToLevelSelect = () => {
     try {
-      // The core issue: Expo Router prioritizes route groups when navigating.
-      // When in (home)/game/[id].tsx and navigating to '/', it goes to (home)/index.tsx (dashboard)
-      // instead of root index.tsx (level select).
-      
-      // Best solution: Try to go back first (most reliable if user came from level select)
-      if (router.canGoBack()) {
-        router.back();
-        return;
-      }
-      
-      // If we can't go back, the issue is that router.replace('/') from within (home) route group
-      // will navigate to (home)/index.tsx instead of root index.tsx.
-      // 
-      // Unfortunately, there's no direct way to navigate outside a route group in Expo Router.
-      // The proper solution would be to restructure routes, but as a workaround, we'll try
-      // navigating with a query parameter or using a different approach.
+      // The issue: When in (home)/game/[id].tsx, router.back() goes to (home)/index.tsx (dashboard)
+      // because we're within the route group context. We need to explicitly navigate outside the route group.
       //
-      // For now, we'll use replace('/') and hope the user's navigation history helps,
-      // or they can manually navigate back to level select from the dashboard.
-      router.replace('/');
-      
-      logger.warn('GameScreen', 'Navigated to root - may go to dashboard instead of level select due to route group priority');
+      // Solution: Since router.back() goes to dashboard (parent of route group), we need to navigate
+      // to root level select explicitly. However, router.replace('/') from within (home) route group
+      // also goes to (home)/index.tsx due to route group priority.
+      //
+      // Solution: Navigate to a redirect route that explicitly goes to the root level select.
+      // This bypasses the route group priority by using an intermediate route outside the route group.
+      // The /level-select route redirects to /, which will go to the root index.tsx (level select)
+      // instead of (home)/index.tsx (dashboard).
+      router.replace('/level-select');
     } catch (error) {
       logger.error('GameScreen', error, { operation: 'navigateToLevelSelect' });
-      // Fallback: try push
+      // Fallback: try direct navigation
       try {
-        router.push('/');
+        router.replace('/');
       } catch (fallbackError) {
         logger.error('GameScreen', fallbackError, { operation: 'navigateToLevelSelect fallback' });
+        // Last resort: try push
+        router.push('/');
       }
     }
   };
