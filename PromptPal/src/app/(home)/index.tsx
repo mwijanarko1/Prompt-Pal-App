@@ -131,6 +131,75 @@ const MODULES = [
   }
 ];
 
+// --- Level Selection ---
+
+const LevelCard = ({ id, unlocked, targetImageUrl, difficulty }: any) => {
+  const router = useRouter();
+  const { startLevel } = useGameStore();
+
+  const handlePress = () => {
+    if (!unlocked) {
+      Alert.alert('Level Locked', 'Complete previous levels to unlock this one.');
+      return;
+    }
+
+    startLevel(id);
+    router.push(`/game/${id}`);
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.85}
+      className={`relative rounded-2xl overflow-hidden border border-outline/20 mr-4 ${
+        unlocked ? 'opacity-100' : 'opacity-50'
+      }`}
+    >
+      {/* Image */}
+      <Image source={{ uri: targetImageUrl }} className="w-40 h-40" />
+
+      {/* Lock Overlay */}
+      {!unlocked && (
+        <View className="absolute inset-0 bg-black/40 items-center justify-center">
+          <Ionicons name="lock-closed" size={32} color="white" />
+        </View>
+      )}
+
+      {/* Footer */}
+      <View className="p-2 bg-surface">
+        <Text className="text-onSurface font-bold">{id}</Text>
+        <Text className="text-onSurfaceVariant text-xs capitalize">
+          {difficulty}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+
+const LevelList = () => {
+  const unlockedLevels = getUnlockedLevels();
+
+  return (
+    <View className="px-6 mb-12">
+      <Text className="text-onSurface text-xl font-bold mb-4">
+        Levels
+      </Text>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {LEVELS.map(level => (
+          <LevelCard
+            key={level.id}
+            {...level}
+            unlocked={unlockedLevels.some(l => l.id === level.id)}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
+
+
 export default function HomeScreen() {
   const { user } = useUser()
   const { isLoaded, isSignedIn } = useAuth()
@@ -210,6 +279,9 @@ export default function HomeScreen() {
           <View className="px-6">
             <QuestCard />
           </View>
+
+          {/* Level Selection */}
+          <LevelList />
 
           {/* Learning Modules Section */}
           <View className="px-6 pb-20">
