@@ -186,7 +186,7 @@ export class AIProxyClient {
     }
 
     try {
-      const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
+      const response = await aiProxy.post<AIProxyResponse>('/api/analyzer/ai-proxy', {
         type: 'text',
         input: { prompt: prompt.trim(), context },
       });
@@ -216,7 +216,7 @@ export class AIProxyClient {
     }
 
     try {
-      const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
+      const response = await aiProxy.post<AIProxyResponse>('/api/analyzer/ai-proxy', {
         type: 'image',
         input: { prompt: prompt.trim(), seed },
       });
@@ -248,7 +248,7 @@ export class AIProxyClient {
     }
 
     try {
-      const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
+      const response = await aiProxy.post<AIProxyResponse>('/api/analyzer/ai-proxy', {
         type: 'compare',
         input: {
           targetUrl,

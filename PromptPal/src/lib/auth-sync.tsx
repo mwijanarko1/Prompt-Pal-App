@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
 import { setTokenProvider as setAiProxyTokenProvider } from './aiProxy';
-import { setTokenProvider as setApiTokenProvider } from './api';
 import { logger } from './logger';
 import { registerSignOutCallback, registerTokenRefreshCallback } from './session-manager';
 
@@ -53,9 +52,8 @@ function AuthTokenSyncInner() {
         }
       };
 
-      // Set token provider for both AI proxy and regular API
+      // Set token provider for AI proxy
       setAiProxyTokenProvider(tokenProvider);
-      setApiTokenProvider(tokenProvider);
     }
   }, [isLoaded, isSignedIn, getToken, signOut]);
 
