@@ -331,7 +331,7 @@ export default function GameScreen() {
               <ActivityIndicator size="small" color="#4151FF" />
             ) : (
               <>
-                <Text className={`text-base mr-1 ${noHintsLeft ? 'opacity-50' : ''}`}>🪄</Text>
+                <Text className={`text-base mr-1 ${noHintsLeft ? 'opacity-50' : ''}`}>{hintCooldown > 0 ? '⏳' : '🪄'}</Text>
                 <Text className={`text-xs font-bold ${noHintsLeft ? 'text-onSurfaceVariant/50' : hintCooldown > 0 ? 'text-onSurfaceVariant' : 'text-secondary'}`}>
                   {noHintsLeft ? 'No hints left' : hintCooldown > 0 ? `${hintCooldown}s` : hintsUsed === 0 ? 'Free Hint' : `Hint (${hintsRemaining}/${maxHints})`}
                 </Text>
