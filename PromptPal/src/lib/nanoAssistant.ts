@@ -49,7 +49,7 @@ Difficulty level: ${difficulty}. ${difficultyContext[difficulty]}
 Keep hints concise (1-2 sentences max).`;
 
   switch (moduleType) {
-    case 'image':
+    case 'image': {
       const keywordsHint = levelData.hiddenPromptKeywords?.length 
         ? `The target image contains elements related to: ${levelData.hiddenPromptKeywords.slice(0, 2).join(', ')}... (and more)`
         : '';
@@ -58,6 +58,7 @@ This is an IMAGE GENERATION challenge. The user needs to write a prompt that gen
 ${keywordsHint}
 ${levelData.style ? `The desired style is: ${levelData.style}` : ''}
 Focus hints on: composition, style, mood, specific elements, or artistic techniques.`;
+    }
 
     case 'code':
       return `${basePrompt}
@@ -504,7 +505,6 @@ export class NanoAssistant {
       return `Total penalty: -${totalPenalty}% from score`;
     }
     
-    const nextHintNumber = hintsUsed + 1;
     const nextPenalty = penalties[hintsUsed] || 0;
     
     if (nextPenalty === 0) {

@@ -87,11 +87,12 @@ export default function GameScreen() {
     setIsLoadingHint(true);
     try {
       const moduleType = (level.type || 'image') as ChallengeType;
-      const hint = await NanoAssistant.getHint(prompt, moduleType, level as any);
+      const hint = await NanoAssistant.getHint(prompt, moduleType, level as Parameters<typeof NanoAssistant.getHint>[2]);
       setHints(prev => [...prev, hint]);
       setShowHints(true);
-    } catch (error: any) {
-      Alert.alert('Hint Unavailable', error.message || 'Could not get hint. Please try again.');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Could not get hint. Please try again.';
+      Alert.alert('Hint Unavailable', errorMessage);
     } finally {
       setIsLoadingHint(false);
     }
