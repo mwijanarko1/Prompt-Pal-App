@@ -21,7 +21,26 @@ import { logger } from './logger';
 const HINT_COOLDOWN_MS = 30000; // 30 seconds between hints
 const HINT_RATE_LIMIT_KEY = 'nano-assistant-hints';
 const MAX_HINTS_PER_MINUTE = 3;
-const MAX_HINTS_PER_LEVEL = 5; // Maximum hints allowed per level
+
+// Flat penalty rate (same for all difficulties)
+const FLAT_HINT_PENALTY = 5; // 5% per hint after the first free one
+
+/**
+ * Get maximum hints allowed based on difficulty
+ * Harder difficulties = fewer hints available
+ */
+function getMaxHintsForDifficulty(difficulty: Level['difficulty'] = 'intermediate'): number {
+  switch (difficulty) {
+    case 'beginner':
+      return 5; // Most hints for new players
+    case 'intermediate':
+      return 4; // Moderate hints
+    case 'advanced':
+      return 3; // Fewest hints for experienced players
+    default:
+      return 4;
+  }
+}
 
 // In-memory storage for hint counts per level
 const hintCountsByLevel: Map<string, number> = new Map();
@@ -227,10 +246,11 @@ export class NanoAssistant {
   ): Promise<string> {
     const levelId = levelData.id;
     const currentCount = hintCountsByLevel.get(levelId) || 0;
+    const maxHints = getMaxHintsForDifficulty(levelData.difficulty);
     
     // Check if max hints reached for this level
-    if (currentCount >= MAX_HINTS_PER_LEVEL) {
-      throw new Error(`You've used all ${MAX_HINTS_PER_LEVEL} hints for this level. Try your best with what you have!`);
+    if (currentCount >= maxHints) {
+      throw new Error(`You've used all ${maxHints} hints for this level. Try your best with what you have!`);
     }
     
     // Check cooldown
@@ -327,56 +347,60 @@ export class NanoAssistant {
   }
 
   /**
-   * Get maximum hints allowed per level
+   * Get maximum hints allowed per level based on difficulty
+   * 
+   * @param difficulty - Level difficulty (beginner: 5, intermediate: 4, advanced: 3)
    */
-  static getMaxHintsPerLevel(): number {
-    return MAX_HINTS_PER_LEVEL;
+  static getMaxHintsPerLevel(difficulty: Level['difficulty'] = 'intermediate'): number {
+    return getMaxHintsForDifficulty(difficulty);
   }
 
   /**
    * Check if more hints are available for a level
    * 
    * @param levelId - The level ID to check
+   * @param difficulty - Level difficulty
    * @returns True if hints are still available
    */
-  static hasHintsRemaining(levelId: string): boolean {
+  static hasHintsRemaining(levelId: string, difficulty: Level['difficulty'] = 'intermediate'): boolean {
     const used = hintCountsByLevel.get(levelId) || 0;
-    return used < MAX_HINTS_PER_LEVEL;
+    const maxHints = getMaxHintsForDifficulty(difficulty);
+    return used < maxHints;
   }
 
   /**
    * Get remaining hints for a level
    * 
    * @param levelId - The level ID to check
+   * @param difficulty - Level difficulty
    * @returns Number of hints remaining
    */
-  static getHintsRemaining(levelId: string): number {
+  static getHintsRemaining(levelId: string, difficulty: Level['difficulty'] = 'intermediate'): number {
     const used = hintCountsByLevel.get(levelId) || 0;
-    return Math.max(0, MAX_HINTS_PER_LEVEL - used);
+    const maxHints = getMaxHintsForDifficulty(difficulty);
+    return Math.max(0, maxHints - used);
   }
 
   /**
-   * Get the flat-rate penalty percentages based on difficulty
+   * Get the flat-rate penalty percentages (same for all difficulties)
    * 
-   * Flat rate system: First hint is FREE, then consistent penalty per hint
-   * - Beginner: 0%, 3%, 3%, 3%, 3% (max 12%)
-   * - Intermediate: 0%, 5%, 5%, 5%, 5% (max 20%)
-   * - Advanced: 0%, 7%, 7%, 7%, 7% (max 28%)
+   * Flat rate system: First hint is FREE, then 5% per hint
+   * Difficulty scaling is handled by hint COUNT instead:
+   * - Beginner: 5 hints available (max 20% penalty)
+   * - Intermediate: 4 hints available (max 15% penalty)
+   * - Advanced: 3 hints available (max 10% penalty)
    * 
-   * @param difficulty - The level difficulty
-   * @returns Array of penalty percentages for each hint [hint1, hint2, hint3, hint4, hint5]
+   * @param difficulty - The level difficulty (used to determine array length)
+   * @returns Array of penalty percentages for each hint
    */
   static getProgressivePenalties(difficulty: Level['difficulty'] = 'intermediate'): number[] {
-    switch (difficulty) {
-      case 'beginner':
-        return [0, 3, 3, 3, 3]; // Max 12%, gentler for new players
-      case 'intermediate':
-        return [0, 5, 5, 5, 5]; // Max 20%, balanced
-      case 'advanced':
-        return [0, 7, 7, 7, 7]; // Max 28%, challenging
-      default:
-        return [0, 5, 5, 5, 5];
+    const maxHints = getMaxHintsForDifficulty(difficulty);
+    // First hint free (0%), then flat 5% for each subsequent hint
+    const penalties = [0];
+    for (let i = 1; i < maxHints; i++) {
+      penalties.push(FLAT_HINT_PENALTY);
     }
+    return penalties;
   }
 
   /**
@@ -497,10 +521,11 @@ export class NanoAssistant {
    */
   static getNextHintPenaltyDescription(levelId: string, difficulty: Level['difficulty'] = 'intermediate'): string {
     const hintsUsed = NanoAssistant.getHintsUsed(levelId);
+    const maxHints = getMaxHintsForDifficulty(difficulty);
     const penalties = NanoAssistant.getProgressivePenalties(difficulty);
     
     // No more hints available - show total penalty
-    if (hintsUsed >= MAX_HINTS_PER_LEVEL) {
+    if (hintsUsed >= maxHints) {
       const totalPenalty = NanoAssistant.calculatePenaltyPercentage(hintsUsed, difficulty);
       return `Total penalty: -${totalPenalty}% from score`;
     }

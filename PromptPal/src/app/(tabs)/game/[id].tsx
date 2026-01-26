@@ -310,8 +310,8 @@ export default function GameScreen() {
 
   const renderPromptSection = () => {
     const hintsUsed = level ? NanoAssistant.getHintsUsed(level.id) : 0;
-    const hintsRemaining = level ? NanoAssistant.getHintsRemaining(level.id) : 0;
-    const maxHints = NanoAssistant.getMaxHintsPerLevel();
+    const hintsRemaining = level ? NanoAssistant.getHintsRemaining(level.id, level.difficulty) : 0;
+    const maxHints = level ? NanoAssistant.getMaxHintsPerLevel(level.difficulty) : 4;
     const noHintsLeft = hintsRemaining === 0;
     
     return (
