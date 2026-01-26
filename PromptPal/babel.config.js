@@ -6,9 +6,7 @@ module.exports = function(api) {
       'nativewind/babel'
     ],
     plugins: [
-      // If you need custom plugin for worklets, use:
-      // 'react-native-worklets/plugin'
-      // DO NOT also include react-native-reanimated/plugin
+      // Removed reanimated/worklets plugin to fix Mismatch error in Expo Go
     ]
   };
 };

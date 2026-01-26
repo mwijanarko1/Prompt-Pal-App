@@ -2,11 +2,14 @@ import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ClerkProviderWrapper } from '@/lib/clerk';
 import { validateEnvironment } from '@/lib/env';
 import { SyncManager } from '@/lib/syncManager';
-import { AuthTokenSync } from '@/lib/auth-sync';
+import { AuthTokenSync, SessionMonitor } from '@/lib/auth-sync';
 import { logger } from '@/lib/logger';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { initializeNetworkListener } from '@/lib/network';
 import "./global.css";
 
 export default function RootLayout() {
@@ -20,6 +23,10 @@ export default function RootLayout() {
     SyncManager.startPeriodicSync();
     logger.info('App', 'Started background sync');
 
+    // Initialize network connectivity listener
+    const networkUnsubscribe = initializeNetworkListener();
+    logger.info('App', 'Initialized network listener');
+
     // Sync on app focus and handle online/offline status
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
@@ -31,26 +38,24 @@ export default function RootLayout() {
       }
     });
 
-    // Handle network connectivity changes
-    const networkSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      // In a real app, you'd use NetInfo from @react-native-community/netinfo
-      // For now, assume we're online when app is active
-      SyncManager.setOnlineStatus(nextAppState === 'active');
-    });
-
     return () => {
+      networkUnsubscribe?.();
       SyncManager.stopPeriodicSync();
       subscription?.remove();
-      networkSubscription?.remove();
       logger.info('App', 'Stopped background sync');
     };
   }, []);
 
   return (
     <ClerkProviderWrapper>
-      <AuthTokenSync />
-      <Slot />
-      <StatusBar style="light" />
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <AuthTokenSync />
+          <SessionMonitor />
+          <Slot />
+          <StatusBar style="light" />
+        </ErrorBoundary>
+      </SafeAreaProvider>
     </ClerkProviderWrapper>
   );
 }

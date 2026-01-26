@@ -3,6 +3,8 @@ import axiosRetry from 'axios-retry';
 import { tokenCache } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { isTextGenerationAllowed, isImageGenerationAllowed } from '@/lib/rateLimiter';
+import { triggerSignOut, tryRefreshToken } from '@/lib/session-manager';
+import { record401Error } from '@/lib/auth-diagnostics';
 
 // Constants
 const AI_PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL || 'http://localhost:3000';
@@ -63,8 +65,6 @@ aiProxy.interceptors.request.use(async (config) => {
     logger.error('AI Proxy', error, { operation: 'getAuthToken' });
   }
 
-  // Add app identifier
-  config.headers['x-app-id'] = 'prompt-pal';
 
   return config;
 });
@@ -79,26 +79,34 @@ aiProxy.interceptors.response.use(
       // Quota exceeded - could show upgrade prompt
       logger.warn('AI Proxy', 'Quota exceeded', error.response.data);
     } else if (error.response?.status === 401 && !originalRequest._retry) {
-      // Token expired - attempt to refresh
-      logger.warn('AI Proxy', 'Token expired, attempting refresh');
+      // Record this 401 error for diagnostics
+      if (error.config?.url) {
+        record401Error(error.config.url);
+      }
+
+      // Token expired - try to refresh before signing out
+      logger.warn('AI Proxy', 'Authentication failed - attempting token refresh', {
+        url: error.config?.url,
+        status: error.response?.status,
+        errorCode: error.response?.data?.errorCode
+      });
+
+      originalRequest._retry = true;
 
       try {
-        originalRequest._retry = true;
-        
-        // If we have a provider, it should handle the refresh (Clerk does this automatically)
-        if (authTokenProvider) {
-          const freshToken = await authTokenProvider();
-          if (freshToken) {
-            originalRequest.headers.Authorization = `Bearer ${freshToken}`;
-            return aiProxy(originalRequest);
-          }
+        const newToken = await tryRefreshToken();
+        if (newToken) {
+          // Token refreshed successfully, update headers and retry
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return aiProxy(originalRequest);
         }
-        
-        // Fallback or if refresh failed
-        logger.error('AI Proxy', 'No fresh token available after refresh attempt');
       } catch (refreshError) {
-        logger.error('AI Proxy', refreshError as Error);
+        logger.error('AI Proxy', refreshError, { operation: 'tokenRefresh' });
       }
+
+      // Token refresh failed, sign out user
+      logger.warn('AI Proxy', 'Token refresh failed - signing out');
+      await triggerSignOut();
     } else {
       logger.error('AI Proxy', error, {
         status: error.response?.status,
@@ -110,21 +118,24 @@ aiProxy.interceptors.response.use(
 );
 
 export interface AIProxyRequest {
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'compare';
   model?: string;
   input: {
-    prompt: string;
+    prompt?: string;
     context?: string;
     seed?: number;
     size?: string;
+    targetUrl?: string;
+    resultUrl?: string;
   };
 }
 
 export interface AIProxyResponse {
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'compare';
   model: string;
   result?: string;
   imageUrl?: string;
+  score?: number;
   tokensUsed?: number;
   remaining: {
     textCalls?: number;
@@ -176,7 +187,6 @@ export class AIProxyClient {
 
     try {
       const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
-        appId: 'prompt-pal',
         type: 'text',
         input: { prompt: prompt.trim(), context },
       });
@@ -207,13 +217,47 @@ export class AIProxyClient {
 
     try {
       const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
-        appId: 'prompt-pal',
         type: 'image',
         input: { prompt: prompt.trim(), seed },
       });
       return response.data;
     } catch (error) {
       logger.error('AIProxyClient', error, { operation: 'generateImage', promptLength: prompt.length, hasSeed: !!seed });
+      throw error;
+    }
+  }
+
+  /**
+   * Compares two images using the AI proxy backend
+   * @param targetUrl - URL of the target/reference image
+   * @param resultUrl - URL of the result image to compare
+   * @returns Promise resolving to AI response with similarity score
+   * @throws {Error} If URLs are invalid, rate limited, or API request fails
+   */
+  static async compareImages(targetUrl: string, resultUrl: string): Promise<AIProxyResponse> {
+    if (!targetUrl || !resultUrl) {
+      throw new Error('Both target and result URLs are required');
+    }
+
+    // Validate URLs are proper HTTP/HTTPS URLs
+    try {
+      new URL(targetUrl);
+      new URL(resultUrl);
+    } catch {
+      throw new Error('Invalid URL format');
+    }
+
+    try {
+      const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
+        type: 'compare',
+        input: {
+          targetUrl,
+          resultUrl
+        },
+      });
+      return response.data;
+    } catch (error) {
+      logger.error('AIProxyClient', error, { operation: 'compareImages', targetUrlLength: targetUrl.length, resultUrlLength: resultUrl.length });
       throw error;
     }
   }

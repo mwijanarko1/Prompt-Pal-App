@@ -1,18 +1,38 @@
 import * as React from 'react'
 import { Text, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
-import { useSignUp } from '@clerk/clerk-expo'
+import { useSignUp, useSSO } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { GoogleIcon } from '@/components/GoogleIcon'
+import * as AuthSession from 'expo-auth-session'
+import * as WebBrowser from 'expo-web-browser'
+
+// Browser warming hook for better OAuth UX
+const useWarmUpBrowser = () => {
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return
+    WebBrowser.warmUpAsync()
+    return () => {
+      WebBrowser.coolDownAsync()
+    }
+  }, [])
+}
+
+WebBrowser.maybeCompleteAuthSession()
 
 export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp()
+  const { startSSOFlow } = useSSO()
   const router = useRouter()
+
+  useWarmUpBrowser()
 
   const [emailAddress, setEmailAddress] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [pendingVerification, setPendingVerification] = React.useState(false)
   const [code, setCode] = React.useState('')
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isOAuthLoading, setIsOAuthLoading] = React.useState<string | null>(null)
   const [errors, setErrors] = React.useState<{
     email?: string;
     password?: string;
@@ -120,6 +140,36 @@ export default function SignUpScreen() {
     }
   }
 
+  // Handle OAuth sign up
+  const handleOAuthSignUp = React.useCallback(async (provider: 'google' | 'apple') => {
+    if (isOAuthLoading || !startSSOFlow) return
+
+    setIsOAuthLoading(provider)
+    setErrors({})
+
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: 'promptpal',
+        path: 'sso-callback',
+      })
+
+      const { createdSessionId, setActive: setOAuthActive } = await startSSOFlow?.({
+        strategy: `oauth_${provider}`,
+        redirectUrl,
+      })
+
+      if (createdSessionId) {
+        await setOAuthActive?.({ session: createdSessionId })
+        router.replace('/')
+      }
+    } catch (err: any) {
+      const errorMessage = err.errors?.[0]?.message || `Failed to sign up with ${provider.charAt(0).toUpperCase() + provider.slice(1)}`
+      setErrors({ general: errorMessage })
+    } finally {
+      setIsOAuthLoading(null)
+    }
+  }, [startSSOFlow, isOAuthLoading])
+
   if (pendingVerification) {
     return (
       <SafeAreaView className="flex-1 bg-background">
@@ -134,32 +184,32 @@ export default function SignUpScreen() {
           >
             {/* Header */}
             <View className="items-center mb-10">
-              <View className="w-16 h-16 bg-info/10 rounded-2xl items-center justify-center mb-6 border border-info/20">
-                <Ionicons name="mail-unread" size={32} color="#4151FF" />
+              <View className="w-20 h-20 bg-info/10 rounded-[32px] items-center justify-center mb-6 border border-info/20 shadow-lg shadow-info/20">
+                <Ionicons name="mail-unread" size={40} color="#4151FF" />
               </View>
-              <Text className="text-onSurface text-3xl font-bold mb-3 tracking-tight">
+              <Text className="text-onSurface text-3xl font-black mb-3 tracking-tight">
                 Verify Email
               </Text>
-              <Text className="text-onSurfaceVariant text-center text-base px-10">
-                We've sent a 6-digit code to{'\n'}<Text className="text-onSurface font-bold">{emailAddress}</Text>
+              <Text className="text-onSurfaceVariant text-center text-[10px] font-black uppercase tracking-[2px] leading-4 px-10">
+                We've sent a 6-digit code to{'\n'}<Text className="text-onSurface font-black tracking-normal">{emailAddress}</Text>
               </Text>
             </View>
 
             {/* Verification Form */}
-            <View className="bg-surface border border-outline/20 rounded-[32px] p-8 shadow-2xl shadow-black/50 mb-8">
+            <View className="bg-surface border border-outline/20 rounded-[40px] p-8 shadow-2xl shadow-black/50 mb-8">
               {errors.general && (
                 <View className="bg-error/10 border border-error/30 rounded-2xl p-4 mb-6">
-                  <Text className="text-error text-sm text-center font-medium">
+                  <Text className="text-error text-[10px] text-center font-black uppercase tracking-widest">
                     {errors.general}
                   </Text>
                 </View>
               )}
 
               <View className="mb-8">
-                <Text className="text-onSurfaceVariant text-xs font-bold uppercase mb-4 ml-1 tracking-wider text-center">Enter 6-Digit Code</Text>
-                <View className={`bg-surfaceVariant/50 border ${errors.code ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-5 items-center`}>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-4 ml-1 tracking-[2px] text-center">Enter 6-Digit Code</Text>
+                <View className={`bg-surfaceVariant/50 border ${errors.code ? 'border-error' : 'border-outline/30'} rounded-3xl px-4 py-6 items-center`}>
                   <TextInput
-                    className="text-onSurface text-4xl font-bold tracking-[10px] text-center w-full"
+                    className="text-onSurface text-5xl font-black tracking-[12px] text-center w-full"
                     value={code}
                     onChangeText={(text) => {
                       setCode(text.replace(/[^0-9]/g, '').slice(0, 6))
@@ -171,26 +221,26 @@ export default function SignUpScreen() {
                     autoFocus
                   />
                 </View>
-                {errors.code && <Text className="text-error text-[10px] mt-1.5 text-center font-medium">{errors.code}</Text>}
+                {errors.code && <Text className="text-error text-[10px] mt-2 text-center font-black uppercase tracking-widest">{errors.code}</Text>}
               </View>
 
               <TouchableOpacity
                 onPress={onVerifyPress}
                 disabled={isLoading}
-                className={`bg-primary h-16 rounded-2xl items-center justify-center shadow-lg shadow-primary/20 ${isLoading ? 'opacity-70' : ''}`}
+                className={`bg-primary h-16 rounded-full items-center justify-center shadow-lg shadow-primary/20 ${isLoading ? 'opacity-70' : ''}`}
               >
                 {isLoading ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text className="text-white font-bold text-lg">Verify & Join</Text>
+                  <Text className="text-white font-black text-lg uppercase tracking-widest">Verify & Join</Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => setPendingVerification(false)}
-                className="mt-6 py-2 items-center"
+                className="mt-8 py-2 items-center"
               >
-                <Text className="text-onSurfaceVariant text-sm font-medium">Back to Sign Up</Text>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest">Back to Sign Up</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -212,27 +262,24 @@ export default function SignUpScreen() {
           >
             {/* Header */}
           <View className="items-center mb-10">
-            <View className="w-16 h-16 bg-secondary/10 rounded-2xl items-center justify-center mb-6 border border-secondary/20">
-              <Ionicons name="person-add" size={32} color="#4151FF" />
-            </View>
             <View className="flex-row items-center mb-3">
-              <Text className="text-primary text-4xl font-bold tracking-tight">Prompt</Text>
-              <Text className="text-secondary text-4xl font-bold tracking-tight">Pal</Text>
+              <Text className="text-primary text-5xl font-black tracking-tighter">Prompt</Text>
+              <Text className="text-secondary text-5xl font-black tracking-tighter">Pal</Text>
             </View>
-            <Text className="text-onSurfaceVariant text-center text-base">
+            <Text className="text-onSurfaceVariant text-center text-[10px] font-black uppercase tracking-[3px] leading-4">
               Create an account to start your{'\n'}mastery journey
             </Text>
           </View>
 
           {/* Sign Up Form */}
-          <View className="bg-surface border border-outline/20 rounded-[32px] p-8 shadow-2xl shadow-black/50 mb-8">
-            <Text className="text-onSurface text-2xl font-bold mb-8 text-center">
+          <View className="bg-surface border border-outline/20 rounded-[40px] p-8 shadow-2xl shadow-black/50 mb-8">
+            <Text className="text-onSurface text-2xl font-black mb-8 text-center tracking-tight">
               Sign Up
             </Text>
 
             {errors.general && (
               <View className="bg-error/10 border border-error/30 rounded-2xl p-4 mb-6">
-                <Text className="text-error text-sm text-center font-medium">
+                <Text className="text-error text-[10px] text-center font-black uppercase tracking-widest">
                   {errors.general}
                 </Text>
               </View>
@@ -240,11 +287,11 @@ export default function SignUpScreen() {
 
             <View className="space-y-5">
               <View>
-                <Text className="text-onSurfaceVariant text-xs font-bold uppercase mb-2 ml-1 tracking-wider">Email Address</Text>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-2 ml-1 tracking-[2px]">Email Address</Text>
                 <View className={`bg-surfaceVariant/50 border ${errors.email ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-4 flex-row items-center`}>
                   <Ionicons name="mail-outline" size={20} color={errors.email ? "#EF4444" : "#9CA3AF"} />
                   <TextInput
-                    className="flex-1 ml-3 text-onSurface text-base"
+                    className="flex-1 ml-3 text-onSurface text-base font-bold"
                     value={emailAddress}
                     onChangeText={(text) => {
                       setEmailAddress(text)
@@ -256,15 +303,15 @@ export default function SignUpScreen() {
                     autoCapitalize="none"
                   />
                 </View>
-                {errors.email && <Text className="text-error text-[10px] mt-1.5 ml-1 font-medium">{errors.email}</Text>}
+                {errors.email && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.email}</Text>}
               </View>
 
-              <View>
-                <Text className="text-onSurfaceVariant text-xs font-bold uppercase mb-2 ml-1 tracking-wider">Password</Text>
+              <View className="mt-4">
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-2 ml-1 tracking-[2px]">Password</Text>
                 <View className={`bg-surfaceVariant/50 border ${errors.password ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-4 flex-row items-center`}>
                   <Ionicons name="key-outline" size={20} color={errors.password ? "#EF4444" : "#9CA3AF"} />
                   <TextInput
-                    className="flex-1 ml-3 text-onSurface text-base"
+                    className="flex-1 ml-3 text-onSurface text-base font-bold"
                     value={password}
                     onChangeText={(text) => {
                       setPassword(text)
@@ -275,36 +322,77 @@ export default function SignUpScreen() {
                     secureTextEntry
                   />
                 </View>
-                {errors.password && <Text className="text-error text-[10px] mt-1.5 ml-1 font-medium">{errors.password}</Text>}
+                {errors.password && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.password}</Text>}
               </View>
             </View>
 
             <View className="bg-surfaceVariant/30 rounded-2xl p-4 mt-6">
-              <Text className="text-onSurfaceVariant text-[10px] leading-4 font-medium">
+              <Text className="text-onSurfaceVariant text-[9px] leading-4 font-black uppercase tracking-[1px]">
                 • 8+ characters, uppercase, lowercase, and a number.
               </Text>
+            </View>
+
+            {/* OAuth Buttons */}
+            <View className="mt-8 space-y-3">
+              <View className="flex-row items-center mb-4">
+                <View className="flex-1 h-px bg-outline/30" />
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mx-4">or continue with</Text>
+                <View className="flex-1 h-px bg-outline/30" />
+              </View>
+
+              <View className="flex-row">
+                <TouchableOpacity
+                  onPress={() => handleOAuthSignUp('google')}
+                  disabled={!!isOAuthLoading}
+                  className={`flex-1 bg-white border border-outline/30 h-16 rounded-2xl items-center justify-center flex-row shadow-lg mx-2 ${isOAuthLoading === 'google' ? 'opacity-70' : ''}`}
+                >
+                  {isOAuthLoading === 'google' ? (
+                    <ActivityIndicator color="#4285F4" size="small" />
+                  ) : (
+                    <>
+                      <GoogleIcon size={20} />
+                      <Text className="text-gray-700 font-black text-xs uppercase tracking-widest ml-3">Google</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleOAuthSignUp('apple')}
+                  disabled={!!isOAuthLoading}
+                  className={`flex-1 bg-black border border-outline/30 h-16 rounded-2xl items-center justify-center flex-row shadow-lg mx-2 ${isOAuthLoading === 'apple' ? 'opacity-70' : ''}`}
+                >
+                  {isOAuthLoading === 'apple' ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-apple" size={20} color="white" />
+                      <Text className="text-white font-black text-xs uppercase tracking-widest ml-3">Apple</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
 
             <TouchableOpacity
               onPress={onSignUpPress}
               disabled={isLoading}
-              className={`bg-secondary h-16 rounded-2xl items-center justify-center mt-8 shadow-lg shadow-secondary/20 ${isLoading ? 'opacity-70' : ''}`}
+              className={`bg-secondary h-16 rounded-full items-center justify-center mt-8 shadow-lg shadow-secondary/20 ${isLoading ? 'opacity-70' : ''}`}
             >
               {isLoading ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="text-white font-bold text-lg">Create Account</Text>
+                <Text className="text-white font-black text-lg uppercase tracking-widest">Create Account</Text>
               )}
             </TouchableOpacity>
           </View>
 
           {/* Sign In Link */}
           <View className="flex-row justify-center items-center mb-10">
-            <Text className="text-onSurfaceVariant text-base">
+            <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">
               Already have an account?
             </Text>
             <Link href="/(auth)/sign-in" className="ml-2">
-              <Text className="text-secondary text-base font-bold">
+              <Text className="text-secondary text-xs font-black uppercase tracking-widest">
                 Sign In
               </Text>
             </Link>

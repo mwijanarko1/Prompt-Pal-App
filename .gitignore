@@ -42,7 +42,6 @@ temp/
 
 # Project specific
 @.claude/
-@Yasar PR/
 
 # React Native/Expo specific
 ios/Pods/

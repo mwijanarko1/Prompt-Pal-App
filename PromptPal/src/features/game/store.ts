@@ -2,13 +2,38 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import * as SecureStore from "expo-secure-store";
 
+export type ChallengeType = 'image' | 'code' | 'copywriting';
+
 export interface Level {
   id: string;
-  difficulty: "beginner" | "intermediate" | "advanced";
-  targetImageUrl: string;
-  hiddenPromptKeywords: string[];
+  moduleId?: string;
+  type?: ChallengeType;
+  title?: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  targetImageUrl?: string;
+  hiddenPromptKeywords?: string[];
   passingScore: number;
   unlocked: boolean;
+  
+  // Image Challenge specific
+  targetImageUrl?: string;
+  hiddenPromptKeywords?: string[];
+  style?: string;
+
+  // Code/Logic Challenge specific
+  moduleTitle?: string;
+  requirementBrief?: string;
+  requirementImage?: string;
+  language?: string;
+  testCases?: { id: string; name: string; passed: boolean }[];
+
+  // Copywriting Challenge specific
+  briefTitle?: string;
+  briefProduct?: string;
+  briefTarget?: string;
+  briefTone?: string;
+  briefGoal?: string;
+  metrics?: { label: string; value: number }[];
 }
 
 export interface GameState {

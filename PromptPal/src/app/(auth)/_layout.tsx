@@ -1,6 +1,7 @@
 import { Redirect, Stack } from 'expo-router'
 import { useAuth } from '@clerk/clerk-expo'
-import { View, Text, ActivityIndicator, SafeAreaView } from 'react-native'
+import { View, Text, ActivityIndicator } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 /**
  * Inner auth layout that uses Clerk authentication.
@@ -15,7 +16,7 @@ function AuthRoutesLayoutInner() {
 
   if (!isLoaded) {
     return (
-      <SafeAreaView className="flex-1 bg-background">
+      <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
         <View className="flex-1 items-center justify-center px-6">
           <View className="flex-row items-center mb-6">
             <Text className="text-primary text-4xl font-bold">Prompt</Text>
@@ -36,7 +37,10 @@ function AuthRoutesLayoutInner() {
         headerShown: false,
         animation: 'slide_from_right'
       }}
-    />
+    >
+      <Stack.Screen name="sign-in" />
+      <Stack.Screen name="sign-up" />
+    </Stack>
   )
 }
 

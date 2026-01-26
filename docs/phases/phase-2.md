@@ -142,7 +142,6 @@ aiProxy.interceptors.request.use(async (config) => {
   }
 
   // Add app identifier
-  config.headers['x-app-id'] = 'prompt-pal';
 
   return config;
 });
@@ -186,7 +185,6 @@ export interface AIProxyResponse {
 export class AIProxyClient {
   static async generateText(prompt: string, context?: string): Promise<AIProxyResponse> {
     const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
-      appId: 'prompt-pal',
       type: 'text',
       input: { prompt, context },
     });
@@ -195,7 +193,6 @@ export class AIProxyClient {
 
   static async generateImage(prompt: string, seed?: number): Promise<AIProxyResponse> {
     const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
-      appId: 'prompt-pal',
       type: 'image',
       input: { prompt, seed },
     });
@@ -226,7 +223,7 @@ export interface UsageStats {
 
 export class UsageClient {
   static async getUsage(): Promise<UsageStats> {
-    const response = await aiProxy.get('/api/user/usage?appId=prompt-pal');
+    const response = await aiProxy.get('/api/user/usage');
     return response.data;
   }
 

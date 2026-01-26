@@ -1,4 +1,4 @@
-import { TouchableOpacity, Text, ActivityIndicator, View } from 'react-native';
+import { TouchableOpacity, Text, ActivityIndicator, View, StyleSheet } from 'react-native';
 import { ReactNode } from 'react';
 
 interface ButtonProps {
@@ -22,61 +22,72 @@ export function Button({
   fullWidth = false,
   className = '',
 }: ButtonProps) {
-  const baseClasses = 'rounded-xl items-center justify-center transition-all duration-200 active:scale-95';
-
-  const variantClasses = {
-    primary: 'bg-primary shadow-glow',
-    secondary: 'bg-secondary shadow-glow-secondary',
-    outline: 'border-2 border-outline bg-transparent',
-    ghost: 'bg-transparent',
+  const variantStyles = {
+    primary: { backgroundColor: '#FF6B00' },
+    secondary: { backgroundColor: '#4151FF' },
+    outline: { borderWidth: 2, borderColor: '#374151', backgroundColor: 'transparent' },
+    ghost: { backgroundColor: 'transparent' },
   };
 
-  const sizeClasses = {
-    sm: 'px-4 py-2',
-    md: 'px-6 py-3',
-    lg: 'px-8 py-4',
+  const sizeStyles = {
+    sm: { paddingHorizontal: 16, paddingVertical: 8 },
+    md: { paddingHorizontal: 24, paddingVertical: 12 },
+    lg: { paddingHorizontal: 32, paddingVertical: 16 },
   };
 
-  const textColorClasses = {
-    primary: 'text-onPrimary',
-    secondary: 'text-onSecondary',
-    outline: 'text-onSurface',
-    ghost: 'text-primary',
+  const textVariantStyles = {
+    primary: { color: '#FFFFFF' },
+    secondary: { color: '#FFFFFF' },
+    outline: { color: '#FFFFFF' },
+    ghost: { color: '#FF6B00' },
   };
 
-  const textSizeClasses = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg',
+  const textSizeStyles = {
+    sm: { fontSize: 14 },
+    md: { fontSize: 16 },
+    lg: { fontSize: 18 },
   };
-
-  const disabledClasses = (disabled || loading) ? 'opacity-50' : '';
-  const widthClass = fullWidth ? 'w-full' : '';
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${disabledClasses} ${widthClass} ${className}`}
+      style={[
+        styles.base,
+        variantStyles[variant],
+        sizeStyles[size],
+        fullWidth && { width: '100%' },
+        (disabled || loading) && { opacity: 0.5 },
+      ]}
     >
       {loading ? (
-        <View className="flex-row items-center">
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <ActivityIndicator
             size="small"
             color={variant === 'primary' || variant === 'secondary' ? '#FFFFFF' : '#FF6B00'}
-            className="mr-2"
+            style={{ marginRight: 8 }}
           />
-          <Text className={`${textColorClasses[variant]} ${textSizeClasses[size]} font-semibold`}>
+          <Text style={[textVariantStyles[variant], textSizeStyles[size], styles.text]}>
             Loading...
           </Text>
         </View>
       ) : (
-        <Text
-          className={`${textColorClasses[variant]} ${textSizeClasses[size]} font-semibold`}
-        >
+        <Text style={[textVariantStyles[variant], textSizeStyles[size], styles.text]}>
           {children}
         </Text>
       )}
     </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  base: {
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontWeight: '600',
+  },
+});
+

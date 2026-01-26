@@ -25,13 +25,14 @@ export class UsageClient {
    */
   static async getUsage(): Promise<UsageStats> {
     try {
-      const response = await aiProxy.get('/api/user/usage?appId=prompt-pal');
+      const response = await aiProxy.get('/api/user/usage');
       return response.data;
     } catch (error) {
       logger.error('UsageClient', error, { operation: 'getUsage' });
-      throw new Error('Failed to load usage statistics');
+      throw new Error('Failed to load usage statistics. Please check your connection and try again.');
     }
   }
+
 
   /**
    * Calculates remaining calls for each type
