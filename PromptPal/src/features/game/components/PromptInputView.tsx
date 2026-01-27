@@ -61,6 +61,13 @@ export function PromptInputView({
   maxLength = 500,
   error,
 }: PromptInputViewProps) {
+  // Handle text change with character limit enforcement
+  const handleTextChange = (text: string) => {
+    if (text.length <= maxLength) {
+      onChangeText(text);
+    }
+    // If text exceeds limit, don't update (prevents typing beyond limit)
+  };
   const [hints, setHints] = useState<string[]>([]);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [hintCooldown, setHintCooldown] = useState(0);
@@ -206,7 +213,7 @@ export function PromptInputView({
       <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20">
         <Input
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={handleTextChange}
           placeholder={placeholder}
           multiline
           className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
