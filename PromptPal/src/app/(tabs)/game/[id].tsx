@@ -461,7 +461,9 @@ export default function GameScreen() {
         visible={showResult}
         score={lastScore}
         xp={50}
+        moduleType={level.type as 'image' | 'code' | 'copywriting'}
         testCases={level.testCases}
+        copyMetrics={level.type === 'copywriting' ? level.metrics : undefined}
         output={level.type === 'code' ? "[{'name': 'Alice', 'age': 32}, {'name': 'Bob', 'age': 25}]" : undefined}
         onNext={() => {
           setShowResult(false);
