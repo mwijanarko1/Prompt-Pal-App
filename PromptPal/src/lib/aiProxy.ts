@@ -221,7 +221,8 @@ export class AIProxyClient {
     try {
       const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
         type: 'image',
-        input: { prompt: prompt.trim(), seed, size: "1024x1024" },
+        input: { prompt: prompt.trim(), seed },
+        appId: 'prompt-pal',
       });
       return response.data;
     } catch (error) {

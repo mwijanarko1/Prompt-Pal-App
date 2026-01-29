@@ -3,6 +3,8 @@
  * Handles all communication with the prompt-pal-api
  */
 
+import { getFreshToken } from './token-utils';
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:1337";
 
 // Log API configuration on module load
@@ -257,10 +259,17 @@ export interface UserRankResponse {
 class ApiClient {
   private baseUrl: string;
   private token: string;
+  private getToken?: () => Promise<string | null>;
 
-  constructor(token: string, baseUrl: string = API_BASE_URL) {
+  constructor(token: string, baseUrl: string = API_BASE_URL, getToken?: () => Promise<string | null>) {
     this.baseUrl = baseUrl.replace(/\/$/, ""); // Remove trailing slash
     this.token = token;
+    this.getToken = getToken;
+  }
+
+  // Method to set the token getter for fresh token retrieval
+  setTokenGetter(getToken: () => Promise<string | null>) {
+    this.getToken = getToken;
   }
 
   private requiresAuthentication(endpoint: string): boolean {
@@ -290,7 +299,24 @@ class ApiClient {
     let authHeader: HeadersInit = {};
 
     if (requiresAuth) {
-      if (this.token) {
+      // For AI proxy endpoints, always use fresh tokens to avoid expiration issues
+      const isAiProxyEndpoint = endpoint === '/api/ai/proxy';
+
+      if (isAiProxyEndpoint && this.getToken) {
+        try {
+          const freshToken = await this.getToken();
+          if (freshToken) {
+            authHeader = {
+              "Authorization": `Bearer ${freshToken}`,
+            };
+            console.log(`[API] Using fresh token for AI proxy endpoint`);
+          } else {
+            console.warn(`[API] No fresh token available for AI proxy endpoint`);
+          }
+        } catch (error) {
+          console.error(`[API] Failed to get fresh token for AI proxy:`, error);
+        }
+      } else if (this.token) {
         authHeader = {
           "Authorization": `Bearer ${this.token}`,
         };
@@ -374,7 +400,7 @@ class ApiClient {
   }
 
   // Image generation and evaluation
-  async generateImage(prompt: string, seed?: number, size?: string): Promise<{
+  async generateImage(prompt: string, seed?: number): Promise<{
     imageUrl: string;
     remaining: { imageCalls?: number };
   }> {
@@ -390,8 +416,8 @@ class ApiClient {
           input: {
             prompt,
             seed,
-            size: size || "1024x1024"
           },
+          appId: "prompt-pal",
         }),
       }
     );
@@ -415,6 +441,7 @@ class ApiClient {
             targetUrl,
             resultUrl
           },
+          appId: "prompt-pal",
         }),
       }
     );
@@ -464,7 +491,10 @@ class ApiClient {
       "/api/analyzer/evaluate-images",
       {
         method: "POST",
-        body: JSON.stringify(options),
+        body: JSON.stringify({
+          ...options,
+          appId: "prompt-pal",
+        }),
       }
     );
     return response;
@@ -480,7 +510,12 @@ class ApiClient {
       "/api/analyzer/users/create",
       {
         method: "POST",
-        body: JSON.stringify({ email, name, externalId }),
+        body: JSON.stringify({
+          email,
+          name,
+          externalId,
+          appId: "prompt-pal",
+        }),
       }
     );
     // Fetch the created user
@@ -512,6 +547,7 @@ class ApiClient {
       body: JSON.stringify({
         taskId,
         solutionPrompt,
+        appId: "prompt-pal",
       }),
     });
   }
@@ -610,14 +646,20 @@ class ApiClient {
   async updateGameState(gameState: Partial<GameState>): Promise<void> {
     await this.request("/api/user/game-state", {
       method: "POST",
-      body: JSON.stringify({ gameState }),
+      body: JSON.stringify({
+        gameState,
+        appId: "prompt-pal",
+      }),
     });
   }
 
   async updateProgress(update: ProgressUpdateRequest): Promise<void> {
     await this.request("/api/user/progress", {
       method: "POST",
-      body: JSON.stringify(update),
+      body: JSON.stringify({
+        ...update,
+        appId: "prompt-pal",
+      }),
     });
   }
 

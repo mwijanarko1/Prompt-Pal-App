@@ -38,6 +38,7 @@ export default function GameScreen() {
   const [lastScore, setLastScore] = useState(0);
   const [level, setLevel] = useState<Level | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Hint system state
   const [hints, setHints] = useState<string[]>([]);
@@ -53,46 +54,46 @@ export default function GameScreen() {
   useEffect(() => {
     const loadLevel = async () => {
       setIsLoading(true);
+      setError(null);
+
       try {
-        // Try API first for fresh data
+        // Get level data from API only
         const apiLevel = await apiClient.getLevelById(id as string);
+
         if (apiLevel) {
-          // Process with local assets if available
+          // Process with local assets if available (for images only)
           const localLevel = getLocalLevelById(id as string);
           const processedLevel = {
             ...apiLevel,
             targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
             hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
           };
+
           setLevel(processedLevel);
           startLevel(processedLevel.id);
           // Reset hints for this level
           NanoAssistant.resetHintsForLevel(processedLevel.id);
           setHints([]);
-          setIsLoading(false);
-          return;
+        } else {
+          throw new Error('Level not found');
+        }
+      } catch (error: any) {
+        logger.error('GameScreen', error, { operation: 'loadLevel', id });
+
+        // Determine error message based on error type
+        let errorMessage = 'Failed to load level. Please try again.';
+
+        if (error.status === 403) {
+          errorMessage = 'This level is locked. Complete previous levels to unlock it.';
+        } else if (error.status === 404) {
+          errorMessage = 'Level not found.';
+        } else if (error.status === 401) {
+          errorMessage = 'Authentication required. Please sign in again.';
+        } else if (error.message) {
+          errorMessage = error.message;
         }
 
-        // Fallback to local if API fails
-        const localLevel = getLocalLevelById(id as string);
-        if (localLevel) {
-          setLevel(localLevel as any);
-          startLevel(localLevel.id);
-          // Reset hints for this level
-          NanoAssistant.resetHintsForLevel(localLevel.id);
-          setHints([]);
-        }
-      } catch (error) {
-        logger.error('GameScreen', error, { operation: 'loadLevel', id });
-        // Fallback to local on API error
-        const localLevel = getLocalLevelById(id as string);
-        if (localLevel) {
-          setLevel(localLevel as any);
-          startLevel(localLevel.id);
-          // Reset hints for this level
-          NanoAssistant.resetHintsForLevel(localLevel.id);
-          setHints([]);
-        }
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -597,6 +598,88 @@ export default function GameScreen() {
       </View>
     );
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-background">
+        {renderHeader()}
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#6366f1" />
+          <Text className="text-onSurface mt-4">Loading level...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <View className="flex-1 bg-background">
+        {renderHeader()}
+        <View className="flex-1 items-center justify-center px-6">
+          <Ionicons name="alert-circle" size={64} color="#ef4444" />
+          <Text className="text-onSurface text-xl font-black mt-4 text-center">
+            Unable to Load Level
+          </Text>
+          <Text className="text-onSurfaceVariant text-center mt-2 mb-6">
+            {error}
+          </Text>
+          <Button
+            onPress={() => {
+              setError(null);
+              setIsLoading(true);
+              // Reload the level
+              const loadLevel = async () => {
+                try {
+                  const apiLevel = await apiClient.getLevelById(id as string);
+                  if (apiLevel) {
+                    const localLevel = getLocalLevelById(id as string);
+                    const processedLevel = {
+                      ...apiLevel,
+                      targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
+                      hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
+                    };
+                    setLevel(processedLevel);
+                    startLevel(processedLevel.id);
+                    NanoAssistant.resetHintsForLevel(processedLevel.id);
+                    setHints([]);
+                  }
+                } catch (err) {
+                  logger.error('GameScreen', err, { operation: 'retryLoadLevel', id });
+                  setError('Failed to load level. Please check your connection and try again.');
+                } finally {
+                  setIsLoading(false);
+                }
+              };
+              loadLevel();
+            }}
+            className="mb-4"
+          >
+            Try Again
+          </Button>
+          <Button
+            variant="outline"
+            onPress={() => router.back()}
+          >
+            Go Back
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
+  // Show error if level not loaded
+  if (!level) {
+    return (
+      <View className="flex-1 bg-background">
+        {renderHeader()}
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-onSurface">No level data available</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-background">

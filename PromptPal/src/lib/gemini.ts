@@ -33,9 +33,9 @@ export class GeminiService {
     if (this.useBackendApi) {
       try {
         console.log('[Gemini] 🎨 Generating image via backend API:', prompt.substring(0, 50));
-        const imageUrl = await apiClient.generateImage(prompt);
-        console.log('[Gemini] ✅ Image generated successfully via backend:', imageUrl);
-        return imageUrl;
+        const result = await apiClient.generateImage(prompt);
+        console.log('[Gemini] ✅ Image generated successfully via backend:', result.imageUrl);
+        return result.imageUrl;
       } catch (error) {
         console.error('[Gemini] ❌ Backend API failed:', error);
         if (error && typeof error === 'object' && 'details' in error) {

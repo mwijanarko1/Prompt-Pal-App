@@ -20,6 +20,16 @@ const LEVEL_IMAGE_ASSETS = {
   'image-9-hard': require('../../../assets/images/level-9-image.png'),
   'image-10-hard': require('../../../assets/images/level-10-image.png'),
 
+  // Coding Logic levels
+  'code-1-easy': require('../../../assets/images/level-4-image.png'),
+  'code-2-easy': require('../../../assets/images/level-5-image.png'),
+  'code-3-easy': require('../../../assets/images/level-6-image.png'),
+
+  // Copywriting levels
+  'copywriting-1-easy': require('../../../assets/images/level-7-image.png'),
+  'copywriting-2-easy': require('../../../assets/images/level-8-image.png'),
+  'copywriting-3-easy': require('../../../assets/images/level-9-image.png'),
+
   // Alternative ID formats for backward compatibility
   'level-1': require('../../../assets/images/level-1-image.png'),
   'level-2': require('../../../assets/images/level-2-image.png'),
@@ -112,6 +122,156 @@ const LEVEL_CONFIGS = [
     passingScore: 75,
     unlocked: false,
     prerequisites: ['image-2-easy'] as string[],
+  },
+
+  // Coding Logic Levels
+  {
+    id: 'code-1-easy',
+    moduleId: 'coding-logic',
+    type: 'code' as const,
+    title: 'Sum Function',
+    difficulty: 'beginner' as const,
+    testCases: [
+      {
+        id: 'sum-1',
+        name: 'Basic sum',
+        input: [1, 2],
+        expectedOutput: 3,
+        description: 'Sum of 1 and 2 should be 3'
+      },
+      {
+        id: 'sum-2',
+        name: 'Sum with zero',
+        input: [0, 5],
+        expectedOutput: 5,
+        description: 'Sum of 0 and 5 should be 5'
+      },
+      {
+        id: 'sum-3',
+        name: 'Negative numbers',
+        input: [-1, 3],
+        expectedOutput: 2,
+        description: 'Sum of -1 and 3 should be 2'
+      }
+    ] as any,
+    functionName: 'sum',
+    language: 'javascript',
+    passingScore: 75,
+    unlocked: false,
+    prerequisites: [] as string[],
+  },
+  {
+    id: 'code-2-easy',
+    moduleId: 'coding-logic',
+    type: 'code' as const,
+    title: 'Array Filter',
+    difficulty: 'beginner' as const,
+    testCases: [
+      {
+        id: 'filter-1',
+        name: 'Filter even numbers',
+        input: [[1, 2, 3, 4, 5, 6]],
+        expectedOutput: [2, 4, 6],
+        description: 'Filter array to keep only even numbers'
+      },
+      {
+        id: 'filter-2',
+        name: 'Filter strings longer than 3',
+        input: [['a', 'ab', 'abc', 'abcd']],
+        expectedOutput: ['abcd'],
+        description: 'Filter array to keep strings longer than 3 characters'
+      }
+    ] as any,
+    functionName: 'filterArray',
+    language: 'javascript',
+    passingScore: 75,
+    unlocked: false,
+    prerequisites: ['code-1-easy'] as string[],
+  },
+  {
+    id: 'code-3-easy',
+    moduleId: 'coding-logic',
+    type: 'code' as const,
+    title: 'String Reversal',
+    difficulty: 'beginner' as const,
+    testCases: [
+      {
+        id: 'reverse-1',
+        name: 'Simple reversal',
+        input: ['hello'],
+        expectedOutput: 'olleh',
+        description: 'Reverse the string "hello"'
+      },
+      {
+        id: 'reverse-2',
+        name: 'Empty string',
+        input: [''],
+        expectedOutput: '',
+        description: 'Reverse an empty string'
+      },
+      {
+        id: 'reverse-3',
+        name: 'Single character',
+        input: ['a'],
+        expectedOutput: 'a',
+        description: 'Reverse a single character string'
+      }
+    ] as any,
+    functionName: 'reverseString',
+    language: 'javascript',
+    passingScore: 75,
+    unlocked: false,
+    prerequisites: ['code-2-easy'] as string[],
+  },
+
+  // Copywriting Levels
+  {
+    id: 'copywriting-1-easy',
+    moduleId: 'copywriting',
+    type: 'copywriting' as const,
+    title: 'Product Description',
+    difficulty: 'beginner' as const,
+    briefProduct: 'Wireless Bluetooth Headphones',
+    briefTarget: 'Tech-savvy millennials aged 25-35',
+    briefTone: 'Casual and enthusiastic',
+    briefGoal: 'Drive online purchases',
+    wordLimit: { min: 50, max: 150 },
+    requiredElements: ['comfort', 'battery life', 'sound quality', 'price'],
+    passingScore: 75,
+    unlocked: false,
+    prerequisites: [] as string[],
+  },
+  {
+    id: 'copywriting-2-easy',
+    moduleId: 'copywriting',
+    type: 'copywriting' as const,
+    title: 'Social Media Post',
+    difficulty: 'beginner' as const,
+    briefProduct: 'Eco-friendly reusable water bottle',
+    briefTarget: 'Environmentally conscious young adults',
+    briefTone: 'Inspiring and motivational',
+    briefGoal: 'Increase brand awareness and engagement',
+    wordLimit: { min: 30, max: 100 },
+    requiredElements: ['sustainability', 'durability', 'design', 'call to action'],
+    passingScore: 75,
+    unlocked: false,
+    prerequisites: ['copywriting-1-easy'] as string[],
+  },
+  {
+    id: 'copywriting-3-easy',
+    moduleId: 'copywriting',
+    type: 'copywriting' as const,
+    title: 'Email Newsletter',
+    difficulty: 'beginner' as const,
+    briefProduct: 'Fitness tracking smartwatch',
+    briefTarget: 'Health-conscious professionals',
+    briefTone: 'Professional yet approachable',
+    briefGoal: 'Convert readers to customers',
+    wordLimit: { min: 100, max: 200 },
+    requiredElements: ['features', 'benefits', 'testimonials', 'limited time offer'],
+    passingScore: 75,
+    unlocked: false,
+    prerequisites: ['copywriting-2-easy'] as string[],
   },
 ] as const;
 

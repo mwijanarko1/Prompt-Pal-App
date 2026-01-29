@@ -11,6 +11,7 @@
    - [User Data Endpoints](#user-data-endpoints)
    - [Content Data Endpoints](#content-data-endpoints)
    - [Analytics Endpoints](#analytics-endpoints)
+   - [Legacy Endpoints](#legacy-endpoints)
    - [System Endpoints](#system-endpoints)
 6. [Database Schema](#database-schema)
 7. [Error Handling](#error-handling)
@@ -120,7 +121,7 @@ x-request-id: <uuid>  (optional, for tracing)
 
 ### Authentication Methods
 
-The system supports Clerk JWT authentication:
+The system currently supports Clerk JWT authentication only:
 
 ```typescript
 // src/lib/auth/index.ts
@@ -130,6 +131,8 @@ export interface AuthContext {
   method: "clerk";
 }
 ```
+
+> **Note**: Only Clerk JWT authentication is currently implemented. API Key and custom token authentication methods are not available.
 
 ---
 
@@ -180,7 +183,7 @@ Unified AI proxy endpoint for text generation, image generation, and image compa
 **Request Body**:
 ```typescript
 {
-  type: "text" | "image" | "compare",
+  type: "text" | "image" | "compare" | "evaluate",
   input: {
     // For text type
     prompt: string,
@@ -192,7 +195,16 @@ Unified AI proxy endpoint for text generation, image generation, and image compa
 
     // For compare type
     targetUrl: string,
-    resultUrl: string
+    resultUrl: string,
+
+    // For evaluate type
+    taskId: string,
+    userImageUrl: string,
+    expectedImageUrl: string,
+    hiddenPromptKeywords?: string[],
+    style?: string,
+    userPrompt?: string,
+    targetPrompt?: string
   }
 }
 ```
@@ -244,6 +256,34 @@ Unified AI proxy endpoint for text generation, image generation, and image compa
     model: string
   }
 }
+
+// Evaluate response
+{
+  type: "evaluate",
+  model: "gemini-2.5-flash",
+  evaluation: {
+    score: number, // 0-100
+    similarity: number, // 0-100
+    keywordScore: number, // 0-100
+    styleScore: number, // 0-100
+    promptSimilarity: number, // 0-100
+    feedback: string[],
+    keywordsMatched: string[],
+    criteria: Array<{
+      name: string,
+      score: number, // 0-100
+      feedback: string
+    }>
+  },
+  tokensUsed: number,
+  remaining: {
+    imageCalls: number
+  },
+  metadata: {
+    latency: number,
+    model: string
+  }
+}
 ```
 
 **Example**:
@@ -269,6 +309,75 @@ Versioned AI proxy endpoint with identical functionality to the legacy endpoint.
 
 ---
 
+#### POST /api/analyzer/evaluate-images
+
+Evaluate user-generated images against target images with detailed scoring.
+
+**Authentication**: Required (JWT)
+
+**Request Body**:
+```typescript
+{
+  type: "evaluate",
+  input: {
+    taskId: string,
+    userImageUrl: string,  // URL to user's generated image
+    expectedImageUrl: string,  // URL to target/reference image
+    hiddenPromptKeywords?: string[],  // Keywords that should be present in prompt
+    style?: string,  // Style requirements
+    userPrompt?: string,  // The prompt the user used
+    targetPrompt?: string  // The expected/target prompt
+  }
+}
+```
+
+**Response**:
+```typescript
+{
+  success: true,
+  evaluation: {
+    score: number,  // Overall score 0-100
+    similarity: number,  // Visual similarity score 0-100
+    keywordScore: number,  // Keyword matching score 0-100
+    styleScore: number,  // Style adherence score 0-100
+    promptSimilarity: number,  // Prompt similarity score 0-100
+    feedback: string[],  // Array of feedback messages
+    keywordsMatched: string[],  // Keywords that matched
+    criteria: Array<{
+      name: string,
+      score: number,  // 0-100
+      feedback: string
+    }>
+  },
+  metadata: {
+    model: string,
+    processingTime: number,  // in milliseconds
+    requestId: string
+  }
+}
+```
+
+**Example**:
+```bash
+curl -X POST https://your-domain.com/api/analyzer/evaluate-images \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "evaluate",
+    "input": {
+      "taskId": "task-123",
+      "userImageUrl": "https://example.com/user-image.png",
+      "expectedImageUrl": "https://example.com/target-image.png",
+      "hiddenPromptKeywords": ["sunset", "mountains", "peaceful"],
+      "style": "photorealistic",
+      "userPrompt": "A peaceful sunset over mountains",
+      "targetPrompt": "A photorealistic sunset over mountains with warm colors"
+    }
+  }'
+```
+
+---
+
 ### User Data Endpoints
 
 #### GET /api/v1/user/usage
@@ -280,7 +389,6 @@ Get user quota usage and plan information.
 **Response**:
 ```typescript
 {
-  userId: string,
   appId: string,
   tier: "free" | "pro",
   used: {
@@ -293,7 +401,8 @@ Get user quota usage and plan information.
     imageCalls: number,
     audioSummaries: number
   },
-  periodStart: number // Timestamp
+  periodStart: number,  // Timestamp
+  periodEnd: number  // Timestamp
 }
 ```
 
@@ -487,7 +596,8 @@ Mark a quest as complete.
 **Request Body**:
 ```typescript
 {
-  questId: string
+  questId: string,
+  score?: number
 }
 ```
 
@@ -495,9 +605,7 @@ Mark a quest as complete.
 ```typescript
 {
   success: true,
-  questId: string,
-  completedAt: number,
-  xpReward: number
+  message: "Quest completed successfully"
 }
 ```
 
@@ -527,19 +635,30 @@ Get comprehensive user statistics.
 
 #### GET /api/v1/user/rank
 
-Get user's rank/leaderboard position.
+Get user's rank/leaderboard position with nearby players.
 
 **Authentication**: Required (JWT)
 
 **Response**:
 ```typescript
 {
-  rank: number,
-  name: string,
-  avatarUrl: string | null,
-  points: number,
-  level: number,
-  isCurrentUser: true
+  userRank: number,
+  above: Array<{
+    userId: string,
+    name: string,
+    avatarUrl: string | null,
+    points: number,
+    level: number,
+    rank: number
+  }>,
+  below: Array<{
+    userId: string,
+    name: string,
+    avatarUrl: string | null,
+    points: number,
+    level: number,
+    rank: number
+  }>
 }
 ```
 
@@ -564,67 +683,67 @@ Get user's unlocked achievements.
 }
 ```
 
-#### GET /api/v1/user/analytics
+#### POST /api/v1/user/analytics
 
-Get user analytics data.
+Log analytics events for tracking user behavior.
 
 **Authentication**: Required (JWT)
 
-**Response**:
+**Request Body**:
 ```typescript
 {
-  userId: string,
-  appId: string,
-  events: [
-    {
-      userId: string,
-      appId: string,
-      eventType: string,
-      eventData: any,
-      sessionId: string | null,
-      timestamp: number,
-      userAgent: string | null,
-      ipAddress: string | null
-    }
-  ],
-  aiGenerations: [
-    {
-      userId: string,
-      appId: string,
-      requestId: string,
-      type: "text" | "image" | "compare",
-      model: string,
-      promptLength: number | null,
-      responseLength: number | null,
-      tokensUsed: number | null,
-      durationMs: number,
-      success: boolean,
-      errorMessage: string | null,
-      createdAt: number
-    }
-  ]
+  appId?: string,  // Optional, defaults to "prompt-pal"
+  eventType: string,
+  eventData?: any,
+  sessionId?: string
 }
 ```
 
-#### GET /api/v1/user/modules/[moduleId]
+**Response**:
+```typescript
+{
+  success: true,
+  eventType: string,
+  timestamp: number
+}
+```
 
-Get progress for a specific learning module.
+**Example**:
+```bash
+curl -X POST https://your-domain.com/api/v1/user/analytics \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "level_completed",
+    "eventData": {
+      "levelId": "level-123",
+      "score": 95,
+      "timeSpent": 300
+    },
+    "sessionId": "session-456"
+  }'
+```
+
+#### PUT /api/v1/user/modules/[moduleId]
+
+Update progress for a specific learning module.
 
 **Authentication**: Required (JWT)
+
+**Request Body**:
+```typescript
+{
+  progress: number,  // 0-100
+  completed: boolean,
+  completedAt?: number
+}
+```
 
 **Response**:
 ```typescript
 {
-  userId: string,
-  appId: string,
-  moduleId: string,
-  level: string,
-  topic: string,
-  progress: number, // 0-100
-  completed: boolean,
-  completedAt: number | null,
-  createdAt: number,
-  updatedAt: number
+  success: true,
+  message: "Module progress updated successfully"
 }
 ```
 
@@ -644,7 +763,7 @@ Sync all user data from Convex in a single request.
     avatarUrl: string | null,
     createdAt: number,
     updatedAt: number
-  } | null,
+  } | null,  // Null if user profile not found in database
   statistics: {
     userId: string,
     totalXp: number,
@@ -1016,6 +1135,218 @@ Log performance metrics for monitoring.
 
 ---
 
+### Legacy Endpoints
+
+> **Note**: These are legacy endpoints that are maintained for backward compatibility. Consider migrating to the v1 endpoints.
+
+#### GET /api/user/progress
+
+Get user progress including level, XP, and streaks (legacy).
+
+**Authentication**: Required (JWT)
+
+**Response**:
+```typescript
+{
+  appId: string,
+  progress: {
+    level: number,
+    xp: number,
+    currentStreak: number,
+    longestStreak: number,
+    lastActivityDate: string | null
+  }
+}
+```
+
+#### PUT /api/user/progress
+
+Update user progress (legacy).
+
+**Authentication**: Required (JWT)
+
+**Request Body**:
+```typescript
+{
+  progress: {
+    level: number,
+    xp: number,
+    currentStreak: number,
+    longestStreak: number,
+    lastActivityDate: string | null
+  }
+}
+```
+
+**Response**:
+```typescript
+{
+  success: true,
+  appId: string,
+  progress: {
+    level: number,
+    xp: number,
+    currentStreak: number,
+    longestStreak: number,
+    lastActivityDate: string | null
+  }
+}
+```
+
+#### GET /api/user/quests
+
+Get user quest progress and available quests (legacy).
+
+**Authentication**: Required (JWT)
+
+**Response**:
+```typescript
+{
+  appId: string,
+  quests: [...],  // User's quest states
+  availableQuests: [...]  // Available quest definitions
+}
+```
+
+#### PUT /api/user/quests
+
+Update user quest progress (legacy).
+
+**Authentication**: Required (JWT)
+
+**Request Body**:
+```typescript
+{
+  quests: [
+    {
+      questId: string,
+      completed: boolean,
+      completedAt: number | null,
+      expiresAt: number
+    }
+  ]
+}
+```
+
+**Response**:
+```typescript
+{
+  success: true,
+  appId: string,
+  quests: [...]
+}
+```
+
+#### GET /api/user/game-state
+
+Get current game state for the user (legacy).
+
+**Authentication**: Required (JWT)
+
+**Response**:
+```typescript
+{
+  appId: string,
+  gameState: {
+    userId: string,
+    appId: string,
+    currentLevelId: string | null,
+    lives: number,
+    score: number,
+    isPlaying: boolean,
+    unlockedLevels: string[],
+    completedLevels: string[],
+    createdAt: number,
+    updatedAt: number
+  }
+}
+```
+
+#### PUT /api/user/game-state
+
+Update user game state (legacy).
+
+**Authentication**: Required (JWT)
+
+**Request Body**:
+```typescript
+{
+  gameState: {
+    currentLevelId: string | null,
+    lives: number,
+    score: number,
+    isPlaying: boolean,
+    unlockedLevels: string[],
+    completedLevels: string[]
+  }
+}
+```
+
+**Response**:
+```typescript
+{
+  success: true,
+  appId: string,
+  gameState: {
+    userId: string,
+    appId: string,
+    currentLevelId: string | null,
+    lives: number,
+    score: number,
+    isPlaying: boolean,
+    unlockedLevels: string[],
+    completedLevels: string[],
+    createdAt: number,
+    updatedAt: number
+  }
+}
+```
+
+#### GET /api/user/usage
+
+Get user quota usage and plan information (legacy).
+
+**Authentication**: Required (JWT)
+
+**Response**:
+```typescript
+{
+  appId: string,
+  usage: {
+    userId: string,
+    appId: string,
+    tier: "free" | "pro",
+    used: {
+      textCalls: number,
+      imageCalls: number,
+      audioSummaries: number
+    },
+    limits: {
+      textCalls: number,
+      imageCalls: number,
+      audioSummaries: number
+    },
+    periodStart: number
+  }
+}
+```
+
+#### GET /api/levels
+
+Get all game levels (legacy).
+
+**Authentication**: Required (JWT)
+
+**Response**:
+```typescript
+{
+  appId: string,
+  levels: [...]  // Array of level objects
+}
+```
+
+---
+
 ### System Endpoints
 
 #### GET /api/health
@@ -1328,11 +1659,11 @@ Daily quests.
   title: string,
   description: string,
   xpReward: number,
-  questType: "image" | "code" | "copywriting",
-  type: string, // 'image', 'code', 'copywriting'
-  category: string,
-  requirements: any,
-  difficulty: string, // 'easy', 'medium', 'hard'
+  questType: "image" | "code" | "copywriting",  // The category/type of quest
+  type: string,  // Duplicate/legacy field, also 'image', 'code', 'copywriting'
+  category: string,  // Additional categorization
+  requirements: any,  // Specific requirements for quest
+  difficulty: string,  // 'easy', 'medium', 'hard'
   isActive: boolean,
   expiresAt?: number,
   createdAt: number,
@@ -1412,7 +1743,7 @@ AI generations history (privacy-safe - no sensitive content).
   userId: string, // Clerk user ID
   appId: string, // 'prompt-pal'
   requestId: string, // Unique request identifier
-  type: "text" | "image" | "compare",
+  type: "text" | "image" | "compare" | "evaluate",
   model: string, // Model used
   promptLength?: number, // Length of prompt (characters)
   responseLength?: number, // Length of response (characters)
@@ -1772,16 +2103,6 @@ curl https://your-domain.com/api/health
   }
 }
 ```
-
----
-
-## Additional Resources
-
-- [README.md](../README.md) - Project overview and setup
-- [convex/schema.ts](../convex/schema.ts) - Database schema definition
-- [src/lib/validation/schemas.ts](../src/lib/validation/schemas.ts) - API validation schemas
-- [src/middleware.ts](../src/middleware.ts) - Middleware implementation
-- [src/lib/auth/](../src/lib/auth/) - Authentication implementation
 
 ---
 

@@ -1,9 +1,13 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
 import { setTokenProvider as setAiProxyTokenProvider } from './aiProxy';
-import { setApiClientToken } from './api';
+import { setApiClientToken, apiClient } from './api';
 import { logger } from './logger';
 import { registerSignOutCallback, registerTokenRefreshCallback } from './session-manager';
+import { getFreshToken } from './token-utils';
+
+// Import API_BASE_URL from api.ts
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:1337";
 
 /**
  * Component that synchronizes the Clerk authentication token with the AI Proxy client.
@@ -26,20 +30,22 @@ function AuthTokenSyncInner() {
             return null;
           }
 
-          // Clerk automatically handles token refresh in mobile apps
-          const token = await getToken();
+          // For AI proxy calls, always get a fresh token to avoid cached token expiration
+          // This is critical because AI proxy tokens expire after ~2.5 minutes
+          const token = await getFreshToken(getToken);
 
           if (!token) {
-            logger.error('AuthTokenSync', 'Clerk returned null token - session may be invalid');
+            logger.error('AuthTokenSync', 'Failed to get fresh token - session may be invalid');
             // For mobile apps, if we can't get a token, the session is likely expired
             // Sign out to force re-authentication
             await signOut();
             return null;
           }
 
+          logger.debug('AuthTokenSync', 'Providing fresh token for AI proxy call');
           return token;
         } catch (error) {
-          logger.error('AuthTokenSync', error, { operation: 'getToken' });
+          logger.error('AuthTokenSync', error, { operation: 'getFreshToken' });
 
           // If token refresh fails, the session is likely expired
           // Sign out to force clean re-authentication
@@ -56,7 +62,11 @@ function AuthTokenSyncInner() {
       // Set token provider for AI proxy
       setAiProxyTokenProvider(tokenProvider);
 
-      // Set token directly for API client (all endpoints now require auth)
+      // Set token getter on the existing API client for fresh tokens on AI proxy calls
+      const freshTokenGetter = () => getFreshToken(getToken);
+      (apiClient as any).setTokenGetter(freshTokenGetter);
+
+      // Set token directly for API client (for non-AI proxy endpoints)
       tokenProvider().then(token => {
         if (token) {
           setApiClientToken(token);
