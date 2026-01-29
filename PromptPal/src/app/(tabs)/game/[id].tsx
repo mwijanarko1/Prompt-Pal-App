@@ -1,16 +1,31 @@
 import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
-import { getLevelById as getLocalLevelById } from '@/features/levels/data';
+import { getLevelById as getLocalLevelById, processApiLevelsWithLocalAssets } from '@/features/levels/data';
 import { AIProxyClient } from '@/lib/aiProxy';
-import { ApiClient, Level } from '@/lib/api';
+import { apiClient, Level } from '@/lib/api';
 import { useGameStore, ChallengeType } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
 
 const { width } = Dimensions.get('window');
+
+// Helper function to map level type to moduleId for navigation
+const getModuleIdFromLevelType = (levelType: string): string => {
+  switch (levelType) {
+    case 'image':
+      return 'image-generation';
+    case 'code':
+      return 'coding-logic';
+    case 'copywriting':
+      return 'copywriting';
+    default:
+      return 'image-generation'; // fallback
+  }
+};
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
@@ -32,11 +47,33 @@ export default function GameScreen() {
 
   const { lives, loseLife, startLevel, completeLevel } = useGameStore();
 
+  // ScrollView ref for keyboard handling
+  const scrollViewRef = useRef<ScrollView>(null);
+
   useEffect(() => {
     const loadLevel = async () => {
       setIsLoading(true);
       try {
-        // Try local first
+        // Try API first for fresh data
+        const apiLevel = await apiClient.getLevelById(id as string);
+        if (apiLevel) {
+          // Process with local assets if available
+          const localLevel = getLocalLevelById(id as string);
+          const processedLevel = {
+            ...apiLevel,
+            targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
+            hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
+          };
+          setLevel(processedLevel);
+          startLevel(processedLevel.id);
+          // Reset hints for this level
+          NanoAssistant.resetHintsForLevel(processedLevel.id);
+          setHints([]);
+          setIsLoading(false);
+          return;
+        }
+
+        // Fallback to local if API fails
         const localLevel = getLocalLevelById(id as string);
         if (localLevel) {
           setLevel(localLevel as any);
@@ -44,22 +81,18 @@ export default function GameScreen() {
           // Reset hints for this level
           NanoAssistant.resetHintsForLevel(localLevel.id);
           setHints([]);
-          setIsLoading(false);
-          return;
-        }
-
-        // Try API
-        console.log('[DEBUG] Level not found locally, fetching from API:', id);
-        const apiLevel = await ApiClient.getLevelById(id as string);
-        if (apiLevel) {
-          setLevel(apiLevel);
-          startLevel(apiLevel.id);
-          // Reset hints for this level
-          NanoAssistant.resetHintsForLevel(apiLevel.id);
-          setHints([]);
         }
       } catch (error) {
         logger.error('GameScreen', error, { operation: 'loadLevel', id });
+        // Fallback to local on API error
+        const localLevel = getLocalLevelById(id as string);
+        if (localLevel) {
+          setLevel(localLevel as any);
+          startLevel(localLevel.id);
+          // Reset hints for this level
+          NanoAssistant.resetHintsForLevel(localLevel.id);
+          setHints([]);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -78,6 +111,31 @@ export default function GameScreen() {
     }, 1000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Keyboard handling - scroll to input when keyboard shows
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (event) => {
+        // Small delay to ensure UI has updated
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        // Optional: scroll back to top when keyboard hides
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
   }, []);
 
   // Handle getting a hint
@@ -134,91 +192,196 @@ export default function GameScreen() {
 
     setIsGenerating(true);
     try {
-      let score = 0;
-      
       if (level.type === 'image') {
-        const result = await AIProxyClient.generateImage(prompt);
-        setGeneratedImage(result.imageUrl!);
+        // Step 1: Generate image
+        const generateResult = await apiClient.generateImage(prompt, Date.now());
+        const generatedImageUrl = generateResult.imageUrl;
+        setGeneratedImage(generatedImageUrl);
         setActiveTab('attempt');
-        score = Math.floor(Math.random() * 30) + 70; // Mock score
-      } else if (level.type === 'code') {
-        // Mocking logic evaluation
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        score = 100;
-      } else if (level.type === 'copywriting') {
-        // Mocking copywriting evaluation
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        score = 85;
-      }
 
-      // Apply hint penalty to score (passing score ensures hints can't block a deserved pass)
-      const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
-      const finalScore = penaltyDetails.finalScore;
-      
-      setLastScore(finalScore);
-      if (finalScore >= level.passingScore) {
-        setShowResult(true);
-        completeLevel(level.id);
-      } else {
-        loseLife();
-        let message = `Your score: ${finalScore}%`;
-        if (penaltyDetails.hintsUsed > 0) {
-          message += ` (Base: ${score}%, -${penaltyDetails.penaltyPoints} from ${penaltyDetails.hintsUsed} hint${penaltyDetails.hintsUsed > 1 ? 's' : ''})`;
+        // Step 2: Evaluate the generated image
+        const evaluationResult = await apiClient.evaluateImageAdvanced({
+          taskId: level.id,
+          userImageUrl: generatedImageUrl,
+          expectedImageUrl: level.targetImageUrl!,
+          hiddenPromptKeywords: level.hiddenPromptKeywords,
+          style: level.style,
+          userPrompt: prompt,
+          // Note: targetPrompt would come from level data if we add it
+        });
+
+        const evaluation = evaluationResult.evaluation;
+        const score = evaluation.score;
+
+        // Apply hint penalty to score
+        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
+        const finalScore = penaltyDetails.finalScore;
+
+        setLastScore(finalScore);
+
+        if (finalScore >= level.passingScore) {
+          // Update progress - user passed
+          await apiClient.updateProgress({
+            levelId: level.id,
+            score: finalScore,
+            completed: true,
+            bestScore: finalScore // In a real app, you'd track the best score
+          });
+
+          setShowResult(true);
+          completeLevel(level.id);
+        } else {
+          // User didn't pass - lose a life
+          const newLives = lives - 1;
+          await apiClient.updateGameState({
+            lives: newLives
+          });
+
+          loseLife();
+
+          // Show detailed feedback
+          let message = `Score: ${finalScore}%\n\n`;
+          if (evaluation.feedback && evaluation.feedback.length > 0) {
+            message += `Feedback:\n${evaluation.feedback.join('\n')}\n\n`;
+          }
+          if (evaluation.keywordsMatched && evaluation.keywordsMatched.length > 0) {
+            message += `Keywords captured: ${evaluation.keywordsMatched.join(', ')}\n`;
+          }
+          message += `Need ${level.passingScore}% to pass.`;
+
+          Alert.alert('Try Again', message);
         }
-        message += `. You need ${level.passingScore}% to pass.`;
-        Alert.alert('Try Again', message);
+      } else if (level.type === 'code') {
+        // Mocking logic evaluation for now
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const score = 100;
+
+        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
+        const finalScore = penaltyDetails.finalScore;
+
+        setLastScore(finalScore);
+        if (finalScore >= level.passingScore) {
+          setShowResult(true);
+          completeLevel(level.id);
+        } else {
+          loseLife();
+          Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
+        }
+      } else if (level.type === 'copywriting') {
+        // Mocking copywriting evaluation for now
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const score = 85;
+
+        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
+        const finalScore = penaltyDetails.finalScore;
+
+        setLastScore(finalScore);
+        if (finalScore >= level.passingScore) {
+          setShowResult(true);
+          completeLevel(level.id);
+        } else {
+          loseLife();
+          Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('GameScreen', error, { operation: 'handleGenerate' });
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+
+      // Handle specific error types
+      if (error.response?.status === 429) {
+        Alert.alert('Rate Limited', 'Too many requests. Please wait before trying again.');
+      } else if (error.response?.status === 403) {
+        Alert.alert('Content Policy', 'Your prompt may violate content policies. Please try a different prompt.');
+      } else {
+        Alert.alert('Error', 'Something went wrong. Please try again.');
+      }
     } finally {
       setIsGenerating(false);
     }
   };
 
   const renderHeader = () => (
-    <View className="px-6 py-2">
-      <View className="flex-row justify-between items-center mb-4">
-        <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant">
-          <Text className="text-onSurface text-xl font-bold">←</Text>
-        </TouchableOpacity>
-        
-        <View className="items-center">
-          <Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-0.5">
-            {level.type === 'image' ? 'CHALLENGE' : level.type === 'code' ? level.moduleTitle : 'COPYWRITING CHALLENGE'}
-          </Text>
-          <Text className="text-onSurface text-base font-black">
-            {level.title}
-          </Text>
+    <SafeAreaView className="bg-background" edges={['top']}>
+      <View className="px-6 py-2">
+        <View className="flex-row justify-between items-center mb-4">
+          <TouchableOpacity onPress={() => {
+            if (level) {
+              const moduleId = getModuleIdFromLevelType(level.type || 'image');
+              router.push(`/(tabs)/game/levels/${moduleId}`);
+            } else {
+              router.back();
+            }
+          }} className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant">
+            <Text className="text-onSurface text-xl font-bold">←</Text>
+          </TouchableOpacity>
+
+          <View className="items-center flex-1 mx-4">
+            <Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-0.5" numberOfLines={1}>
+              {level.type === 'image' ? 'CHALLENGE' : level.type === 'code' ? level.moduleTitle : 'COPYWRITING CHALLENGE'}
+            </Text>
+            <Text className="text-onSurface text-base font-black text-center" numberOfLines={2}>
+              {level.title}
+            </Text>
+          </View>
+
+          <TouchableOpacity className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant">
+            <Text className="text-onSurface text-xl font-bold">?</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant">
-          <Text className="text-onSurface text-xl font-bold">?</Text>
-        </TouchableOpacity>
+        {level.type !== 'image' && (
+          <View className="flex-row items-center mb-2">
+            <ProgressBar progress={level.type === 'code' ? 0.33 : 0.6} className="flex-1 mr-4" />
+            <Text className="text-primary text-[10px] font-black uppercase tracking-widest">
+              {level.type === 'code' ? '4/12' : '60% COMPLETE'}
+            </Text>
+          </View>
+        )}
       </View>
-      
-      {level.type !== 'image' && (
-        <View className="flex-row items-center mb-2">
-          <ProgressBar progress={level.type === 'code' ? 0.33 : 0.6} className="flex-1 mr-4" />
-          <Text className="text-primary text-[10px] font-black uppercase tracking-widest">
-            {level.type === 'code' ? '4/12' : '60% COMPLETE'}
-          </Text>
-        </View>
-      )}
-    </View>
+    </SafeAreaView>
   );
 
-  const renderImageChallenge = () => (
-    <>
+  const renderImageChallenge = () => {
+    const imageUri = activeTab === 'target' ? level.targetImageUrl : (generatedImage || level.targetImageUrl);
+    const isLocalAsset = activeTab === 'target' && typeof imageUri === 'number';
+
+    console.log('[DEBUG] renderImageChallenge:', {
+      activeTab,
+      imageUri,
+      isLocalAsset,
+      levelId: level.id,
+      targetImageUrl: level.targetImageUrl
+    });
+
+    return (
       <View className="px-6 pt-4 pb-6">
+        {level.description && (
+          <View className="mb-4">
+            <Text className="text-onSurface text-base font-black leading-6 text-center">
+              {level.description}
+            </Text>
+          </View>
+        )}
         <Card className="p-0 overflow-hidden rounded-[40px] border-0" variant="elevated">
           <View className="aspect-square relative">
-            <Image
-              source={{ uri: activeTab === 'target' ? level.targetImageUrl : (generatedImage || level.targetImageUrl) }}
-              className="w-full h-full"
-              resizeMode="cover"
-            />
-            {activeTab === 'target' && (
+            {imageUri ? (
+              <Image
+                source={isLocalAsset ? imageUri : { uri: imageUri }}
+                className="w-full h-full"
+                resizeMode="cover"
+                onError={(error) => {
+                  console.log('Image load error:', error.nativeEvent);
+                }}
+              />
+            ) : (
+              <View className="w-full h-full bg-surfaceVariant items-center justify-center">
+                <Ionicons name="image-outline" size={64} color="#9CA3AF" />
+                <Text className="text-onSurfaceVariant text-center mt-4 font-bold">
+                  {activeTab === 'target' ? 'Target Image Not Available' : 'Your Attempt Will Appear Here'}
+                </Text>
+              </View>
+            )}
+            {activeTab === 'target' && imageUri && (
               <View className="absolute top-6 right-6">
                 <Badge label="🎯 TARGET" variant="primary" className="bg-primary px-3 py-1.5 rounded-full border-0" />
               </View>
@@ -241,8 +404,8 @@ export default function GameScreen() {
           </View>
         </Card>
       </View>
-    </>
-  );
+    );
+  };
 
   const renderCodeChallenge = () => (
     <View className="px-6 py-4">
@@ -313,7 +476,7 @@ export default function GameScreen() {
     const hintsRemaining = level ? NanoAssistant.getHintsRemaining(level.id, level.difficulty) : 0;
     const maxHints = level ? NanoAssistant.getMaxHintsPerLevel(level.difficulty) : 4;
     const noHintsLeft = hintsRemaining === 0;
-    
+
     return (
       <View className="px-6 pb-8">
         <View className="flex-row justify-between items-center mb-4">
@@ -375,7 +538,7 @@ export default function GameScreen() {
           </TouchableOpacity>
         )}
 
-        <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20">
+        <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20 mb-4">
           <Input
             value={prompt}
             onChangeText={setPrompt}
@@ -393,21 +556,22 @@ export default function GameScreen() {
           </View>
         </Card>
 
-        <Button
-          onPress={handleGenerate}
-          loading={isGenerating}
-          variant="primary"
-          size="lg"
-          fullWidth
-          className="mt-8 rounded-full py-5 shadow-glow"
-        >
-          <View className="flex-row items-center">
-            <Text className="text-onPrimary text-lg font-black mr-2">🚀</Text>
-            <Text className="text-onPrimary text-lg font-black">
-              {level.type === 'image' ? 'Generate & Compare' : 'Generate'}
-            </Text>
-          </View>
-        </Button>
+        <View className="mt-6">
+          <Button
+            onPress={handleGenerate}
+            loading={isGenerating}
+            variant="primary"
+            size="lg"
+            fullWidth
+            className="rounded-full py-5 shadow-glow"
+          >
+            <View className="flex-row items-center">
+              <Text className="text-onPrimary text-lg font-black">
+                {level.type === 'image' ? 'Generate & Compare' : 'Generate'}
+              </Text>
+            </View>
+          </Button>
+        </View>
       </View>
     );
   };
@@ -422,7 +586,7 @@ export default function GameScreen() {
           <RadarChart metrics={level.metrics || []} size={width - 100} />
           
           <View className="flex-row w-full justify-around mt-6">
-            {level.metrics?.map((m, i) => (
+            {level.metrics?.map((m: { label: string; value: number }, i: number) => (
               <View key={i} className="items-center">
                 <Text className="text-primary text-2xl font-black">{m.value / 10}</Text>
                 <Text className="text-onSurfaceVariant text-[10px] font-black uppercase">{m.label}</Text>
@@ -435,18 +599,21 @@ export default function GameScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
+    <View className="flex-1 bg-background">
       {renderHeader()}
 
-      <Pressable onPress={() => Keyboard.dismiss()} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 60}
+      >
         <ScrollView
+          ref={scrollViewRef}
           className="flex-1"
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
         >
           {level.type === 'image' && renderImageChallenge()}
           {level.type === 'code' && renderCodeChallenge()}
@@ -455,7 +622,7 @@ export default function GameScreen() {
           {renderPromptSection()}
           {renderFeedbackSection()}
         </ScrollView>
-      </Pressable>
+      </KeyboardAvoidingView>
 
       <ResultModal
         visible={showResult}
@@ -465,10 +632,15 @@ export default function GameScreen() {
         output={level.type === 'code' ? "[{'name': 'Alice', 'age': 32}, {'name': 'Bob', 'age': 25}]" : undefined}
         onNext={() => {
           setShowResult(false);
-          router.back();
+          if (level) {
+            const moduleId = getModuleIdFromLevelType(level.type || 'image');
+            router.push(`/(tabs)/game/levels/${moduleId}`);
+          } else {
+            router.back();
+          }
         }}
         onClose={() => setShowResult(false)}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }

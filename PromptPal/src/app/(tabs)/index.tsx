@@ -4,7 +4,7 @@ import { Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Ima
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { LEVELS, getUnlockedLevels } from '@/features/levels/data';
+import { getUnlockedLevels } from '@/features/levels/data';
 import { UsageDisplay } from '@/components/UsageDisplay';
 import { UsageClient, UsageStats } from '@/lib/usage';
 import { useGameStore } from '@/features/game/store';

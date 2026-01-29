@@ -13,6 +13,7 @@ interface InputProps {
   keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   className?: string;
+  onFocus?: () => void;
 }
 
 export function Input({
@@ -27,6 +28,7 @@ export function Input({
   keyboardType = 'default',
   autoCapitalize = 'sentences',
   className = '',
+  onFocus,
 }: InputProps) {
   const hasError = !!error;
   const borderColor = hasError ? 'border-error' : 'border-outline';
@@ -42,6 +44,7 @@ export function Input({
         <RNTextInput
           value={value}
           onChangeText={onChangeText}
+          onFocus={onFocus}
           placeholder={placeholder}
           placeholderTextColor="#6B7280"
           multiline={multiline}

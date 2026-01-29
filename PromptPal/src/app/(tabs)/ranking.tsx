@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui';
-import { ApiClient, LeaderboardUser } from '@/lib/api';
+import { apiClient, LeaderboardEntry } from '@/lib/api';
 
 const { width } = Dimensions.get('window');
 
@@ -28,33 +28,27 @@ export default function RankingScreen() {
 
         // Fetch leaderboard and user rank data
         const [leaderboardData, userRankData] = await Promise.all([
-          ApiClient.getLeaderboard(50),
-          ApiClient.getUserRank(),
+          apiClient.getLeaderboard(50),
+          apiClient.getUserRank(),
         ]);
 
         // Split into top 3 and the rest
-        const top3 = leaderboardData.slice(0, 3);
-        const rest = leaderboardData.slice(3);
+        const top3 = leaderboardData.leaderboard.slice(0, 3);
+        const rest = leaderboardData.leaderboard.slice(3);
 
         setTopWinners(top3);
         setRankList(rest);
-        setCurrentUser(userRankData.user);
+        setCurrentUser(userRankData);
 
         // If user is in top 3, replace their entry
-        if (userRankData.user.rank <= 3) {
-          const userIndex = top3.findIndex(u => u.id === userRankData.user.id);
+        if (userRankData.rank <= 3) {
+          const userIndex = top3.findIndex(u => u.rank === userRankData.rank);
           if (userIndex >= 0) {
             const updatedTop3 = [...top3];
-            updatedTop3[userIndex] = userRankData.user;
+            updatedTop3[userIndex] = userRankData;
             setTopWinners(updatedTop3);
           }
         }
-
-        // Add nearby users to rank list if they're not already there
-        const nearbyUsers = userRankData.nearby.filter(
-          user => !rest.some(existing => existing.id === user.id)
-        );
-        setRankList(prev => [...prev, ...nearbyUsers]);
 
       } catch (err) {
         console.error('Failed to fetch leaderboard data:', err);
@@ -151,15 +145,15 @@ export default function RankingScreen() {
             setLoading(true);
             // Retry fetching data
             Promise.all([
-              ApiClient.getLeaderboard(50),
-              ApiClient.getUserRank(),
+              apiClient.getLeaderboard(50),
+              apiClient.getUserRank(),
             ])
               .then(([leaderboardData, userRankData]) => {
-                const top3 = leaderboardData.slice(0, 3);
-                const rest = leaderboardData.slice(3);
+                const top3 = leaderboardData.leaderboard.slice(0, 3);
+                const rest = leaderboardData.leaderboard.slice(3);
                 setTopWinners(top3);
                 setRankList(rest);
-                setCurrentUser(userRankData.user);
+                setCurrentUser(userRankData);
               })
               .catch(err => {
                 console.error('Failed to retry fetching leaderboard:', err);

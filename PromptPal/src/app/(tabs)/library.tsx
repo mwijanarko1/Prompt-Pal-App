@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Badge, Card, ProgressBar, ResourceModal } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
-import { ApiClient, LibraryData, LibraryCategory, LearningModule, Resource } from '@/lib/api';
+import { apiClient, LibraryData, LibraryCategory, LearningModule, Resource } from '@/lib/api';
 import { getModuleThumbnail } from '@/lib/thumbnails';
 
 const { width } = Dimensions.get('window');
@@ -30,7 +30,7 @@ export default function LibraryScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = await ApiClient.getLibraryData();
+      const data = await apiClient.getLibraryData();
       setLibraryData(data);
     } catch (err) {
       console.error('Failed to fetch library data:', err);
@@ -72,7 +72,7 @@ export default function LibraryScreen() {
   };
 
   const renderModuleCard = (module: LearningModule) => {
-    const thumbnail = module.thumbnail || getModuleThumbnail(module.title, module.category, module.topic);
+    const thumbnail = getModuleThumbnail(module.title, module.category, module.topic);
     
     return (
       <TouchableOpacity

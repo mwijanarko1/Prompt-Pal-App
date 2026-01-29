@@ -3,11 +3,11 @@ import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { getLevelsByModuleId } from '@/features/levels/data';
+import { processApiLevelsWithLocalAssets } from '@/features/levels/data';
 import { Card, Badge, ProgressBar } from '@/components/ui';
 import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
-import { ApiClient, Level } from '@/lib/api';
+import { apiClient, Level } from '@/lib/api';
 import { logger } from '@/lib/logger';
 
 export default function LevelsScreen() {
@@ -17,35 +17,66 @@ export default function LevelsScreen() {
   const { learningModules } = useUserProgressStore();
   const [levels, setLevels] = useState<Level[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const module = useMemo(() => 
+  const module = useMemo(() =>
     learningModules.find(m => m.id === moduleId),
     [learningModules, moduleId]
   );
 
+  // Calculate actual progress based on completed levels
+  const actualProgress = useMemo(() => {
+    if (levels.length === 0) return 0;
+
+    // Count completed levels for this module
+    const completedInModule = levels.filter(level => completedLevels.includes(level.id)).length;
+    const progress = (completedInModule / levels.length) * 100;
+
+    return Math.round(progress);
+  }, [levels, completedLevels]);
+
+  // Update module progress in user store when it changes significantly
+  useEffect(() => {
+    if (moduleId && actualProgress !== module?.progress && levels.length > 0 && Math.abs(actualProgress - (module?.progress || 0)) >= 1) {
+      useUserProgressStore.getState().updateModuleProgress(moduleId as string, actualProgress);
+    }
+  }, [actualProgress, moduleId, module?.progress, levels.length]);
+
   useEffect(() => {
     const loadLevels = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         let type: any = moduleId;
         if (moduleId === 'image-generation') type = 'image';
-        if (moduleId === 'coding-logic') type = 'code';
-        // 'copywriting' stays as 'copywriting'
-        
-        // Fetch from API using the type filter
-        const apiLevels = await ApiClient.getLevelsByType(type);
-        
-        if (apiLevels && apiLevels.length > 0) {
-          setLevels(apiLevels);
+        // Fetch all levels from API only
+        const rawApiLevels = await apiClient.getLevels();
+
+        if (rawApiLevels && rawApiLevels.length > 0) {
+          // Filter levels by module type - try moduleId first, fallback to type mapping
+          let moduleLevels = rawApiLevels.filter(level => level.moduleId === moduleId);
+
+          // If no levels found by moduleId, try filtering by type
+          if (moduleLevels.length === 0) {
+            const expectedType = moduleId === 'image-generation' ? 'image' :
+                                moduleId === 'code-logic' ? 'code' :
+                                moduleId === 'copywriting' ? 'copywriting' : moduleId;
+            moduleLevels = rawApiLevels.filter(level => level.type === expectedType);
+          }
+
+          if (moduleLevels.length === 0) {
+            setError('No levels found for this module');
+            return;
+          }
+
+          const processedLevels = processApiLevelsWithLocalAssets(moduleLevels as any);
+          setLevels(processedLevels as any);
         } else {
-          // Fallback to local levels if API returns empty
-          const localLevels = getLevelsByModuleId(moduleId as string);
-          setLevels(localLevels as any);
+          setError('No levels available from the server');
         }
       } catch (error) {
         logger.error('LevelsScreen', error, { operation: 'loadLevels', moduleId });
-        // Fallback to local on error
-        setLevels(getLevelsByModuleId(moduleId as string) as any);
+        setError('Failed to load levels. Please check your connection and try again.');
       } finally {
         setIsLoading(false);
       }
@@ -135,9 +166,9 @@ export default function LevelsScreen() {
         <View className="bg-surfaceVariant/20 p-5 rounded-[32px] mb-8 border border-outline/10">
           <View className="flex-row justify-between items-center mb-2">
             <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">Module Progress</Text>
-            <Text className="text-primary font-black">{module.progress}%</Text>
+            <Text className="text-primary font-black">{actualProgress}%</Text>
           </View>
-          <ProgressBar progress={module.progress / 100} height={8} />
+          <ProgressBar progress={actualProgress / 100} height={8} />
         </View>
 
         <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-4">Learning Path</Text>
@@ -148,19 +179,42 @@ export default function LevelsScreen() {
           <ActivityIndicator size="large" color="#FF6B00" />
           <Text className="text-onSurface mt-4 font-black">Loading Levels…</Text>
         </View>
+      ) : error ? (
+        <View className="flex-1 items-center justify-center px-6">
+          <Ionicons name="cloud-offline-outline" size={64} color="#9CA3AF" />
+          <Text className="text-onSurface text-xl font-black mt-4 mb-2">Unable to Load Levels</Text>
+          <Text className="text-onSurfaceVariant text-center font-medium leading-5 mb-6">
+            {error}
+          </Text>
+          <TouchableOpacity
+            className="bg-primary px-8 py-4 rounded-full"
+            onPress={() => {
+              // Trigger reload by updating moduleId dependency
+              const currentModuleId = moduleId;
+              setError(null);
+              // Force re-run of useEffect
+              if (currentModuleId) {
+                // This will trigger the useEffect again
+                setLevels([]);
+              }
+            }}
+          >
+            <Text className="text-white font-black">Try Again</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
-        <ScrollView 
-          className="flex-1 px-6" 
+        <ScrollView
+          className="flex-1 px-6"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40 }}
         >
           {levels.map(renderLevelCard)}
-          
+
           {levels.length === 0 && (
             <View className="items-center py-20">
               <Ionicons name="construct-outline" size={64} color="#9CA3AF" />
               <Text className="text-onSurfaceVariant text-center mt-4 font-bold">
-                Levels for this module are currently under development.
+                No levels available for this module.
               </Text>
             </View>
           )}

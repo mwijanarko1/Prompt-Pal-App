@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import * as SecureStore from "expo-secure-store";
+import { apiClient } from "@/lib/api";
+import { logger } from "@/lib/logger";
 
 export type ChallengeType = 'image' | 'code' | 'copywriting';
 
@@ -14,6 +16,7 @@ export interface Level {
   hiddenPromptKeywords?: string[];
   passingScore: number;
   unlocked: boolean;
+  prerequisites?: string[];
   
   // Image Challenge specific
   targetImageUrl?: string;
@@ -55,6 +58,13 @@ export interface GameState {
   unlockLevel: (levelId: string) => void;
   completeLevel: (levelId: string) => void;
   resetProgress: () => void;
+  isLevelUnlocked: (levelId: string, prerequisites?: string[]) => boolean;
+  checkAndUnlockLevels: (allLevels: Level[]) => void;
+
+  // Backend sync
+  syncFromBackend: (backendState: Partial<GameState>) => void;
+  getStateForBackend: () => GameState;
+  syncToBackend: () => Promise<void>;
 }
 
 const initialState = {
@@ -170,6 +180,65 @@ export const useGameStore = create<GameState>()(
       resetProgress: () => {
         set(initialState);
       },
+
+      isLevelUnlocked: (levelId: string, prerequisites?: string[]) => {
+        const state = get();
+
+        if (!prerequisites || prerequisites.length === 0) {
+          return state.unlockedLevels.includes(levelId);
+        }
+
+        const allPrerequisitesMet = prerequisites.every(prereqId =>
+          state.completedLevels.includes(prereqId)
+        );
+
+        return state.unlockedLevels.includes(levelId) && allPrerequisitesMet;
+      },
+
+      checkAndUnlockLevels: (allLevels: Level[]) => {
+        const state = get();
+        const newlyUnlocked: string[] = [];
+
+        allLevels.forEach(level => {
+          const isCurrentlyUnlocked = state.unlockedLevels.includes(level.id);
+
+          if (isCurrentlyUnlocked) {
+            return;
+          }
+
+          const shouldUnlock = checkPrerequisites(state, level);
+
+          if (shouldUnlock) {
+            newlyUnlocked.push(level.id);
+          }
+        });
+
+        if (newlyUnlocked.length > 0) {
+          set({
+            unlockedLevels: [...state.unlockedLevels, ...newlyUnlocked],
+          });
+          logger.info('GameStore', 'Levels unlocked', { count: newlyUnlocked.length, levels: newlyUnlocked });
+        }
+      },
+
+      syncFromBackend: (backendState: Partial<GameState>) => {
+        set(backendState);
+      },
+
+      getStateForBackend: () => {
+        return get();
+      },
+
+      syncToBackend: async () => {
+        try {
+          const state = get();
+          await apiClient.updateGameState(state);
+          logger.info('GameStore', 'Synced game state to backend');
+        } catch (error) {
+          logger.error('GameStore', error, { operation: 'syncToBackend' });
+          throw error;
+        }
+      },
     }),
     {
       name: "promptpal-game-storage",
@@ -201,3 +270,16 @@ export const useGameStore = create<GameState>()(
     }
   )
 );
+
+/**
+ * Helper function to check if level prerequisites are met
+ */
+function checkPrerequisites(state: GameState, level: Level): boolean {
+  if (!level.prerequisites || level.prerequisites.length === 0) {
+    return true;
+  }
+
+  return level.prerequisites.every(prereqId =>
+    state.completedLevels.includes(prereqId)
+  );
+}

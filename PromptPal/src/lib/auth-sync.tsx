@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
 import { setTokenProvider as setAiProxyTokenProvider } from './aiProxy';
+import { setApiClientToken } from './api';
 import { logger } from './logger';
 import { registerSignOutCallback, registerTokenRefreshCallback } from './session-manager';
 
@@ -54,6 +55,16 @@ function AuthTokenSyncInner() {
 
       // Set token provider for AI proxy
       setAiProxyTokenProvider(tokenProvider);
+
+      // Set token directly for API client (all endpoints now require auth)
+      tokenProvider().then(token => {
+        if (token) {
+          setApiClientToken(token);
+          logger.debug('AuthTokenSync', 'API client token updated');
+        }
+      }).catch(error => {
+        logger.error('AuthTokenSync', error, { operation: 'setApiClientToken' });
+      });
     }
   }, [isLoaded, isSignedIn, getToken, signOut]);
 
@@ -85,6 +96,10 @@ export function SessionMonitor() {
       try {
         if (!isSignedIn) return null;
         const token = await getToken();
+        if (token) {
+          setApiClientToken(token);
+          logger.debug('SessionMonitor', 'API client token refreshed');
+        }
         return token;
       } catch (error) {
         logger.error('SessionMonitor', error, { operation: 'refreshToken' });

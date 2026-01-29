@@ -10,9 +10,21 @@ import { AuthTokenSync, SessionMonitor } from '@/lib/auth-sync';
 import { logger } from '@/lib/logger';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { initializeNetworkListener } from '@/lib/network';
+import { useGameStateSync } from '@/hooks/useGameStateSync';
 import "./global.css";
 
-export default function RootLayout() {
+/**
+ * Component that syncs game state after authentication is available
+ */
+function GameStateInitializer() {
+  useGameStateSync();
+  return null; // This component doesn't render anything
+}
+
+/**
+ * Component that handles app initialization after Clerk provider is set up
+ */
+function AppInitializer() {
   // Validate environment variables on app startup (non-blocking in development)
   useEffect(() => {
     validateEnvironment();
@@ -47,15 +59,22 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <AuthTokenSync />
+        <SessionMonitor />
+        <GameStateInitializer />
+        <Slot />
+        <StatusBar style="light" />
+      </ErrorBoundary>
+    </SafeAreaProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <ClerkProviderWrapper>
-      <SafeAreaProvider>
-        <ErrorBoundary>
-          <AuthTokenSync />
-          <SessionMonitor />
-          <Slot />
-          <StatusBar style="light" />
-        </ErrorBoundary>
-      </SafeAreaProvider>
+      <AppInitializer />
     </ClerkProviderWrapper>
   );
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
-import { ApiClient } from '@/lib/api';
+import { apiClient } from '@/lib/api';
 import { getModuleThumbnail } from '@/lib/thumbnails';
 
 export interface LearningModule {
@@ -165,7 +165,7 @@ export const useUserProgressStore = create<UserProgress>()(
 
         // Sync with backend
         try {
-          await ApiClient.updateModuleProgress(moduleId, progress);
+          await apiClient.updateModuleProgress(moduleId, progress);
         } catch (error) {
           console.error('Failed to sync module progress:', error);
         }
@@ -187,7 +187,7 @@ export const useUserProgressStore = create<UserProgress>()(
 
           // Sync with backend
           try {
-            await ApiClient.completeQuest();
+            await apiClient.completeQuest();
           } catch (error) {
             console.error('Failed to sync quest completion:', error);
           }
@@ -221,7 +221,7 @@ export const useUserProgressStore = create<UserProgress>()(
       loadFromBackend: async () => {
         try {
           // Load learning modules
-          let modules = await ApiClient.getLearningModules();
+          let modules = await apiClient.getLearningModules();
           
           // Map local thumbnails based on category or title
           if (modules && modules.length > 0) {
@@ -274,7 +274,7 @@ export const useUserProgressStore = create<UserProgress>()(
           set({ learningModules: modules });
 
           // Load current quest
-          const quest = await ApiClient.getCurrentQuest();
+          const quest = await apiClient.getCurrentQuest();
           if (quest) {
             set({ currentQuest: quest });
           }
