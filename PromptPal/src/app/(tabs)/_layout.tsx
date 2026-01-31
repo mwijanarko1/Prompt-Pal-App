@@ -85,6 +85,13 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="test-target-image"
+        options={{
+          href: null,
+          title: 'Test S4',
+        }}
+      />
     </Tabs>
   );
 }
