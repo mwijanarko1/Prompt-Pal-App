@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import { rateLimiter } from '@/lib/rateLimiter';
 
 describe('RateLimiter', () => {

@@ -4,12 +4,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
-import { getLevelById as getLocalLevelById, processApiLevelsWithLocalAssets } from '@/features/levels/data';
+import { getLevelById as getLocalLevelById } from '@/features/levels/data';
 import { AIProxyClient } from '@/lib/aiProxy';
 import { apiClient, Level } from '@/lib/api';
-import { useGameStore, ChallengeType } from '@/features/game/store';
+import { useGameStore, ChallengeType, Level as GameLevel } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
+import { PromptInputView } from '@/features/game/components/PromptInputView';
 
 const { width } = Dimensions.get('window');
 
@@ -38,15 +39,14 @@ export default function GameScreen() {
   const [lastScore, setLastScore] = useState(0);
   const [level, setLevel] = useState<Level | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [promptError, setPromptError] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
-  
-  // Hint system state
   const [hints, setHints] = useState<string[]>([]);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [hintCooldown, setHintCooldown] = useState(0);
   const [showHints, setShowHints] = useState(false);
 
-  const { lives, loseLife, startLevel, completeLevel } = useGameStore();
+  const { loseLife, startLevel, completeLevel, lives } = useGameStore();
 
   // ScrollView ref for keyboard handling
   const scrollViewRef = useRef<ScrollView>(null);
@@ -71,28 +71,24 @@ export default function GameScreen() {
 
           setLevel(processedLevel);
           startLevel(processedLevel.id);
-          // Reset hints for this level
           NanoAssistant.resetHintsForLevel(processedLevel.id);
           setHints([]);
         } else {
           throw new Error('Level not found');
         }
-      } catch (error: any) {
-        logger.error('GameScreen', error, { operation: 'loadLevel', id });
-
-        // Determine error message based on error type
+      } catch (err: unknown) {
+        logger.error('GameScreen', err, { operation: 'loadLevel', id });
         let errorMessage = 'Failed to load level. Please try again.';
-
-        if (error.status === 403) {
+        const e = err as { status?: number; message?: string };
+        if (e.status === 403) {
           errorMessage = 'This level is locked. Complete previous levels to unlock it.';
-        } else if (error.status === 404) {
+        } else if (e.status === 404) {
           errorMessage = 'Level not found.';
-        } else if (error.status === 401) {
+        } else if (e.status === 401) {
           errorMessage = 'Authentication required. Please sign in again.';
-        } else if (error.message) {
-          errorMessage = error.message;
+        } else if (e.message) {
+          errorMessage = e.message;
         }
-
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -118,8 +114,7 @@ export default function GameScreen() {
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (event) => {
-        // Small delay to ensure UI has updated
+      () => {
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }, 100);
@@ -128,9 +123,7 @@ export default function GameScreen() {
 
     const keyboardWillHideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        // Optional: scroll back to top when keyboard hides
-      }
+      () => {}
     );
 
     return () => {
@@ -139,29 +132,56 @@ export default function GameScreen() {
     };
   }, []);
 
-  // Handle getting a hint
-  const handleGetHint = useCallback(async () => {
-    if (!level || isLoadingHint || hintCooldown > 0) return;
-
-    setIsLoadingHint(true);
-    try {
-      const moduleType = (level.type || 'image') as ChallengeType;
-      const hint = await NanoAssistant.getHint(prompt, moduleType, level as Parameters<typeof NanoAssistant.getHint>[2]);
-      setHints(prev => [...prev, hint]);
-      setShowHints(true);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Could not get hint. Please try again.';
-      Alert.alert('Hint Unavailable', errorMessage);
-    } finally {
-      setIsLoadingHint(false);
-    }
-  }, [level, prompt, isLoadingHint, hintCooldown]);
-
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#FF6B00" />
         <Text className="text-onSurface mt-4 font-black">Loading Challenge…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 bg-background">
+        <View className="flex-1 items-center justify-center px-6">
+          <Ionicons name="alert-circle" size={64} color="#ef4444" />
+          <Text className="text-onSurface text-xl font-black mt-4 text-center">Unable to Load Level</Text>
+          <Text className="text-onSurfaceVariant text-center mt-2 mb-6">{error}</Text>
+          <Button
+            onPress={() => {
+              setError(null);
+              setIsLoading(true);
+              (async () => {
+                try {
+                  const apiLevel = await apiClient.getLevelById(id as string);
+                  if (apiLevel) {
+                    const localLevel = getLocalLevelById(id as string);
+                    const processedLevel = {
+                      ...apiLevel,
+                      targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
+                      hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
+                    };
+                    setLevel(processedLevel);
+                    setError(null);
+                    startLevel(processedLevel.id);
+                    NanoAssistant.resetHintsForLevel(processedLevel.id);
+                    setHints([]);
+                  }
+                } catch (err) {
+                  logger.error('GameScreen', err, { operation: 'retryLoadLevel', id });
+                  setError('Failed to load level. Please check your connection and try again.');
+                } finally {
+                  setIsLoading(false);
+                }
+              })();
+            }}
+            className="mb-4"
+          >
+            Try Again
+          </Button>
+          <Button variant="outline" onPress={() => router.back()}>Go Back</Button>
+        </View>
       </SafeAreaView>
     );
   }
@@ -182,15 +202,14 @@ export default function GameScreen() {
     );
   }
 
-  const charCount = prompt.length;
-  const tokenCount = Math.ceil(charCount / 4); // Rough estimation
-
   const handleGenerate = async () => {
     if (!prompt.trim()) {
-      Alert.alert('Error', 'Please enter a prompt');
+      setPromptError('Please enter a prompt');
       return;
     }
 
+    // Clear any previous errors
+    setPromptError(undefined);
     setIsGenerating(true);
     try {
       if (level.type === 'image') {
@@ -285,19 +304,26 @@ export default function GameScreen() {
           Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
         }
       }
-    } catch (error: any) {
-      logger.error('GameScreen', error, { operation: 'handleGenerate' });
-
-      // Handle specific error types
-      if (error.response?.status === 429) {
+    } catch (err: unknown) {
+      logger.error('GameScreen', err, { operation: 'handleGenerate' });
+      const e = err as { response?: { status?: number } };
+      if (e.response?.status === 429) {
         Alert.alert('Rate Limited', 'Too many requests. Please wait before trying again.');
-      } else if (error.response?.status === 403) {
+      } else if (e.response?.status === 403) {
         Alert.alert('Content Policy', 'Your prompt may violate content policies. Please try a different prompt.');
       } else {
-        Alert.alert('Error', 'Something went wrong. Please try again.');
+        setPromptError('Something went wrong. Please try again.');
       }
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Clear error when prompt changes
+  const handlePromptChange = (text: string) => {
+    setPrompt(text);
+    if (promptError) {
+      setPromptError(undefined);
     }
   };
 
@@ -473,107 +499,23 @@ export default function GameScreen() {
   );
 
   const renderPromptSection = () => {
-    const hintsUsed = level ? NanoAssistant.getHintsUsed(level.id) : 0;
-    const hintsRemaining = level ? NanoAssistant.getHintsRemaining(level.id, level.difficulty) : 0;
-    const maxHints = level ? NanoAssistant.getMaxHintsPerLevel(level.difficulty) : 4;
-    const noHintsLeft = hintsRemaining === 0;
+    if (!level) return null;
+
+    const moduleType = (level.type || 'image') as ChallengeType;
 
     return (
-      <View className="px-6 pb-8">
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">
-            {level.type === 'image' ? 'YOUR PROMPT' : level.type === 'code' ? 'YOUR PROMPT EDITOR' : 'CRAFT YOUR PROMPT'}
-          </Text>
-          <TouchableOpacity 
-            onPress={handleGetHint}
-            disabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
-            className={`flex-row items-center px-3 py-2 rounded-full ${
-              noHintsLeft ? 'bg-surfaceVariant/30' : hintCooldown > 0 ? 'bg-surfaceVariant/50' : 'bg-secondary/20'
-            }`}
-          >
-            {isLoadingHint ? (
-              <ActivityIndicator size="small" color="#4151FF" />
-            ) : (
-              <>
-                <Text className={`text-base mr-1 ${noHintsLeft ? 'opacity-50' : ''}`}>{hintCooldown > 0 ? '⏳' : '🪄'}</Text>
-                <Text className={`text-xs font-bold ${noHintsLeft ? 'text-onSurfaceVariant/50' : hintCooldown > 0 ? 'text-onSurfaceVariant' : 'text-secondary'}`}>
-                  {noHintsLeft ? 'No hints left' : hintCooldown > 0 ? `${hintCooldown}s` : hintsUsed === 0 ? 'Free Hint' : `Hint (${hintsRemaining}/${maxHints})`}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Hints Display */}
-        {hints.length > 0 && (
-          <TouchableOpacity 
-            onPress={() => setShowHints(!showHints)}
-            className="mb-4"
-          >
-            <Card className={`p-4 rounded-[24px] border border-secondary/30 bg-secondary/5 ${showHints ? '' : 'overflow-hidden'}`}>
-              <View className="flex-row items-center justify-between mb-2">
-                <View className="flex-row items-center">
-                  <Text className="text-secondary text-sm mr-2">💡</Text>
-                  <Text className="text-secondary text-xs font-black uppercase tracking-widest">
-                    Hints ({hints.length})
-                  </Text>
-                </View>
-                <Text className="text-onSurfaceVariant text-xs">
-                  {showHints ? '▲ Hide' : '▼ Show'}
-                </Text>
-              </View>
-              {showHints && (
-                <View className="mt-2">
-                  {hints.map((hint, index) => (
-                    <View key={index} className="flex-row mb-2">
-                      <Text className="text-secondary text-xs mr-2">{index + 1}.</Text>
-                      <Text className="text-onSurface text-sm flex-1">{hint}</Text>
-                    </View>
-                  ))}
-                  <Text className="text-onSurfaceVariant text-[10px] mt-2 italic">
-                    {NanoAssistant.getNextHintPenaltyDescription(level.id, level.difficulty)}
-                  </Text>
-                </View>
-              )}
-            </Card>
-          </TouchableOpacity>
-        )}
-
-        <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20 mb-4">
-          <Input
-            value={prompt}
-            onChangeText={setPrompt}
-            placeholder={level.type === 'image' ? "Describe the floating islands, the nebula sky..." : "Enter your prompt here..."}
-            multiline
-            className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
-          />
-
-          <View className="flex-row items-center">
-            <View className="flex-row">
-              <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-              <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-              {level.type === 'image' && <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-3" />}
-            </View>
-          </View>
-        </Card>
-
-        <View className="mt-6">
-          <Button
-            onPress={handleGenerate}
-            loading={isGenerating}
-            variant="primary"
-            size="lg"
-            fullWidth
-            className="rounded-full py-5 shadow-glow"
-          >
-            <View className="flex-row items-center">
-              <Text className="text-onPrimary text-lg font-black">
-                {level.type === 'image' ? 'Generate & Compare' : 'Generate'}
-              </Text>
-            </View>
-          </Button>
-        </View>
-      </View>
+      <PromptInputView
+        value={prompt}
+        onChangeText={handlePromptChange}
+        onGenerate={handleGenerate}
+        placeholder={moduleType === 'image' ? "Describe the floating islands, the nebula sky..." : "Enter your prompt here..."}
+        isLoading={isGenerating}
+        disabled={isLoading}
+        level={level as GameLevel}
+        moduleType={moduleType}
+        styleBadge={level.type === 'image' ? level.style : undefined}
+        error={promptError}
+      />
     );
   };
 
@@ -598,88 +540,6 @@ export default function GameScreen() {
       </View>
     );
   };
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-background">
-        {renderHeader()}
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text className="text-onSurface mt-4">Loading level...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <View className="flex-1 bg-background">
-        {renderHeader()}
-        <View className="flex-1 items-center justify-center px-6">
-          <Ionicons name="alert-circle" size={64} color="#ef4444" />
-          <Text className="text-onSurface text-xl font-black mt-4 text-center">
-            Unable to Load Level
-          </Text>
-          <Text className="text-onSurfaceVariant text-center mt-2 mb-6">
-            {error}
-          </Text>
-          <Button
-            onPress={() => {
-              setError(null);
-              setIsLoading(true);
-              // Reload the level
-              const loadLevel = async () => {
-                try {
-                  const apiLevel = await apiClient.getLevelById(id as string);
-                  if (apiLevel) {
-                    const localLevel = getLocalLevelById(id as string);
-                    const processedLevel = {
-                      ...apiLevel,
-                      targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
-                      hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
-                    };
-                    setLevel(processedLevel);
-                    startLevel(processedLevel.id);
-                    NanoAssistant.resetHintsForLevel(processedLevel.id);
-                    setHints([]);
-                  }
-                } catch (err) {
-                  logger.error('GameScreen', err, { operation: 'retryLoadLevel', id });
-                  setError('Failed to load level. Please check your connection and try again.');
-                } finally {
-                  setIsLoading(false);
-                }
-              };
-              loadLevel();
-            }}
-            className="mb-4"
-          >
-            Try Again
-          </Button>
-          <Button
-            variant="outline"
-            onPress={() => router.back()}
-          >
-            Go Back
-          </Button>
-        </View>
-      </View>
-    );
-  }
-
-  // Show error if level not loaded
-  if (!level) {
-    return (
-      <View className="flex-1 bg-background">
-        {renderHeader()}
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-onSurface">No level data available</Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View className="flex-1 bg-background">
