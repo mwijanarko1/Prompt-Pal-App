@@ -87,8 +87,8 @@ export function TargetImageView({
     .onStart(() => {
       savedScale.value = scale.value;
     })
-    .onUpdate((e) => {
-      const next = savedScale.value * e.scale;
+    .onUpdate((e: { scale?: number }) => {
+      const next = savedScale.value * (e.scale ?? 1);
       scale.value = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
     })
     .onEnd(() => {
@@ -100,9 +100,9 @@ export function TargetImageView({
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
     })
-    .onUpdate((e) => {
-      translateX.value = savedTranslateX.value + e.translationX;
-      translateY.value = savedTranslateY.value + e.translationY;
+    .onUpdate((e: { translationX?: number; translationY?: number }) => {
+      translateX.value = savedTranslateX.value + (e.translationX ?? 0);
+      translateY.value = savedTranslateY.value + (e.translationY ?? 0);
     })
     .onEnd(() => {
       savedTranslateX.value = translateX.value;
