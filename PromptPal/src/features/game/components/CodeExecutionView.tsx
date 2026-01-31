@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card } from '@/components/ui';
+import { Card } from '@/components/ui/Card';
 import type { CodeTestResult } from '@/lib/scoring/codeScoring';
 
 export interface CodeExecutionResult {
