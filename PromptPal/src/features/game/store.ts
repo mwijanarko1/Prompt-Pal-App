@@ -12,8 +12,6 @@ export interface Level {
   type?: ChallengeType;
   title?: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
-  targetImageUrl?: string;
-  hiddenPromptKeywords?: string[];
   passingScore: number;
   unlocked: boolean;
   prerequisites?: string[];
