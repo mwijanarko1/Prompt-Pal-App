@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.18",
@@ -36,8 +37,10 @@
   "devDependencies": {
     "@babel/plugin-transform-modules-commonjs": "^7.28.6",
     "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^29.5.14",
     "@types/node": "^25.0.10",
     "@types/react": "~19.2.8",
+    "@types/react-test-renderer": "^18.3.1",
     "jest": "^30.2.0",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.3"
