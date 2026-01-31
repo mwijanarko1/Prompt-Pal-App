@@ -12,6 +12,7 @@ import { useGameStore, ChallengeType } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
 import { CodeScoringService, type TestCase } from '@/lib/scoring';
+import { extractCodeFromMarkdown } from '@/features/game/utils/codeUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -28,14 +29,6 @@ const getModuleIdFromLevelType = (levelType: string): string => {
       return 'image-generation'; // fallback
   }
 };
-
-/** Extract code from AI text response (strips markdown code blocks). */
-function extractCodeFromMarkdown(text: string): string {
-  const fenced = /^```(?:\w+)?\s*\n?([\s\S]*?)```/m;
-  const match = text.match(fenced);
-  if (match?.[1]) return match[1].trim();
-  return text.trim();
-}
 
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
