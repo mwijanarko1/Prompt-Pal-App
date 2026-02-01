@@ -167,6 +167,8 @@ export interface Level {
   briefTone?: string;
   briefGoal?: string;
   metrics?: { label: string; value: number }[];
+  wordLimit?: { min?: number; max?: number };
+  requiredElements?: string[];
 }
 
 export interface LevelsResponse {

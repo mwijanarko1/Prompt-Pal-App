@@ -19,8 +19,6 @@ export interface Level {
   prerequisites?: string[];
   
   // Image Challenge specific
-  targetImageUrl?: string;
-  hiddenPromptKeywords?: string[];
   style?: string;
 
   // Code/Logic Challenge specific
@@ -37,6 +35,8 @@ export interface Level {
   briefTone?: string;
   briefGoal?: string;
   metrics?: { label: string; value: number }[];
+  wordLimit?: { min?: number; max?: number };
+  requiredElements?: string[];
 }
 
 export interface GameState {

@@ -306,8 +306,8 @@ Respond with only the copy (no preamble or explanation).`;
           briefTarget: level.briefTarget,
           briefTone: level.briefTone,
           briefGoal: level.briefGoal,
-          wordLimit: (level as Level & { wordLimit?: { min?: number; max?: number } }).wordLimit,
-          requiredElements: (level as Level & { requiredElements?: string[] }).requiredElements,
+          wordLimit: level.wordLimit,
+          requiredElements: level.requiredElements,
         });
         setCopyResult(result);
         const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, result.score, level.passingScore, level.difficulty);
@@ -742,7 +742,7 @@ Respond with only the copy (no preamble or explanation).`;
             <CopyAnalysisView
               copy={generatedCopy ?? ''}
               copyResult={copyResult}
-              requiredElements={(level as Level & { requiredElements?: string[] }).requiredElements}
+              requiredElements={level.requiredElements}
             />
           )}
           {renderFeedbackSection()}
