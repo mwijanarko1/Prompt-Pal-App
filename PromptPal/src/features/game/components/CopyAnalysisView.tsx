@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { RadarChart } from '@/components/ui/RadarChart';
 import type { CopyScoringResult } from '@/lib/scoring/copyScoring';
+import { getMatchedRequirements } from '@/features/game/utils/copyUtils';
 
 export interface CopyAnalysisViewProps {
   copy: string;
@@ -12,14 +13,6 @@ export interface CopyAnalysisViewProps {
 
 const { width } = Dimensions.get('window');
 const CHART_SIZE = Math.min(width - 80, 240);
-
-function getMatchedRequirements(copy: string, requiredElements: string[]): { label: string; matched: boolean }[] {
-  const copyLower = copy.trim().toLowerCase();
-  return requiredElements.map((label) => ({
-    label,
-    matched: copyLower.includes(label.toLowerCase()),
-  }));
-}
 
 export function CopyAnalysisView({ copy, copyResult, requiredElements = [] }: CopyAnalysisViewProps) {
   const hasCopy = copy.trim().length > 0;
