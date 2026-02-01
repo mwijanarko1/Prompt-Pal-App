@@ -10,6 +10,8 @@ import { apiClient, Level } from '@/lib/api';
 import { useGameStore, ChallengeType } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
+import { CopyScoringService, type CopyScoringResult } from '@/lib/scoring/copyScoring';
+import { CopyAnalysisView } from '@/features/game/components/CopyAnalysisView';
 
 const { width } = Dimensions.get('window');
 
@@ -39,6 +41,10 @@ export default function GameScreen() {
   const [level, setLevel] = useState<Level | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Copywriting: generated copy and scoring result
+  const [generatedCopy, setGeneratedCopy] = useState<string | null>(null);
+  const [copyResult, setCopyResult] = useState<CopyScoringResult | null>(null);
   
   // Hint system state
   const [hints, setHints] = useState<string[]>([]);
@@ -71,9 +77,10 @@ export default function GameScreen() {
 
           setLevel(processedLevel);
           startLevel(processedLevel.id);
-          // Reset hints for this level
           NanoAssistant.resetHintsForLevel(processedLevel.id);
           setHints([]);
+          setGeneratedCopy(null);
+          setCopyResult(null);
         } else {
           throw new Error('Level not found');
         }
@@ -269,13 +276,42 @@ export default function GameScreen() {
           Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
         }
       } else if (level.type === 'copywriting') {
-        // Mocking copywriting evaluation for now
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const score = 85;
+        // Generate copy from user prompt + brief via AI, then score
+        const copyPrompt = `You are a copywriter. Write copy according to this brief and the user's instructions.
 
-        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
+Brief:
+- Product: ${level.briefProduct ?? 'N/A'}
+- Target audience: ${level.briefTarget ?? 'N/A'}
+- Tone: ${level.briefTone ?? 'N/A'}
+- Goal: ${level.briefGoal ?? 'N/A'}
+
+User instructions: ${prompt}
+
+Respond with only the copy (no preamble or explanation).`;
+        let copyText: string;
+        try {
+          const aiResponse = await AIProxyClient.generateText(copyPrompt);
+          copyText = (typeof aiResponse === 'string' ? aiResponse : aiResponse?.result ?? '').trim();
+        } catch {
+          copyText = prompt.trim();
+        }
+        if (copyText.length < 10) {
+          Alert.alert('Error', 'Generated copy is too short. Try a more detailed prompt.');
+          return;
+        }
+        setGeneratedCopy(copyText);
+        const result = await CopyScoringService.scoreCopy({
+          text: copyText,
+          briefProduct: level.briefProduct,
+          briefTarget: level.briefTarget,
+          briefTone: level.briefTone,
+          briefGoal: level.briefGoal,
+          wordLimit: (level as Level & { wordLimit?: { min?: number; max?: number } }).wordLimit,
+          requiredElements: (level as Level & { requiredElements?: string[] }).requiredElements,
+        });
+        setCopyResult(result);
+        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, result.score, level.passingScore, level.difficulty);
         const finalScore = penaltyDetails.finalScore;
-
         setLastScore(finalScore);
         if (finalScore >= level.passingScore) {
           setShowResult(true);
@@ -579,13 +615,12 @@ export default function GameScreen() {
 
   const renderFeedbackSection = () => {
     if (level.type !== 'copywriting') return null;
-    
+    if (copyResult != null) return null;
     return (
       <View className="px-6 pb-8">
         <Text className="text-onSurface text-xl font-black mb-4">AI Feedback & Output</Text>
         <Card className="p-6 rounded-[32px] items-center">
           <RadarChart metrics={level.metrics || []} size={width - 100} />
-          
           <View className="flex-row w-full justify-around mt-6">
             {level.metrics?.map((m: { label: string; value: number }, i: number) => (
               <View key={i} className="items-center">
@@ -703,6 +738,13 @@ export default function GameScreen() {
           {level.type === 'copywriting' && renderCopywritingChallenge()}
 
           {renderPromptSection()}
+          {level.type === 'copywriting' && (generatedCopy || copyResult) && (
+            <CopyAnalysisView
+              copy={generatedCopy ?? ''}
+              copyResult={copyResult}
+              requiredElements={(level as Level & { requiredElements?: string[] }).requiredElements}
+            />
+          )}
           {renderFeedbackSection()}
         </ScrollView>
       </KeyboardAvoidingView>
