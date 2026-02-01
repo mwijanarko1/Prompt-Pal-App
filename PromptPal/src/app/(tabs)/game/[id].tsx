@@ -1,13 +1,13 @@
-import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
-import { getLevelById as getLocalLevelById, processApiLevelsWithLocalAssets } from '@/features/levels/data';
-import { AIProxyClient } from '@/lib/aiProxy';
+import { getLevelById as getLocalLevelById } from '@/features/levels/data';
 import { apiClient, Level } from '@/lib/api';
 import { useGameStore, ChallengeType } from '@/features/game/store';
+import { TargetImageView } from '@/features/game/components/TargetImageView';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
 
@@ -77,20 +77,20 @@ export default function GameScreen() {
         } else {
           throw new Error('Level not found');
         }
-      } catch (error: any) {
-        logger.error('GameScreen', error, { operation: 'loadLevel', id });
+      } catch (err: unknown) {
+        logger.error('GameScreen', err, { operation: 'loadLevel', id });
 
-        // Determine error message based on error type
+        const e = err as { status?: number; message?: string };
         let errorMessage = 'Failed to load level. Please try again.';
 
-        if (error.status === 403) {
+        if (e.status === 403) {
           errorMessage = 'This level is locked. Complete previous levels to unlock it.';
-        } else if (error.status === 404) {
+        } else if (e.status === 404) {
           errorMessage = 'Level not found.';
-        } else if (error.status === 401) {
+        } else if (e.status === 401) {
           errorMessage = 'Authentication required. Please sign in again.';
-        } else if (error.message) {
-          errorMessage = error.message;
+        } else if (e.message) {
+          errorMessage = e.message;
         }
 
         setError(errorMessage);
@@ -118,8 +118,7 @@ export default function GameScreen() {
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (event) => {
-        // Small delay to ensure UI has updated
+      () => {
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }, 100);
@@ -285,13 +284,13 @@ export default function GameScreen() {
           Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('GameScreen', error, { operation: 'handleGenerate' });
 
-      // Handle specific error types
-      if (error.response?.status === 429) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
         Alert.alert('Rate Limited', 'Too many requests. Please wait before trying again.');
-      } else if (error.response?.status === 403) {
+      } else if (status === 403) {
         Alert.alert('Content Policy', 'Your prompt may violate content policies. Please try a different prompt.');
       } else {
         Alert.alert('Error', 'Something went wrong. Please try again.');
@@ -346,13 +345,17 @@ export default function GameScreen() {
     const imageUri = activeTab === 'target' ? level.targetImageUrl : (generatedImage || level.targetImageUrl);
     const isLocalAsset = activeTab === 'target' && typeof imageUri === 'number';
 
-    console.log('[DEBUG] renderImageChallenge:', {
-      activeTab,
-      imageUri,
-      isLocalAsset,
-      levelId: level.id,
-      targetImageUrl: level.targetImageUrl
-    });
+    const analysisTips: string[] = [];
+    if (level.hiddenPromptKeywords?.length) {
+      analysisTips.push(`Keywords to consider: ${level.hiddenPromptKeywords.join(', ')}`);
+    }
+    if (level.style) {
+      analysisTips.push(`Style: ${level.style}`);
+    }
+
+    const imageSource = imageUri
+      ? (isLocalAsset ? (imageUri as number) : { uri: imageUri as string })
+      : null;
 
     return (
       <View className="px-6 pt-4 pb-6">
@@ -365,14 +368,13 @@ export default function GameScreen() {
         )}
         <Card className="p-0 overflow-hidden rounded-[40px] border-0" variant="elevated">
           <View className="aspect-square relative">
-            {imageUri ? (
-              <Image
-                source={isLocalAsset ? imageUri : { uri: imageUri }}
+            {imageSource ? (
+              <TargetImageView
+                source={imageSource}
+                showTargetBadge={activeTab === 'target'}
+                analysisTips={analysisTips.length > 0 ? analysisTips : undefined}
+                accessibilityLabel={activeTab === 'target' ? 'Target image' : 'Your attempt'}
                 className="w-full h-full"
-                resizeMode="cover"
-                onError={(error) => {
-                  console.log('Image load error:', error.nativeEvent);
-                }}
               />
             ) : (
               <View className="w-full h-full bg-surfaceVariant items-center justify-center">
@@ -382,13 +384,8 @@ export default function GameScreen() {
                 </Text>
               </View>
             )}
-            {activeTab === 'target' && imageUri && (
-              <View className="absolute top-6 right-6">
-                <Badge label="🎯 TARGET" variant="primary" className="bg-primary px-3 py-1.5 rounded-full border-0" />
-              </View>
-            )}
           </View>
-          
+
           <View className="flex-row bg-surfaceVariant/50 p-2 m-4 rounded-full">
             <TouchableOpacity 
               onPress={() => setActiveTab('target')}
