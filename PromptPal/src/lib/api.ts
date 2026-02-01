@@ -299,9 +299,8 @@ class ApiClient {
     let authHeader: HeadersInit = {};
 
     if (requiresAuth) {
-      // For AI proxy endpoints, always use fresh tokens to avoid expiration issues
-      const isAiProxyEndpoint = endpoint === '/api/ai/proxy';
-
+            // For AI proxy endpoints, always use fresh tokens to avoid expiration issues
+            const isAiProxyEndpoint = endpoint === '/api/v1/ai/proxy';  // ✅ Changed from '/api/ai/proxy'
       if (isAiProxyEndpoint && this.getToken) {
         try {
           const freshToken = await this.getToken();
@@ -399,80 +398,64 @@ class ApiClient {
     return response.data || [];
   }
 
-  // Image generation and evaluation
-  async generateImage(prompt: string, seed?: number): Promise<{
-    imageUrl: string;
-    remaining: { imageCalls?: number };
-  }> {
-    const response = await this.request<{
+    // Image generation and evaluation
+    async generateImage(prompt: string, seed?: number): Promise<{
       imageUrl: string;
       remaining: { imageCalls?: number };
-    }>(
-      "/api/ai/proxy",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          type: "image",
-          input: {
-            prompt,
-            seed,
-          },
-          appId: "prompt-pal",
-        }),
-      }
-    );
-    return response;
-  }
+    }> {
+      const response = await this.request<{
+        imageUrl: string;
+        remaining: { imageCalls?: number };
+      }>(
+        "/api/v1/ai/proxy",  // ✅ Changed from '/api/ai/proxy' to '/api/v1/ai/proxy'
+        {
+          method: "POST",
+          body: JSON.stringify({
+            type: "image",
+            input: {
+              prompt,
+              seed,
+            },
+            // ✅ Removed appId from body (handled via headers)
+          }),
+        }
+      );
+      return response;
+    }
 
-  async compareImagesBasic(targetUrl: string, resultUrl: string): Promise<{
-    score: number;
-    remaining: { imageCalls?: number };
-  }> {
-    const response = await this.request<{
+    async compareImagesBasic(targetUrl: string, resultUrl: string): Promise<{
       score: number;
       remaining: { imageCalls?: number };
-    }>(
-      "/api/ai/proxy",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          type: "compare",
-          input: {
-            targetUrl,
-            resultUrl
-          },
-          appId: "prompt-pal",
-        }),
-      }
-    );
-    return response;
-  }
-
-  async evaluateImageAdvanced(options: {
-    taskId: string;
-    userImageUrl: string;
-    expectedImageUrl: string;
-    hiddenPromptKeywords?: string[];
-    style?: string;
-    userPrompt?: string;
-    targetPrompt?: string;
-  }): Promise<{
-    evaluation: {
-      score: number;
-      similarity: number;
-      keywordScore: number;
-      styleScore: number;
-      promptSimilarity?: number;
-      feedback: string[];
-      keywordsMatched: string[];
-      criteria?: Array<{
-        name: string;
+    }> {
+      const response = await this.request<{
         score: number;
-        feedback: string;
-      }>;
-    };
-  }> {
-    const response = await this.request<{
+        remaining: { imageCalls?: number };
+      }>(
+        "/api/v1/ai/proxy",  // ✅ Changed from '/api/ai/proxy' to '/api/v1/ai/proxy'
+        {
+          method: "POST",
+          body: JSON.stringify({
+            type: "compare",
+            input: {
+              targetUrl,
+              resultUrl
+            },
+            // ✅ Removed appId from body (handled via headers)
+          }),
+        }
+      );
+      return response;
+    }
+    
+    async evaluateImageAdvanced(options: {
+      taskId: string;
+      userImageUrl: string;
+      expectedImageUrl: string;
+      hiddenPromptKeywords?: string[];
+      style?: string;
+      userPrompt?: string;
+      targetPrompt?: string;
+    }): Promise<{
       evaluation: {
         score: number;
         similarity: number;
@@ -487,17 +470,69 @@ class ApiClient {
           feedback: string;
         }>;
       };
-    }>(
-      "/api/analyzer/evaluate-images",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          ...options,
-          appId: "prompt-pal",
-        }),
-      }
-    );
-    return response;
+    }> {
+      const response = await this.request<{
+        evaluation: {
+          score: number;
+          similarity: number;
+          keywordScore: number;
+          styleScore: number;
+          promptSimilarity?: number;
+          feedback: string[];
+          keywordsMatched: string[];
+          criteria?: Array<{
+            name: string;
+            score: number;
+            feedback: string;
+          }>;
+        };
+      }>(
+        "/api/v1/ai/proxy",  // ✅ Changed from '/api/analyzer/evaluate-images' to '/api/v1/ai/proxy'
+        {
+          method: "POST",
+          body: JSON.stringify({
+            type: "evaluate",  // ✅ Added type field
+            input: {  // ✅ Wrapped options in 'input' object
+              taskId: options.taskId,
+              userImageUrl: options.userImageUrl,
+              expectedImageUrl: options.expectedImageUrl,
+              hiddenPromptKeywords: options.hiddenPromptKeywords,
+              style: options.style,
+              userPrompt: options.userPrompt,
+              targetPrompt: options.targetPrompt,
+            },
+            // ✅ Removed appId from body (handled via headers)
+          }),
+        }
+      );
+      return response;
+    }
+
+     // Wrapper method for gemini.ts compatibility
+  async evaluateImageComparison(
+    taskId: string,
+    resultUrl: string,
+    targetUrl: string
+  ): Promise<{
+    score: number;
+    similarity: number;
+    keywordScore: number;
+    styleScore: number;
+    promptSimilarity?: number;
+    feedback: string[];
+    keywordsMatched: string[];
+    criteria?: Array<{
+      name: string;
+      score: number;
+      feedback: string;
+    }>;
+  }> {
+    const result = await this.evaluateImageAdvanced({
+      taskId,
+      userImageUrl: resultUrl,
+      expectedImageUrl: targetUrl,
+    });
+    return result.evaluation;
   }
 
   // User management

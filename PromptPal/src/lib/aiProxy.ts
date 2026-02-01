@@ -189,7 +189,8 @@ export class AIProxyClient {
     }
 
     try {
-      const response = await aiProxy.post<AIProxyResponse>('/api/analyzer/ai-proxy', {
+      // ✅ Changed from '/api/analyzer/ai-proxy' to '/api/v1/ai/proxy'
+      const response = await aiProxy.post<AIProxyResponse>('/api/v1/ai/proxy', {
         type: 'text',
         input: { prompt: prompt.trim(), context },
       });
@@ -219,10 +220,10 @@ export class AIProxyClient {
     }
 
     try {
-      const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
+      // ✅ Changed from '/api/ai/proxy' to '/api/v1/ai/proxy'
+      const response = await aiProxy.post<AIProxyResponse>('/api/v1/ai/proxy', {
         type: 'image',
         input: { prompt: prompt.trim(), seed },
-        appId: 'prompt-pal',
       });
       return response.data;
     } catch (error) {
@@ -252,7 +253,8 @@ export class AIProxyClient {
     }
 
     try {
-      const response = await aiProxy.post<AIProxyResponse>('/api/ai/proxy', {
+      // ✅ Changed from '/api/ai/proxy' to '/api/v1/ai/proxy'
+      const response = await aiProxy.post<AIProxyResponse>('/api/v1/ai/proxy', {
         type: 'compare',
         input: {
           targetUrl,

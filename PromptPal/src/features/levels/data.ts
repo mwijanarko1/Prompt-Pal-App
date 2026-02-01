@@ -1,6 +1,7 @@
-import { Level } from '../game/store';
+import { Level, ChallengeType } from '../game/store';
 import { apiClient, Task } from '../../lib/api';
 
+// Pre-import local level images mapped by API level ID for instant loading
 // Pre-import local level images mapped by API level ID for instant loading
 // Map API level IDs (e.g., "image-1-easy") to local assets
 const LEVEL_IMAGE_ASSETS = {
@@ -338,8 +339,17 @@ export async function fetchLevelsFromApi(): Promise<Level[]> {
 // Fetch a single level by ID from API
 export async function fetchLevelById(id: string): Promise<Level | undefined> {
   try {
-    const task = await apiClient.getTaskById(id);
-    return taskToLevel(task);
+    // Get level from API (returns api.ts Level type)
+    const apiLevel = await apiClient.getLevelById(id);
+    
+    // Convert to store.ts Level type
+    const level: Level = {
+      ...apiLevel,
+      type: apiLevel.type as ChallengeType | undefined, // Cast string to ChallengeType
+      unlocked: apiLevel.unlocked ?? false, // Ensure boolean
+    };
+    
+    return level;
   } catch (error) {
     console.warn('[Levels] Failed to fetch level from API:', error);
     return getLevelById(id);

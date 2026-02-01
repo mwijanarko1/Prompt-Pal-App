@@ -25,7 +25,7 @@ export class UsageClient {
    */
   static async getUsage(): Promise<UsageStats> {
     try {
-      const response = await aiProxy.get('/api/user/usage');
+      const response = await aiProxy.get('/api/v1/user/usage');  // ✅ Changed from '/api/user/usage' to '/api/v1/user/usage'
       return response.data;
     } catch (error) {
       logger.error('UsageClient', error, { operation: 'getUsage' });
