@@ -19,26 +19,37 @@ export default function LibraryScreen() {
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [isResourceModalVisible, setIsResourceModalVisible] = useState(false);
 
-  // Fetch library data from API
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      fetchLibraryData();
-    }
-  }, [isLoaded, isSignedIn]);
-
-  const fetchLibraryData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await apiClient.getLibraryData();
-      setLibraryData(data);
-    } catch (err) {
-      console.error('Failed to fetch library data:', err);
-      setError('Failed to load library. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Fetch library data from API
+    useEffect(() => {
+      if (isLoaded && isSignedIn) {
+        // Set loading to false after timeout to ensure UI renders even if backend fails
+        const timeout = setTimeout(() => {
+          setLoading(false);
+        }, 2000); // 2 second timeout
+  
+        fetchLibraryData();
+  
+        return () => clearTimeout(timeout);
+      } else {
+        setLoading(false);
+      }
+    }, [isLoaded, isSignedIn]);
+  
+    const fetchLibraryData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await apiClient.getLibraryData();
+        setLibraryData(data);
+      } catch (err) {
+        console.error('Failed to fetch library data:', err);
+        // Don't set error - let UI render with empty state
+        // setError('Failed to load library. Please try again.');
+        setLibraryData(null); // Allow UI to render with empty state
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const handleResourcePress = (resource: Resource) => {
     setSelectedResource(resource);
@@ -107,7 +118,7 @@ export default function LibraryScreen() {
               {module.topic} • {module.estimatedTime || 10}m
             </Text>
             <Text className="text-onSurface text-base font-black mb-3" numberOfLines={1}>{module.title}</Text>
-            <ProgressBar progress={module.progress / 100} height={4} className="mb-2" />
+            <ProgressBar progress={module.progress / 100} className="mb-2" />
             <View className="flex-row justify-between items-center">
               <Text className="text-onSurfaceVariant text-[10px] font-bold">{module.progress}% Complete</Text>
               <TouchableOpacity className="flex-row items-center">
