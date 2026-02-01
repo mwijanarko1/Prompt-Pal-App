@@ -1,17 +1,26 @@
-import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
-import { getLevelById as getLocalLevelById, processApiLevelsWithLocalAssets } from '@/features/levels/data';
+import { getLevelById as getLocalLevelById } from '@/features/levels/data';
 import { AIProxyClient } from '@/lib/aiProxy';
 import { apiClient, Level } from '@/lib/api';
 import { useGameStore, ChallengeType } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
+import { CodeScoringService, type CodeScoringResult } from '@/lib/scoring/codeScoring';
+import { CopyScoringService, type CopyScoringResult } from '@/lib/scoring/copyScoring';
 
 const { width } = Dimensions.get('window');
+
+/** Extract code from markdown code block (```lang?\n...\n```) or return text as-is. */
+function extractCodeFromMarkdown(text: string): string {
+  if (!text?.trim()) return text || '';
+  const match = text.match(/```(?:\w+)?\s*\n?([\s\S]*?)```/);
+  return match ? match[1].trim() : text.trim();
+}
 
 // Helper function to map level type to moduleId for navigation
 const getModuleIdFromLevelType = (levelType: string): string => {
@@ -41,6 +50,8 @@ export default function GameScreen() {
     feedback: string[];
     keywordsMatched: string[];
   } | null>(null);
+  const [lastCodeResult, setLastCodeResult] = useState<CodeScoringResult | null>(null);
+  const [lastCopyResult, setLastCopyResult] = useState<CopyScoringResult | null>(null);
   const [level, setLevel] = useState<Level | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,14 +77,20 @@ export default function GameScreen() {
         const apiLevel = await apiClient.getLevelById(id as string);
 
         if (apiLevel) {
-          // Process with local assets if available (for images only)
           const localLevel = getLocalLevelById(id as string);
           const processedLevel = {
             ...apiLevel,
             targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
             hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
+            // Code levels: use local test cases (input/expectedOutput) when available for scoring
+            ...(apiLevel.type === 'code' && localLevel?.testCases?.length
+              ? { testCases: localLevel.testCases }
+              : {}),
           };
 
+          setLastImageEvaluation(null);
+          setLastCodeResult(null);
+          setLastCopyResult(null);
           setLevel(processedLevel);
           startLevel(processedLevel.id);
           // Reset hints for this level
@@ -120,7 +137,7 @@ export default function GameScreen() {
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (event) => {
+      () => {
         // Small delay to ensure UI has updated
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -249,45 +266,83 @@ export default function GameScreen() {
           setShowResult(true);
         }
       } else if (level.type === 'code') {
-        // Mocking logic evaluation for now
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const score = 100;
+        const testCases = level.testCases as { id: string; name: string; input?: unknown; expectedOutput?: unknown; description?: string }[] | undefined;
+        if (!testCases?.length) {
+          Alert.alert('Error', 'This level has no test cases. Cannot evaluate code.');
+          return;
+        }
 
-        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
+        const codeGenPrompt =
+          `Generate ${level.language || 'JavaScript'} code only (no explanation, no markdown outside code). Requirement: ${level.requirementBrief || level.title}. Test cases: ${testCases.map(tc => (tc.description || tc.name) + (tc.expectedOutput != null ? ` → ${JSON.stringify(tc.expectedOutput)}` : '')).join('; ')}.`;
+        const textResponse = await AIProxyClient.generateText(codeGenPrompt);
+        const rawCode = textResponse.result ?? '';
+        const code = extractCodeFromMarkdown(rawCode) || rawCode.trim();
+
+        const codeResult = await CodeScoringService.scoreCode({
+          code,
+          language: (level.language || 'javascript').toUpperCase(),
+          testCases: testCases as Parameters<typeof CodeScoringService.scoreCode>[0]['testCases'],
+        });
+
+        setLastCodeResult(codeResult);
+        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, codeResult.score, level.passingScore, level.difficulty);
         const finalScore = penaltyDetails.finalScore;
-
         setLastScore(finalScore);
+
         if (finalScore >= level.passingScore) {
+          await apiClient.updateProgress({
+            levelId: level.id,
+            score: finalScore,
+            completed: true,
+            bestScore: finalScore,
+          });
           setShowResult(true);
           completeLevel(level.id);
         } else {
+          const newLives = lives - 1;
+          await apiClient.updateGameState({ lives: newLives });
           loseLife();
-          Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
+          setShowResult(true);
         }
       } else if (level.type === 'copywriting') {
-        // Mocking copywriting evaluation for now
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const score = 85;
+        const copyResult = await CopyScoringService.scoreCopy({
+          text: prompt.trim(),
+          briefProduct: level.briefProduct,
+          briefTarget: level.briefTarget,
+          briefTone: level.briefTone,
+          briefGoal: level.briefGoal,
+          wordLimit: (level as Level & { wordLimit?: { min?: number; max?: number } }).wordLimit,
+          requiredElements: (level as Level & { requiredElements?: string[] }).requiredElements,
+        });
 
-        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
+        setLastCopyResult(copyResult);
+        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, copyResult.score, level.passingScore, level.difficulty);
         const finalScore = penaltyDetails.finalScore;
-
         setLastScore(finalScore);
+
         if (finalScore >= level.passingScore) {
+          await apiClient.updateProgress({
+            levelId: level.id,
+            score: finalScore,
+            completed: true,
+            bestScore: finalScore,
+          });
           setShowResult(true);
           completeLevel(level.id);
         } else {
+          const newLives = lives - 1;
+          await apiClient.updateGameState({ lives: newLives });
           loseLife();
-          Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
+          setShowResult(true);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('GameScreen', error, { operation: 'handleGenerate' });
 
-      // Handle specific error types
-      if (error.response?.status === 429) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
         Alert.alert('Rate Limited', 'Too many requests. Please wait before trying again.');
-      } else if (error.response?.status === 403) {
+      } else if (status === 403) {
         Alert.alert('Content Policy', 'Your prompt may violate content policies. Please try a different prompt.');
       } else {
         Alert.alert('Error', 'Something went wrong. Please try again.');
@@ -709,12 +764,28 @@ export default function GameScreen() {
         xp={50}
         passed={lastScore >= level.passingScore}
         moduleType={level.type as 'image' | 'code' | 'copywriting'}
-        testCases={level.testCases}
-        copyMetrics={level.type === 'copywriting' ? level.metrics : undefined}
-        output={level.type === 'code' ? "[{'name': 'Alice', 'age': 32}, {'name': 'Bob', 'age': 25}]" : undefined}
+        testCases={
+          level.type === 'code' && lastCodeResult
+            ? lastCodeResult.testResults.map(tr => ({ name: tr.name, passed: tr.passed, error: tr.error }))
+            : undefined
+        }
+        copyMetrics={level.type === 'copywriting' && lastCopyResult ? lastCopyResult.metrics : undefined}
+        output={
+          level.type === 'code' && lastCodeResult
+            ? lastCodeResult.feedback?.join('\n') || undefined
+            : undefined
+        }
         imageSimilarity={level.type === 'image' ? lastImageEvaluation?.similarity : undefined}
         imageFeedback={level.type === 'image' ? lastImageEvaluation?.feedback : undefined}
         keywordsMatched={level.type === 'image' ? lastImageEvaluation?.keywordsMatched : undefined}
+        onShare={
+          level
+            ? () => {
+                const moduleLabel = level.moduleTitle || level.type || 'Challenge';
+                Share.share({ message: `I scored ${lastScore}% on "${level.title}" (${moduleLabel}) in PromptPal!` }).catch(() => {});
+              }
+            : undefined
+        }
         onNext={() => {
           setShowResult(false);
           if (lastScore >= level.passingScore && level) {
