@@ -1,0 +1,7 @@
+{
+  "name": "prompt-pal-app",
+  "private": true,
+  "scripts": {
+    "test": "npm test --prefix PromptPal"
+  }
+}

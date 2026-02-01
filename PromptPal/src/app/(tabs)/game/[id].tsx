@@ -36,6 +36,11 @@ export default function GameScreen() {
   const [activeTab, setActiveTab] = useState<'target' | 'attempt'>('target');
   const [showResult, setShowResult] = useState(false);
   const [lastScore, setLastScore] = useState(0);
+  const [lastImageEvaluation, setLastImageEvaluation] = useState<{
+    similarity: number;
+    feedback: string[];
+    keywordsMatched: string[];
+  } | null>(null);
   const [level, setLevel] = useState<Level | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,22 +82,19 @@ export default function GameScreen() {
         } else {
           throw new Error('Level not found');
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('GameScreen', error, { operation: 'loadLevel', id });
-
-        // Determine error message based on error type
+        const err = error as { status?: number; message?: string };
         let errorMessage = 'Failed to load level. Please try again.';
-
-        if (error.status === 403) {
+        if (err?.status === 403) {
           errorMessage = 'This level is locked. Complete previous levels to unlock it.';
-        } else if (error.status === 404) {
+        } else if (err?.status === 404) {
           errorMessage = 'Level not found.';
-        } else if (error.status === 401) {
+        } else if (err?.status === 401) {
           errorMessage = 'Authentication required. Please sign in again.';
-        } else if (error.message) {
-          errorMessage = error.message;
+        } else if (err?.message) {
+          errorMessage = err.message;
         }
-
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -214,6 +216,12 @@ export default function GameScreen() {
         const evaluation = evaluationResult.evaluation;
         const score = evaluation.score;
 
+        setLastImageEvaluation({
+          similarity: evaluation.similarity ?? score,
+          feedback: evaluation.feedback ?? [],
+          keywordsMatched: evaluation.keywordsMatched ?? [],
+        });
+
         // Apply hint penalty to score
         const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
         const finalScore = penaltyDetails.finalScore;
@@ -226,31 +234,19 @@ export default function GameScreen() {
             levelId: level.id,
             score: finalScore,
             completed: true,
-            bestScore: finalScore // In a real app, you'd track the best score
+            bestScore: finalScore
           });
 
           setShowResult(true);
           completeLevel(level.id);
         } else {
-          // User didn't pass - lose a life
           const newLives = lives - 1;
           await apiClient.updateGameState({
             lives: newLives
           });
 
           loseLife();
-
-          // Show detailed feedback
-          let message = `Score: ${finalScore}%\n\n`;
-          if (evaluation.feedback && evaluation.feedback.length > 0) {
-            message += `Feedback:\n${evaluation.feedback.join('\n')}\n\n`;
-          }
-          if (evaluation.keywordsMatched && evaluation.keywordsMatched.length > 0) {
-            message += `Keywords captured: ${evaluation.keywordsMatched.join(', ')}\n`;
-          }
-          message += `Need ${level.passingScore}% to pass.`;
-
-          Alert.alert('Try Again', message);
+          setShowResult(true);
         }
       } else if (level.type === 'code') {
         // Mocking logic evaluation for now
@@ -711,14 +707,20 @@ export default function GameScreen() {
         visible={showResult}
         score={lastScore}
         xp={50}
+        passed={lastScore >= level.passingScore}
+        moduleType={level.type as 'image' | 'code' | 'copywriting'}
         testCases={level.testCases}
+        copyMetrics={level.type === 'copywriting' ? level.metrics : undefined}
         output={level.type === 'code' ? "[{'name': 'Alice', 'age': 32}, {'name': 'Bob', 'age': 25}]" : undefined}
+        imageSimilarity={level.type === 'image' ? lastImageEvaluation?.similarity : undefined}
+        imageFeedback={level.type === 'image' ? lastImageEvaluation?.feedback : undefined}
+        keywordsMatched={level.type === 'image' ? lastImageEvaluation?.keywordsMatched : undefined}
         onNext={() => {
           setShowResult(false);
-          if (level) {
+          if (lastScore >= level.passingScore && level) {
             const moduleId = getModuleIdFromLevelType(level.type || 'image');
             router.push(`/(tabs)/game/levels/${moduleId}`);
-          } else {
+          } else if (!level) {
             router.back();
           }
         }}

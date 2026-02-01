@@ -492,8 +492,16 @@ class ApiClient {
       {
         method: "POST",
         body: JSON.stringify({
-          ...options,
-          appId: "prompt-pal",
+          type: "evaluate",
+          input: {
+            taskId: options.taskId,
+            userImageUrl: options.userImageUrl,
+            expectedImageUrl: options.expectedImageUrl,
+            hiddenPromptKeywords: options.hiddenPromptKeywords,
+            style: options.style,
+            userPrompt: options.userPrompt,
+            targetPrompt: options.targetPrompt,
+          },
         }),
       }
     );
@@ -638,24 +646,21 @@ class ApiClient {
   // Game state endpoints
   async getGameState(): Promise<GameState> {
     const response = await this.request<GameStateResponse>(
-      "/api/user/game-state"
+      "/api/v1/user/game-state"
     );
     return response.gameState;
   }
 
   async updateGameState(gameState: Partial<GameState>): Promise<void> {
-    await this.request("/api/user/game-state", {
-      method: "POST",
-      body: JSON.stringify({
-        gameState,
-        appId: "prompt-pal",
-      }),
+    await this.request("/api/v1/user/game-state", {
+      method: "PUT",
+      body: JSON.stringify({ gameState }),
     });
   }
 
   async updateProgress(update: ProgressUpdateRequest): Promise<void> {
     await this.request("/api/user/progress", {
-      method: "POST",
+      method: "PUT",
       body: JSON.stringify({
         ...update,
         appId: "prompt-pal",
