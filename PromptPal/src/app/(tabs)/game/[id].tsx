@@ -1,11 +1,10 @@
-import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Input, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
+import { Button, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
 import { getLevelById as getLocalLevelById } from '@/features/levels/data';
-import { AIProxyClient } from '@/lib/aiProxy';
 import { apiClient, Level } from '@/lib/api';
 import { useGameStore, ChallengeType, Level as GameLevel } from '@/features/game/store';
 import { logger } from '@/lib/logger';
@@ -41,10 +40,6 @@ export default function GameScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [promptError, setPromptError] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
-  const [hints, setHints] = useState<string[]>([]);
-  const [isLoadingHint, setIsLoadingHint] = useState(false);
-  const [hintCooldown, setHintCooldown] = useState(0);
-  const [showHints, setShowHints] = useState(false);
 
   const { loseLife, startLevel, completeLevel, lives } = useGameStore();
 
@@ -72,7 +67,6 @@ export default function GameScreen() {
           setLevel(processedLevel);
           startLevel(processedLevel.id);
           NanoAssistant.resetHintsForLevel(processedLevel.id);
-          setHints([]);
         } else {
           throw new Error('Level not found');
         }
@@ -99,16 +93,6 @@ export default function GameScreen() {
       loadLevel();
     }
   }, [id, startLevel]);
-
-  // Hint cooldown timer
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const { isOnCooldown, remainingMs } = NanoAssistant.getCooldownStatus();
-      setHintCooldown(isOnCooldown ? Math.ceil(remainingMs / 1000) : 0);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Keyboard handling - scroll to input when keyboard shows
   useEffect(() => {
@@ -166,7 +150,6 @@ export default function GameScreen() {
                     setError(null);
                     startLevel(processedLevel.id);
                     NanoAssistant.resetHintsForLevel(processedLevel.id);
-                    setHints([]);
                   }
                 } catch (err) {
                   logger.error('GameScreen', err, { operation: 'retryLoadLevel', id });
