@@ -10,7 +10,8 @@
     },
     "types": [
       "nativewind/types",
-      "node"
+      "node",
+      "jest"
     ],
     "jsx": "react-jsx",
     "skipLibCheck": true,
