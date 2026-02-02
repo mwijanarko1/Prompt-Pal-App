@@ -1,4 +1,4 @@
-import { AIProxyClient, AIProxyResponse } from '../aiProxy';
+import { getSharedClient, AIProxyResponse } from '../unified-api';
 import { logger } from '../logger';
 
 export interface ImageScoringInput {
@@ -41,15 +41,16 @@ export class ImageScoringService {
       let similarity = 0;
 
       try {
+        const client = getSharedClient();
         aiResponse = await Promise.race([
-          AIProxyClient.compareImages(targetImageUrl, resultImageUrl),
-          new Promise<never>((_, reject) => 
+          client.compareImages(targetImageUrl, resultImageUrl),
+          new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Image comparison timeout')), this.TIMEOUT_MS)
           )
         ]) as AIProxyResponse;
-        
+
         similarity = aiResponse.score !== undefined ? Math.round(aiResponse.score * 100) : 0;
-        
+
         if (!aiResponse.score && aiResponse.score !== 0) {
           logger.warn('ImageScoringService', 'No similarity score in AI response');
         }
@@ -87,7 +88,7 @@ export class ImageScoringService {
       };
     } catch (error) {
       logger.error('ImageScoringService', error, { operation: 'scoreImage', input });
-      
+
       return {
         score: this.MIN_SCORE,
         similarity: 0,
@@ -111,16 +112,16 @@ export class ImageScoringService {
 
     const metadata = aiResponse.metadata as { detectedKeywords?: string[] };
     const detectedKeywords = metadata.detectedKeywords || [];
-    
-    const matchedCount = keywords.filter(keyword => 
-      detectedKeywords.some(detected => 
+
+    const matchedCount = keywords.filter(keyword =>
+      detectedKeywords.some(detected =>
         detected.toLowerCase().includes(keyword.toLowerCase()) ||
         keyword.toLowerCase().includes(detected.toLowerCase())
       )
     ).length;
 
-    matchedKeywords.push(...keywords.filter(keyword => 
-      detectedKeywords.some(detected => 
+    matchedKeywords.push(...keywords.filter(keyword =>
+      detectedKeywords.some(detected =>
         detected.toLowerCase().includes(keyword.toLowerCase()) ||
         keyword.toLowerCase().includes(detected.toLowerCase())
       )

@@ -1,6 +1,6 @@
-import { aiProxy } from '../aiProxy';
+import { getSharedClient } from '../unified-api';
 import { logger } from '../logger';
-import { apiClient } from '../api';
+
 
 export interface TestCase {
   id: string;
@@ -43,12 +43,12 @@ export class CodeScoringService {
     syntaxPatterns: RegExp[];
     template: string;
   }> = {
-    'PYTHON 3.10': {
-      syntaxPatterns: [
-        /^def\s+\w+\s*\(/m,
-        /^\s*return\s+/m,
-      ],
-      template: (code: string, fnName: string) => `
+      'PYTHON 3.10': {
+        syntaxPatterns: [
+          /^def\s+\w+\s*\(/m,
+          /^\s*return\s+/m,
+        ],
+        template: (code: string, fnName: string) => `
 ${code}
 
 import json
@@ -61,13 +61,13 @@ try:
 except Exception as e:
     print(json.dumps({"success": False, "error": str(e)}))
 `,
-    },
-    'JAVASCRIPT': {
-      syntaxPatterns: [
-        /function\s+\w+\s*\(/,
-        /\w+\s*=>\s*\(/,
-      ],
-      template: (code: string, fnName: string) => `
+      },
+      'JAVASCRIPT': {
+        syntaxPatterns: [
+          /function\s+\w+\s*\(/,
+          /\w+\s*=>\s*\(/,
+        ],
+        template: (code: string, fnName: string) => `
 ${code}
 
 try {
@@ -77,8 +77,8 @@ try {
   console.log(JSON.stringify({ success: false, error: error.message }));
 }
 `,
-    },
-  };
+      },
+    };
 
   /**
    * Scores generated code against test cases
@@ -132,7 +132,7 @@ try {
       };
     } catch (error) {
       logger.error('CodeScoringService', error, { operation: 'scoreCode', input });
-      
+
       return {
         score: 0,
         testResults: testCases.map(tc => ({
@@ -201,7 +201,7 @@ try {
   ): Promise<CodeTestResult> {
     try {
       const executionResult = await this.executeCode(code, language, testCase, functionName);
-      
+
       const passed = this.compareOutputs(executionResult.output, testCase.expectedOutput);
 
       return {
@@ -214,7 +214,7 @@ try {
       };
     } catch (error) {
       logger.warn('CodeScoringService', 'Test execution failed', { testCaseId: testCase.id, error });
-      
+
       return {
         id: testCase.id,
         name: testCase.name,
@@ -247,9 +247,9 @@ try {
     } catch (error) {
       const executionTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+
       logger.warn('CodeScoringService', 'Backend execution failed, trying fallback', { error: errorMessage });
-      
+
       return this.fallbackExecution(code, language, testCase, functionName, executionTime);
     }
   }
@@ -264,20 +264,19 @@ try {
     functionName?: string
   ): Promise<{ success: boolean; output?: any; error?: string }> {
     try {
-      this.validateCodeSecurity(code);
-
-      const response = await aiProxy.post('/api/analyzer/execute-code', {
+      const client = getSharedClient();
+      return await client.executeCode(
         code,
         language,
-        testInput: testCase.input,
-        functionName: functionName || this.extractFunctionName(code, language),
-      }, {
-        timeout: this.EXECUTION_TIMEOUT_MS,
-      });
-
-      return response.data;
+        { input: testCase.input, expectedOutput: testCase.expectedOutput },
+        functionName
+      );
     } catch (error) {
-      throw error;
+      logger.error('CodeScoringService', error, { operation: 'executeCodeViaBackend' });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown execution error',
+      };
     }
   }
 
@@ -361,11 +360,11 @@ try {
    */
   private static countKeywordMatches(code: string, testCase: TestCase): number {
     if (!testCase.description) return 0;
-    
+
     const keywords = testCase.description.split(/\s+/).filter(w => w.length > 3);
     const codeLower = code.toLowerCase();
-    
-    return keywords.filter(keyword => 
+
+    return keywords.filter(keyword =>
       codeLower.includes(keyword.toLowerCase())
     ).length;
   }
@@ -376,7 +375,7 @@ try {
   private static hasBasicStructure(code: string, language: string): boolean {
     const languageConfig = this.LANGUAGE_CONFIGS[language.toUpperCase()];
     if (!languageConfig) return false;
-    
+
     return languageConfig.syntaxPatterns.some(pattern => pattern.test(code));
   }
 

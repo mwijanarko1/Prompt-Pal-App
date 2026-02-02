@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Badge, Card, ProgressBar, ResourceModal } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
-import { apiClient, LibraryData, LibraryCategory, LearningModule, Resource } from '@/lib/api';
+import { getSharedClient, LibraryData, LibraryCategory, LearningModule, Resource } from '@/lib/unified-api';
 import { getModuleThumbnail } from '@/lib/thumbnails';
 
 const { width } = Dimensions.get('window');
@@ -30,7 +30,8 @@ export default function LibraryScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiClient.getLibraryData();
+      const client = getSharedClient();
+      const data = await client.getLibraryData();
       setLibraryData(data);
     } catch (err) {
       console.error('Failed to fetch library data:', err);
@@ -73,7 +74,7 @@ export default function LibraryScreen() {
 
   const renderModuleCard = (module: LearningModule) => {
     const thumbnail = getModuleThumbnail(module.title, module.category, module.topic);
-    
+
     return (
       <TouchableOpacity
         key={module.id}
@@ -95,10 +96,10 @@ export default function LibraryScreen() {
               <Ionicons name={module.icon as any || 'school'} size={48} color="#FF6B00" />
             )}
             <View className="absolute top-3 right-3">
-              <Badge 
-                label={module.format || 'interactive'} 
-                variant="primary" 
-                className="bg-primary px-2 py-0.5 rounded-full" 
+              <Badge
+                label={module.format || 'interactive'}
+                variant="primary"
+                className="bg-primary px-2 py-0.5 rounded-full"
               />
             </View>
           </View>
@@ -230,10 +231,10 @@ export default function LibraryScreen() {
         ))}
       </ScrollView>
 
-      <ResourceModal 
-        isVisible={isResourceModalVisible} 
-        onClose={() => setIsResourceModalVisible(false)} 
-        resource={selectedResource} 
+      <ResourceModal
+        isVisible={isResourceModalVisible}
+        onClose={() => setIsResourceModalVisible(false)}
+        resource={selectedResource}
       />
     </SafeAreaView>
   );

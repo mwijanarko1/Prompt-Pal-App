@@ -1,4 +1,4 @@
-import { aiProxy } from '@/lib/aiProxy';
+import { getSharedClient } from '@/lib/unified-api';
 import { logger } from '@/lib/logger';
 
 // Constants
@@ -15,6 +15,7 @@ export interface UsageStats {
     imageCalls: number;
   };
   periodStart: number;
+  periodEnd: number;
 }
 
 export class UsageClient {
@@ -25,8 +26,25 @@ export class UsageClient {
    */
   static async getUsage(): Promise<UsageStats> {
     try {
-      const response = await aiProxy.get('/api/user/usage');
-      return response.data;
+      const client = getSharedClient();
+      const usageData = await client.getUserUsage();
+
+      // Debug logging
+      console.log('[UsageClient] Raw API response:', usageData);
+      console.log('[UsageClient] Image calls limit:', usageData.limits?.imageCalls);
+
+      // Transform the unified API response to match UsageStats interface
+      const resetAt = new Date(usageData.resetAt);
+      // Assume 30-day billing cycle for periodStart calculation
+      const periodStart = new Date(resetAt.getTime() - (30 * 24 * 60 * 60 * 1000));
+
+      return {
+        tier: usageData.tier as 'free' | 'pro',
+        used: usageData.used,
+        limits: usageData.limits,
+        periodStart: periodStart.getTime(),
+        periodEnd: resetAt.getTime(),
+      };
     } catch (error) {
       logger.error('UsageClient', error, { operation: 'getUsage' });
       throw new Error('Failed to load usage statistics. Please check your connection and try again.');

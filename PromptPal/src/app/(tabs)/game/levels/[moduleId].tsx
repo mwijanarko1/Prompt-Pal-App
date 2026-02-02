@@ -7,7 +7,7 @@ import { processApiLevelsWithLocalAssets } from '@/features/levels/data';
 import { Card, Badge, ProgressBar } from '@/components/ui';
 import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
-import { apiClient, Level } from '@/lib/api';
+import { getSharedClient, Level } from '@/lib/unified-api';
 import { logger } from '@/lib/logger';
 
 export default function LevelsScreen() {
@@ -50,7 +50,7 @@ export default function LevelsScreen() {
         let type: any = moduleId;
         if (moduleId === 'image-generation') type = 'image';
         // Fetch all levels from API only
-        const rawApiLevels = await apiClient.getLevels();
+        const rawApiLevels = await getSharedClient().getLevels();
 
         if (rawApiLevels && rawApiLevels.length > 0) {
           // Filter levels by module type - try moduleId first, fallback to type mapping
@@ -59,8 +59,8 @@ export default function LevelsScreen() {
           // If no levels found by moduleId, try filtering by type
           if (moduleLevels.length === 0) {
             const expectedType = moduleId === 'image-generation' ? 'image' :
-                                moduleId === 'code-logic' ? 'code' :
-                                moduleId === 'copywriting' ? 'copywriting' : moduleId;
+              moduleId === 'code-logic' ? 'code' :
+                moduleId === 'copywriting' ? 'copywriting' : moduleId;
             moduleLevels = rawApiLevels.filter(level => level.type === expectedType);
           }
 
@@ -90,7 +90,7 @@ export default function LevelsScreen() {
   const renderLevelCard = (level: any, index: number) => {
     const isCompleted = completedLevels.includes(level.id);
     const isUnlocked = unlockedLevels.includes(level.id) || level.unlocked;
-    
+
     return (
       <TouchableOpacity
         key={level.id}
@@ -108,12 +108,12 @@ export default function LevelsScreen() {
               <Ionicons name="lock-closed" size={20} color="#6B7280" />
             )}
           </View>
-          
+
           <View className="flex-1">
             <View className="flex-row items-center mb-1">
               <Text className="text-onSurface text-base font-black mr-2">{level.title}</Text>
-              <Badge 
-                label={level.difficulty} 
+              <Badge
+                label={level.difficulty}
                 variant={level.difficulty === 'beginner' ? 'success' : level.difficulty === 'intermediate' ? 'primary' : 'error'}
                 className="px-2 py-0.5"
               />
@@ -122,7 +122,7 @@ export default function LevelsScreen() {
               {level.type} Challenge • {level.passingScore}% to pass
             </Text>
           </View>
-          
+
           {isUnlocked && <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />}
         </Card>
       </TouchableOpacity>
@@ -133,7 +133,7 @@ export default function LevelsScreen() {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
         <Text className="text-onSurface text-xl font-black mb-4">Module not found</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           className="bg-primary px-8 py-4 rounded-full"
           onPress={() => router.back()}
         >
@@ -146,13 +146,13 @@ export default function LevelsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <View className="px-6 pt-4 pb-2">
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.back()}
           className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant/50 mb-4"
         >
           <Ionicons name="arrow-back" size={24} color="#6B7280" />
         </TouchableOpacity>
-        
+
         <View className="flex-row items-center mb-6">
           <View className={`w-14 h-14 rounded-2xl items-center justify-center mr-4 ${module.accentColor}`}>
             <Text className="text-2xl">{module.icon}</Text>

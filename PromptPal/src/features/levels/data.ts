@@ -1,5 +1,8 @@
 import { Level } from '../game/store';
-import { apiClient, Task } from '../../lib/api';
+import { getSharedClient } from '../../lib/unified-api';
+
+// Note: Target images are now stored in Convex and URLs are provided by the backend API
+// Local assets are only used for UI display
 
 // Pre-import local level images mapped by API level ID for instant loading
 // Map API level IDs (e.g., "image-1-easy") to local assets
@@ -42,6 +45,8 @@ const LEVEL_IMAGE_ASSETS = {
   'level-9': require('../../../assets/images/level-9-image.png'),
   'level-10': require('../../../assets/images/level-10-image.png'),
 } as const;
+
+// Note: getHostedImageUrlForLevel removed - backend now provides URLs directly
 
 // Helper function to get local image asset for a level ID
 function getLocalImageForLevel(levelId: string): any {
@@ -286,48 +291,19 @@ export function createLocalLevelsFromAssets(): Level[] {
   }));
 }
 
-// Convert API Task to Level format
-
-function taskToLevel(task: Task, index: number = 0): Level {
-  // Use local assets for target images - ignore API image URLs
-  // Prefer task.id/documentId from API, fallback to generated ID
-  const levelId = task.id || task.documentId || task.name || `task_${index}`;
-  const localImageUrl = getLocalImageForLevel(levelId);
-
-  // Determine difficulty based on Day or default to beginner
-  let difficulty: 'beginner' | 'intermediate' | 'advanced' = 'beginner';
-  if (task.Day) {
-    if (task.Day <= 3) difficulty = 'beginner';
-    else if (task.Day <= 7) difficulty = 'intermediate';
-    else difficulty = 'advanced';
-  }
-
-  // Prerequisites: All previous tasks in the sequence
-  const prerequisites = index > 0
-    ? Array.from({ length: index }, (_, i) => `task_${i}`)
-    : [];
-
-  return {
-    id: levelId,
-    type: 'image', // Default to image type since Task interface doesn't have type
-    title: task.name || `Level ${index + 1}`, // Use task name as title
-    difficulty,
-    targetImageUrl: localImageUrl, // Always use local asset
-    hiddenPromptKeywords: task.idealPrompt?.split(',').map(k => k.trim()) || [],
-    passingScore: 75, // Default passing score since Task interface doesn't have it
-    unlocked: index === 0, // First task is unlocked
-    prerequisites,
-  };
-}
-
 // Fetch levels from API
 export async function fetchLevelsFromApi(): Promise<Level[]> {
   try {
-    const tasks = await apiClient.getDailyTasks();
-    if (tasks && tasks.length > 0) {
-      return tasks.map((task, index) => taskToLevel(task, index));
+    const client = getSharedClient();
+    const levels = await client.getLevels();
+
+    // Process levels to add local assets if needed (or if API returns full URLs, updated logic might be needed)
+    // For now, mapping IDs to local assets for consistency as per existing logic
+    if (levels && levels.length > 0) {
+      return processApiLevelsWithLocalAssets(levels as Level[]);
     }
-    // If no tasks from API, return empty array (no fallback data)
+
+    // If no levels from API, return empty array (no fallback data)
     return [];
   } catch (error) {
     console.warn('[Levels] Failed to fetch from API:', error);
@@ -338,8 +314,17 @@ export async function fetchLevelsFromApi(): Promise<Level[]> {
 // Fetch a single level by ID from API
 export async function fetchLevelById(id: string): Promise<Level | undefined> {
   try {
-    const task = await apiClient.getTaskById(id);
-    return taskToLevel(task);
+    const client = getSharedClient();
+    const level = await client.getLevelById(id);
+
+    if (level) {
+      // Convert/process if needed, or return directly. 
+      // Existing logic used taskToLevel. Here we assume Level.
+      // We still want local image assets for consistent UI if they use local images.
+      const levels = processApiLevelsWithLocalAssets([level as Level]);
+      return levels[0];
+    }
+    return undefined;
   } catch (error) {
     console.warn('[Levels] Failed to fetch level from API:', error);
     return getLevelById(id);

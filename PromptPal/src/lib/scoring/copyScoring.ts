@@ -1,4 +1,4 @@
-import { AIProxyClient, AIProxyResponse } from '../aiProxy';
+import { getSharedClient, AIProxyResponse } from '../unified-api';
 import { logger } from '../logger';
 
 export interface CopyScoringInput {
@@ -89,7 +89,7 @@ export class CopyScoringService {
       };
     } catch (error) {
       logger.error('CopyScoringService', error, { operation: 'scoreCopy', input });
-      
+
       return {
         score: 0,
         metrics: this.METRIC_LABELS.map(label => ({ label, value: 0 })),
@@ -114,13 +114,14 @@ export class CopyScoringService {
   ): Promise<{ label: string; value: number }[]> {
     try {
       const prompt = this.buildAnalysisPrompt(text, brief);
-      
-      const aiResponse = await AIProxyClient.generateText(prompt);
-      
+
+      const client = getSharedClient();
+      const aiResponse = await client.generateText(prompt);
+
       return this.parseMetricsFromResponse(aiResponse, brief);
     } catch (error) {
       logger.warn('CopyScoringService', 'AI analysis failed, using fallback', { error });
-      
+
       return this.calculateFallbackMetrics(text, brief);
     }
   }
@@ -186,7 +187,7 @@ Provide scores in JSON format:
         const jsonMatch = aiResponse.result.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const scores = JSON.parse(jsonMatch[0]);
-          
+
           return this.METRIC_LABELS.map(label => {
             const key = label.replace(/ /g, '_').toUpperCase();
             return {
@@ -245,7 +246,7 @@ Provide scores in JSON format:
     };
 
     const desiredToneLower = desiredTone.toLowerCase();
-    const keywords = Object.entries(toneKeywords).find(([key]) => 
+    const keywords = Object.entries(toneKeywords).find(([key]) =>
       desiredToneLower.includes(key)
     )?.[1] || [];
 
@@ -286,7 +287,7 @@ Provide scores in JSON format:
     if (sentences.length === 0) return 50;
 
     const avgSentenceLength = words.length / sentences.length;
-    
+
     let clarityScore = 80;
 
     if (avgSentenceLength > 25) clarityScore -= 15;
@@ -312,7 +313,7 @@ Provide scores in JSON format:
     };
 
     const targetLower = targetAudience.toLowerCase();
-    const keywords = Object.entries(audienceKeywords).find(([key]) => 
+    const keywords = Object.entries(audienceKeywords).find(([key]) =>
       targetLower.includes(key)
     )?.[1] || [];
 

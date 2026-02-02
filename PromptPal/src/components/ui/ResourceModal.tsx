@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Badge } from './Badge';
-import { Resource } from '@/lib/api';
+import { Resource } from '@/lib/unified-api';
 
 interface ResourceModalProps {
   isVisible: boolean;
@@ -87,7 +87,7 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
               <Text className="text-primary font-black text-xs uppercase tracking-[2px] mb-2">The Challenge</Text>
               <Text className="text-onSurface text-base leading-6">{content.challenge}</Text>
             </View>
-            
+
             <View className="space-y-4">
               <Text className="text-onSurface font-black text-xl">The Solution</Text>
               <Text className="text-onSurfaceVariant text-sm leading-6">{content.solution}</Text>
@@ -122,21 +122,21 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
         <View className="px-6 pt-8 pb-4 border-b border-outline/5">
           <View className="flex-row justify-between items-start mb-4">
             <View className="flex-1 mr-4">
-              <Badge 
-                label={resource.type.replace('-', ' ')} 
-                variant="primary" 
-                className="bg-primary/20 text-primary self-start mb-2" 
+              <Badge
+                label={resource.type.replace('-', ' ')}
+                variant="primary"
+                className="bg-primary/20 text-primary self-start mb-2"
               />
               <Text className="text-onSurface text-2xl font-black">{resource.title}</Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={onClose}
               className="w-10 h-10 bg-surfaceVariant/50 rounded-full items-center justify-center"
             >
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
           </View>
-          
+
           <View className="flex-row items-center">
             <Ionicons name="time-outline" size={14} color="#9CA3AF" />
             <Text className="text-onSurfaceVariant text-xs ml-1 mr-4">{resource.estimatedTime || 5} min read</Text>
@@ -148,7 +148,7 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
         </View>
 
         {/* Content */}
-        <ScrollView 
+        <ScrollView
           className="px-6 py-6"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -156,15 +156,15 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
           <Text className="text-onSurfaceVariant text-sm mb-8 leading-6 italic">
             {resource.description}
           </Text>
-          
+
           {renderContent()}
         </ScrollView>
 
         {/* Footer */}
         <View className="px-6 py-6 border-t border-outline/5 bg-surface">
-          <Button 
-            label="Got it" 
-            onPress={onClose} 
+          <Button
+            label="Got it"
+            onPress={onClose}
             variant="primary"
             className="w-full"
           />

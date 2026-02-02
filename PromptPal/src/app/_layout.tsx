@@ -33,11 +33,9 @@ function AppInitializer() {
   useEffect(() => {
     // Start background sync when app loads
     SyncManager.startPeriodicSync();
-    logger.info('App', 'Started background sync');
 
     // Initialize network connectivity listener
     const networkUnsubscribe = initializeNetworkListener();
-    logger.info('App', 'Initialized network listener');
 
     // Sync on app focus and handle online/offline status
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
@@ -54,7 +52,6 @@ function AppInitializer() {
       networkUnsubscribe?.();
       SyncManager.stopPeriodicSync();
       subscription?.remove();
-      logger.info('App', 'Stopped background sync');
     };
   }, []);
 

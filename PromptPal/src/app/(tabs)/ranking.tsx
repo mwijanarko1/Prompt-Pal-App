@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui';
-import { apiClient, LeaderboardEntry } from '@/lib/api';
+import { getSharedClient, LeaderboardUser } from '@/lib/unified-api';
 
 const { width } = Dimensions.get('window');
 
@@ -26,10 +26,11 @@ export default function RankingScreen() {
         setLoading(true);
         setError(null);
 
+        const client = getSharedClient();
         // Fetch leaderboard and user rank data
         const [leaderboardData, userRankData] = await Promise.all([
-          apiClient.getLeaderboard(50),
-          apiClient.getUserRank(),
+          client.getLeaderboard(50),
+          client.getUserRank(),
         ]);
 
         // Split into top 3 and the rest
@@ -77,11 +78,11 @@ export default function RankingScreen() {
               <Ionicons name="trophy" size={24} color={color} />
             </View>
           )}
-          <View 
-            className="rounded-full overflow-hidden border-4" 
-            style={{ 
-              width: size, 
-              height: size, 
+          <View
+            className="rounded-full overflow-hidden border-4"
+            style={{
+              width: size,
+              height: size,
               borderColor: color,
               shadowColor: color,
               shadowOffset: { width: 0, height: 0 },
@@ -91,7 +92,7 @@ export default function RankingScreen() {
           >
             <Image source={{ uri: user.avatar }} className="w-full h-full" />
           </View>
-          <View 
+          <View
             className="absolute -bottom-2 self-center px-4 py-1.5 rounded-full border border-outline shadow-lg shadow-black/20"
             style={{ backgroundColor: color }}
           >
@@ -143,10 +144,11 @@ export default function RankingScreen() {
           onPress={() => {
             setError(null);
             setLoading(true);
+            const client = getSharedClient();
             // Retry fetching data
             Promise.all([
-              apiClient.getLeaderboard(50),
-              apiClient.getUserRank(),
+              client.getLeaderboard(50),
+              client.getUserRank(),
             ])
               .then(([leaderboardData, userRankData]) => {
                 const top3 = leaderboardData.leaderboard.slice(0, 3);

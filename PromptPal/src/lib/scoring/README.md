@@ -201,10 +201,10 @@ import { isLevelUnlocked, getNextUnlockableLevel } from '@/features/levels/data'
 const gameStore = useGameStore.getState();
 
 // Check if level is unlocked
-const unlocked = gameStore.isLevelUnlocked('level_02', ['level_01']);
+const unlocked = gameStore.isLevelUnlocked('image-2-easy', ['image-1-easy']);
 
 // Alternative: Check using data helper
-const level = getLevelById('level_02');
+const level = getLevelById('image-2-easy');
 const isUnlocked = isLevelUnlocked(level, gameStore.completedLevels);
 
 // Check and unlock all available levels
@@ -212,16 +212,16 @@ const allLevels = await fetchLevelsFromApi();
 gameStore.checkAndUnlockLevels(allLevels);
 
 // Get next unlockable level
-const nextLevel = getNextUnlockableLevel('level_01');
+const nextLevel = getNextUnlockableLevel('image-1-easy');
 ```
 
 ### Level Definition
 
 ```typescript
 {
-  id: 'level_02',
-  title: 'Sort Dictionary List',
-  prerequisites: ['level_01'], // Must complete level_01 first
+  id: 'image-2-easy',
+  title: 'Porcelain Teacups',
+  prerequisites: ['image-1-easy'], // Must complete image-1-easy first
   // ... other properties
 }
 ```
@@ -294,7 +294,7 @@ const results = await CopyScoringService.scoreCopies([
 
 The code scoring service expects these backend endpoints:
 
-- `POST /api/analyzer/execute-code`: Execute code in sandbox
+- `POST /api/v1/ai/proxy` (type: "text"): Execute code via AI proxy
 - Input: `{ code, language, testInput, functionName }`
 - Output: `{ success, output, error }`
 

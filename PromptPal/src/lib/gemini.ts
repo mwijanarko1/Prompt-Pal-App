@@ -1,7 +1,5 @@
-// Gemini API integration - Phase 2 implementation
-// Can use backend API or direct Gemini API calls
-
-import { apiClient } from './api';
+// Gemini API integration - delegated to unified backend API
+import { getSharedClient } from './unified-api';
 
 export interface GeminiConfig {
   apiKey: string;
@@ -10,106 +8,87 @@ export interface GeminiConfig {
     image: 'gemini-2.5-flash-image';
     vision: 'gemini-2.5-flash';
   };
-  useBackendApi?: boolean; // Use backend API instead of direct Gemini calls
+  useBackendApi?: boolean;
 }
 
 export class GeminiService {
-  private config: GeminiConfig;
-  private useBackendApi: boolean;
-
-  constructor(config: GeminiConfig) {
-    this.config = config;
-    // Use backend API if API_URL is set, otherwise fall back to direct calls
-    this.useBackendApi = config.useBackendApi ?? !!process.env.EXPO_PUBLIC_API_URL;
-  }
-
-  private getModelForOperation(operation: keyof GeminiConfig['models']): string {
-    return this.config.models[operation];
-  }
+  constructor(private config: GeminiConfig) { }
 
   // Generate an image based on a text prompt
   async generateImage(prompt: string): Promise<string> {
-    // Use backend API if available
-    if (this.useBackendApi) {
-      try {
-        console.log('[Gemini] 🎨 Generating image via backend API:', prompt.substring(0, 50));
-        const result = await apiClient.generateImage(prompt);
-        console.log('[Gemini] ✅ Image generated successfully via backend:', result.imageUrl);
-        return result.imageUrl;
-      } catch (error) {
-        console.error('[Gemini] ❌ Backend API failed:', error);
-        if (error && typeof error === 'object' && 'details' in error) {
-          console.error('[Gemini] Error details:', (error as { details?: string }).details);
-        }
-        console.warn('[Gemini] ⚠️ Falling back to placeholder image');
-        // Fall through to placeholder
-      }
+    try {
+      console.log('[Gemini] 🎨 Generating image:', prompt.substring(0, 50));
+      const client = getSharedClient();
+      // unified-api generateImage returns { imageUrl: string, remaining: ... }
+      const result = await client.generateImage(prompt);
+      console.log('[Gemini] ✅ Image generated successfully:', result.imageUrl);
+      return result.imageUrl;
+    } catch (error) {
+      console.error('[Gemini] ❌ Image generation failed:', error);
+      throw error;
     }
-
-    // TODO: Implement direct Gemini Imagen 2 API call
-    // const model = this.getModelForOperation('image'); // Reserved for future implementation
-
-    // Placeholder: return a mock image URL
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
-    return `https://picsum.photos/400/400?random=${Math.random()}`;
   }
 
   // Compare two images and return similarity score (0-100)
   async compareImages(targetUrl: string, resultUrl: string, taskId?: string): Promise<number> {
-    // Use backend API if available
-    if (this.useBackendApi && taskId) {
-      try {
-        console.log('[Gemini] 🔍 Comparing images via backend API (taskId:', taskId, ')');
-        const evaluation = await apiClient.evaluateImageComparison(taskId, resultUrl, targetUrl);
-        console.log('[Gemini] ✅ Image comparison result:', evaluation);
-        return evaluation.score || 0;
-      } catch (error) {
-        console.error('[Gemini] ❌ Backend API failed:', error);
-        if (error && typeof error === 'object' && 'details' in error) {
-          console.error('[Gemini] Error details:', (error as { details?: string }).details);
-        }
-        console.warn('[Gemini] ⚠️ Falling back to placeholder score');
-        // Fall through to placeholder
+    try {
+      console.log('[Gemini] 🔍 Comparing images');
+      const client = getSharedClient();
+
+      if (taskId) {
+        // Use advanced evaluation if taskId is provided
+        const result = await client.evaluateImage({
+          taskId,
+          userImageUrl: resultUrl,
+          expectedImageUrl: targetUrl
+        });
+        return result.evaluation.score;
+      } else {
+        // Use basic comparison
+        const result = await client.compareImages(targetUrl, resultUrl);
+        return result.score || 0;
       }
+    } catch (error) {
+      console.error('[Gemini] ❌ Comparison failed:', error);
+      throw error;
     }
-
-    // TODO: Implement direct Gemini Pro Vision API call
-    // const model = this.getModelForOperation('vision'); // Reserved for future implementation
-
-    // Placeholder: return a random score between 0-100
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
-    return Math.floor(Math.random() * 101);
   }
 
   // Get contextual hints for prompt improvement
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getPromptHints(_prompt: string): Promise<string[]> {
-    // TODO: Implement Gemini Flash API call
-    // const model = this.getModelForOperation('text'); // Reserved for future implementation
+  async getPromptHints(prompt: string): Promise<string[]> {
+    try {
+      const client = getSharedClient();
+      const systemPrompt = "You are an expert AI artist. Provide 3 specific, short hints to improve the user's image generation prompt. Output ONLY valid JSON array of strings.";
+      const result = await client.generateText(prompt, systemPrompt);
 
-    // Placeholder: return generic hints
-    const hints = [
-      "Try adding a medium, like 'oil painting' or '3D render'",
-      "Consider the lighting - is it natural or artificial?",
-      "Don't forget the style - realistic, cartoon, abstract?",
-    ];
-
-    return hints.slice(0, Math.floor(Math.random() * hints.length) + 1);
+      if (result.result) {
+        try {
+          // Extract JSON array from text if needed
+          const jsonMatch = result.result.match(/\[.*\]/s);
+          const hints = JSON.parse(jsonMatch ? jsonMatch[0] : result.result);
+          return Array.isArray(hints) ? hints.slice(0, 3) : [];
+        } catch {
+          // Fallback if not valid JSON
+          return [result.result.substring(0, 100)];
+        }
+      }
+      return [];
+    } catch (error) {
+      console.warn('[Gemini] Failed to get prompt hints, keeping original prompt');
+      return [];
+    }
   }
 }
 
-// Export singleton instance (will be configured with API key later)
+// Export singleton instance
 export const geminiService = new GeminiService({
-  apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY || 'placeholder-key',
+  apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY || '',
   models: {
     text: 'gemini-2.5-flash',
     image: 'gemini-2.5-flash-image',
     vision: 'gemini-2.5-flash',
   },
-  useBackendApi: true, // Prefer backend API
+  useBackendApi: true,
 });
 
-// Log Gemini service configuration
-console.log('[Gemini Service] Initialized');
-console.log('[Gemini Service] Using backend API:', geminiService['useBackendApi']);
-console.log('[Gemini Service] Backend API URL:', process.env.EXPO_PUBLIC_API_URL || 'http://localhost:1337 (default)');
+console.log('[Gemini Service] Initialized using Unified API');

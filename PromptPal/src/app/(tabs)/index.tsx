@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger';
 import { SignOutButton } from '@/components/SignOutButton';
 import { Button, Card, Modal } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
-import { LearningModule, DailyQuest } from '@/lib/api';
+import { LearningModule, DailyQuest } from '@/lib/unified-api';
 
 // --- Sub-components ---
 
@@ -97,21 +97,21 @@ interface ModuleCardProps {
   buttonText?: string;
 }
 
-const ModuleCard = ({ 
+const ModuleCard = ({
   id,
-  title, 
-  category, 
-  level, 
-  topic, 
-  progress, 
-  icon, 
+  title,
+  category,
+  level,
+  topic,
+  progress,
+  icon,
   thumbnail,
   accentColor,
   format,
   buttonText = "Continue Learning"
 }: ModuleCardProps) => {
   const router = useRouter();
-  
+
   const handlePress = () => {
     if (format === 'video') {
       console.log('Open video player for:', title);
@@ -140,24 +140,24 @@ const ModuleCard = ({
           </View>
         )}
       </View>
-      
+
       <View className="p-6">
         <Text className={`text-[10px] font-black uppercase mb-2 tracking-[3px] ${accentColor.replace('bg-', 'text-')}`}>
           {category}
         </Text>
         <Text className="text-onSurface text-2xl font-black mb-4">{title}</Text>
-        
+
         <View className="flex-row justify-between items-center mb-3">
           <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest">{level}: {topic}</Text>
           <Text className={`text-xs font-black ${accentColor.replace('bg-', 'text-')}`}>{progress}%</Text>
         </View>
-        
+
         {/* Progress Bar */}
         <View className="h-2 bg-surfaceVariant rounded-full mb-8 overflow-hidden">
           <View className={`h-full ${accentColor} rounded-full`} style={{ width: `${progress}%` }} />
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           onPress={handlePress}
           className="bg-surfaceVariant/50 py-4 rounded-2xl items-center flex-row justify-center border border-outline/10"
         >
@@ -265,11 +265,8 @@ export default function HomeScreen() {
 
         {/* Learning Modules Section */}
         <View className="px-6 pb-20">
-          <View className="flex-row justify-between items-center mb-6">
+          <View className="mb-6">
             <Text className="text-onSurface text-2xl font-black tracking-tight">Learning Modules</Text>
-            <TouchableOpacity>
-              <Text className="text-primary text-xs font-black uppercase tracking-widest">View All</Text>
-            </TouchableOpacity>
           </View>
 
           {learningModules?.map((module) => (

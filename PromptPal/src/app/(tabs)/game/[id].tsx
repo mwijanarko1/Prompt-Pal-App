@@ -5,8 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
 import { getLevelById as getLocalLevelById, processApiLevelsWithLocalAssets } from '@/features/levels/data';
-import { AIProxyClient } from '@/lib/aiProxy';
-import { apiClient, Level } from '@/lib/api';
+import { getSharedClient, Level, UserLevelAttempt } from '@/lib/unified-api';
 import { useGameStore, ChallengeType } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
@@ -35,11 +34,18 @@ export default function GameScreen() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'target' | 'attempt'>('target');
   const [showResult, setShowResult] = useState(false);
-  const [lastScore, setLastScore] = useState(0);
+  const [lastScore, setLastScore] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<string[]>([]);
+  const [matchedKeywords, setMatchedKeywords] = useState<string[]>([]);
+  const [attemptHistory, setAttemptHistory] = useState<UserLevelAttempt[]>([]);
   const [level, setLevel] = useState<Level | null>(null);
+
+  // Refs for keyboard scrolling
+  const scrollViewRef = useRef<ScrollView>(null);
+  const inputRef = useRef<View>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Hint system state
   const [hints, setHints] = useState<string[]>([]);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
@@ -48,9 +54,6 @@ export default function GameScreen() {
 
   const { lives, loseLife, startLevel, completeLevel } = useGameStore();
 
-  // ScrollView ref for keyboard handling
-  const scrollViewRef = useRef<ScrollView>(null);
-
   useEffect(() => {
     const loadLevel = async () => {
       setIsLoading(true);
@@ -58,14 +61,17 @@ export default function GameScreen() {
 
       try {
         // Get level data from API only
-        const apiLevel = await apiClient.getLevelById(id as string);
+        const apiLevel = await getSharedClient().getLevelById(id as string);
 
         if (apiLevel) {
           // Process with local assets if available (for images only)
           const localLevel = getLocalLevelById(id as string);
           const processedLevel = {
             ...apiLevel,
-            targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
+            // Use local asset for display, API URL for evaluation
+            targetImageUrl: localLevel?.targetImageUrl,
+            // Use API-provided Convex storage URL for evaluation (ensure it's a string)
+            targetImageUrlForEvaluation: typeof apiLevel.targetImageUrl === 'string' ? apiLevel.targetImageUrl : undefined,
             hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
           };
 
@@ -74,6 +80,34 @@ export default function GameScreen() {
           // Reset hints for this level
           NanoAssistant.resetHintsForLevel(processedLevel.id);
           setHints([]);
+
+          // Fetch attempt history for this level
+          try {
+            const attemptsResponse = await getSharedClient().getLevelAttempts(id as string);
+            const attempts = attemptsResponse.attempts || [];
+            setAttemptHistory(attempts);
+
+            // Restore the latest attempt's image and evaluation data if available
+            if (attempts.length > 0) {
+              const latestAttempt = attempts[attempts.length - 1]; // Most recent attempt
+              if (latestAttempt.imageUrl) {
+                setGeneratedImage(latestAttempt.imageUrl);
+              }
+              if (latestAttempt.score) {
+                setLastScore(latestAttempt.score);
+              }
+              if (latestAttempt.feedback && latestAttempt.feedback.length > 0) {
+                setFeedback(latestAttempt.feedback);
+              }
+              if (latestAttempt.keywordsMatched && latestAttempt.keywordsMatched.length > 0) {
+                setMatchedKeywords(latestAttempt.keywordsMatched);
+              }
+            }
+          } catch (attemptsError) {
+            // Don't fail level loading if attempt history fails
+            logger.warn('GameScreen', 'Failed to load attempt history', { error: attemptsError });
+            setAttemptHistory([]);
+          }
         } else {
           throw new Error('Level not found');
         }
@@ -114,22 +148,19 @@ export default function GameScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Keyboard handling - scroll to input when keyboard shows
+  // Keyboard handling - no scrolling when keyboard shows
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (event) => {
-        // Small delay to ensure UI has updated
-        setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        // Keyboard shown - no scrolling behavior
       }
     );
 
     const keyboardWillHideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
-        // Optional: scroll back to top when keyboard hides
+        // Keyboard hidden - no scrolling behavior
       }
     );
 
@@ -195,20 +226,29 @@ export default function GameScreen() {
     try {
       if (level.type === 'image') {
         // Step 1: Generate image
-        const generateResult = await apiClient.generateImage(prompt, Date.now());
+        const client = getSharedClient();
+        const generateResult = await client.generateImage(prompt);
         const generatedImageUrl = generateResult.imageUrl;
+
+        if (!generatedImageUrl) {
+          throw new Error('Failed to generate image: no image URL returned');
+        }
+
         setGeneratedImage(generatedImageUrl);
         setActiveTab('attempt');
 
         // Step 2: Evaluate the generated image
-        const evaluationResult = await apiClient.evaluateImageAdvanced({
+        if (!level.targetImageUrlForEvaluation) {
+          throw new Error('No target image URL available for evaluation');
+        }
+
+        const evaluationResult = await client.evaluateImage({
           taskId: level.id,
           userImageUrl: generatedImageUrl,
-          expectedImageUrl: level.targetImageUrl!,
+          expectedImageUrl: level.targetImageUrlForEvaluation,
           hiddenPromptKeywords: level.hiddenPromptKeywords,
           style: level.style,
           userPrompt: prompt,
-          // Note: targetPrompt would come from level data if we add it
         });
 
         const evaluation = evaluationResult.evaluation;
@@ -219,10 +259,29 @@ export default function GameScreen() {
         const finalScore = penaltyDetails.finalScore;
 
         setLastScore(finalScore);
+        setFeedback(evaluation.feedback || []);
+        setMatchedKeywords(evaluation.keywordsMatched || []);
+
+        // Save attempt to backend for history
+        try {
+          await client.saveLevelAttempt(level.id, {
+            score: finalScore,
+            feedback: evaluation.feedback || [],
+            keywordsMatched: evaluation.keywordsMatched || [],
+            imageUrl: generatedImageUrl,
+          });
+
+          // Refresh attempt history to include the new attempt
+          const attemptsResponse = await client.getLevelAttempts(level.id);
+          setAttemptHistory(attemptsResponse.attempts || []);
+        } catch (saveError) {
+          // Don't fail the evaluation if saving attempt fails
+          logger.warn('GameScreen', 'Failed to save attempt', { error: saveError });
+        }
 
         if (finalScore >= level.passingScore) {
           // Update progress - user passed
-          await apiClient.updateProgress({
+          await client.updateProgress({
             levelId: level.id,
             score: finalScore,
             completed: true,
@@ -230,60 +289,27 @@ export default function GameScreen() {
           });
 
           setShowResult(true);
-          completeLevel(level.id);
+          await completeLevel(level.id);
         } else {
           // User didn't pass - lose a life
-          const newLives = lives - 1;
-          await apiClient.updateGameState({
-            lives: newLives
-          });
+          await loseLife();
 
-          loseLife();
-
-          // Show detailed feedback
-          let message = `Score: ${finalScore}%\n\n`;
-          if (evaluation.feedback && evaluation.feedback.length > 0) {
-            message += `Feedback:\n${evaluation.feedback.join('\n')}\n\n`;
-          }
-          if (evaluation.keywordsMatched && evaluation.keywordsMatched.length > 0) {
-            message += `Keywords captured: ${evaluation.keywordsMatched.join(', ')}\n`;
-          }
-          message += `Need ${level.passingScore}% to pass.`;
-
-          Alert.alert('Try Again', message);
+          // Evaluation results are already displayed inline below the button
         }
       } else if (level.type === 'code') {
-        // Mocking logic evaluation for now
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const score = 100;
-
-        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
-        const finalScore = penaltyDetails.finalScore;
-
-        setLastScore(finalScore);
-        if (finalScore >= level.passingScore) {
-          setShowResult(true);
-          completeLevel(level.id);
-        } else {
-          loseLife();
-          Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
-        }
+        // Code evaluation not yet implemented
+        Alert.alert(
+          'Coming Soon',
+          'Code challenges are being implemented. Please try image generation challenges instead!',
+          [{ text: 'OK' }]
+        );
       } else if (level.type === 'copywriting') {
-        // Mocking copywriting evaluation for now
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const score = 85;
-
-        const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
-        const finalScore = penaltyDetails.finalScore;
-
-        setLastScore(finalScore);
-        if (finalScore >= level.passingScore) {
-          setShowResult(true);
-          completeLevel(level.id);
-        } else {
-          loseLife();
-          Alert.alert('Try Again', `Score: ${finalScore}%. Need ${level.passingScore}% to pass.`);
-        }
+        // Copywriting evaluation not yet implemented
+        Alert.alert(
+          'Coming Soon',
+          'Copywriting challenges are being implemented. Please try image generation challenges instead!',
+          [{ text: 'OK' }]
+        );
       }
     } catch (error: any) {
       logger.error('GameScreen', error, { operation: 'handleGenerate' });
@@ -346,14 +372,6 @@ export default function GameScreen() {
     const imageUri = activeTab === 'target' ? level.targetImageUrl : (generatedImage || level.targetImageUrl);
     const isLocalAsset = activeTab === 'target' && typeof imageUri === 'number';
 
-    console.log('[DEBUG] renderImageChallenge:', {
-      activeTab,
-      imageUri,
-      isLocalAsset,
-      levelId: level.id,
-      targetImageUrl: level.targetImageUrl
-    });
-
     return (
       <View className="px-6 pt-4 pb-6">
         {level.description && (
@@ -367,7 +385,7 @@ export default function GameScreen() {
           <View className="aspect-square relative">
             {imageUri ? (
               <Image
-                source={isLocalAsset ? imageUri : { uri: imageUri }}
+                source={isLocalAsset ? imageUri : { uri: imageUri as string }}
                 className="w-full h-full"
                 resizeMode="cover"
                 onError={(error) => {
@@ -388,15 +406,15 @@ export default function GameScreen() {
               </View>
             )}
           </View>
-          
+
           <View className="flex-row bg-surfaceVariant/50 p-2 m-4 rounded-full">
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setActiveTab('target')}
               className={`flex-1 py-3 rounded-full items-center ${activeTab === 'target' ? 'bg-surface' : ''}`}
             >
               <Text className={`font-bold ${activeTab === 'target' ? 'text-onSurface' : 'text-onSurfaceVariant'}`}>Target Image</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setActiveTab('attempt')}
               className={`flex-1 py-3 rounded-full items-center ${activeTab === 'attempt' ? 'bg-surface' : ''}`}
             >
@@ -438,13 +456,15 @@ export default function GameScreen() {
   const renderCopywritingChallenge = () => (
     <View className="px-6 py-4">
       <Text className="text-onSurface text-xl font-black mb-4">{level.briefTitle}</Text>
-      
+
       <Card className="p-0 overflow-hidden rounded-[32px] mb-6 border-0" variant="elevated">
-        <Image
-          source={{ uri: level.targetImageUrl }}
-          className="w-full h-48"
-          resizeMode="cover"
-        />
+        {level.targetImageUrl && (
+          <Image
+            source={typeof level.targetImageUrl === 'number' ? level.targetImageUrl : { uri: level.targetImageUrl }}
+            className="w-full h-48"
+            resizeMode="cover"
+          />
+        )}
         <View className="p-6 bg-surface">
           <View className="flex-row items-center justify-between mb-4">
             <View>
@@ -452,7 +472,7 @@ export default function GameScreen() {
               <Text className="text-onSurface text-xl font-black">{level.briefProduct}</Text>
             </View>
           </View>
-          
+
           <View className="flex-row mb-4">
             <View className="flex-1">
               <Text className="text-onSurfaceVariant text-xs font-bold uppercase mb-1">Target</Text>
@@ -484,12 +504,11 @@ export default function GameScreen() {
           <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">
             {level.type === 'image' ? 'YOUR PROMPT' : level.type === 'code' ? 'YOUR PROMPT EDITOR' : 'CRAFT YOUR PROMPT'}
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={handleGetHint}
             disabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
-            className={`flex-row items-center px-3 py-2 rounded-full ${
-              noHintsLeft ? 'bg-surfaceVariant/30' : hintCooldown > 0 ? 'bg-surfaceVariant/50' : 'bg-secondary/20'
-            }`}
+            className={`flex-row items-center px-3 py-2 rounded-full ${noHintsLeft ? 'bg-surfaceVariant/30' : hintCooldown > 0 ? 'bg-surfaceVariant/50' : 'bg-secondary/20'
+              }`}
           >
             {isLoadingHint ? (
               <ActivityIndicator size="small" color="#4151FF" />
@@ -506,7 +525,7 @@ export default function GameScreen() {
 
         {/* Hints Display */}
         {hints.length > 0 && (
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setShowHints(!showHints)}
             className="mb-4"
           >
@@ -539,23 +558,25 @@ export default function GameScreen() {
           </TouchableOpacity>
         )}
 
-        <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20 mb-4">
-          <Input
-            value={prompt}
-            onChangeText={setPrompt}
-            placeholder={level.type === 'image' ? "Describe the floating islands, the nebula sky..." : "Enter your prompt here..."}
-            multiline
-            className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
-          />
+        <View ref={inputRef}>
+          <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20 mb-4">
+            <Input
+              value={prompt}
+              onChangeText={setPrompt}
+              placeholder={level.type === 'image' ? "Describe the floating islands, the nebula sky..." : "Enter your prompt here..."}
+              multiline
+              className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
+            />
 
-          <View className="flex-row items-center">
-            <View className="flex-row">
-              <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-              <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-              {level.type === 'image' && <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-3" />}
+            <View className="flex-row items-center">
+              <View className="flex-row">
+                <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
+                <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
+                {level.type === 'image' && <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-3" />}
+              </View>
             </View>
-          </View>
-        </Card>
+          </Card>
+        </View>
 
         <View className="mt-6">
           <Button
@@ -573,19 +594,113 @@ export default function GameScreen() {
             </View>
           </Button>
         </View>
+
+        {/* Evaluation Results */}
+        {lastScore !== null && level.type === 'image' && (
+          <View className="mt-4">
+            <Card className="p-4 rounded-[24px] border border-primary/30 bg-primary/5">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-onSurface text-sm font-black">Evaluation Score</Text>
+                <View className="flex-row items-center">
+                  <Text className="text-primary text-xl font-black mr-2">{lastScore}%</Text>
+                  <View className={`w-3 h-3 rounded-full ${lastScore >= level.passingScore ? 'bg-success' : 'bg-error'}`} />
+                </View>
+              </View>
+
+              {feedback && feedback.length > 0 && (
+                <View className="mt-2">
+                  <Text className="text-onSurface text-xs font-bold uppercase tracking-widest mb-2">Feedback</Text>
+                  {feedback.map((feedbackItem, index) => (
+                    <View key={index} className="flex-row mb-1">
+                      <Text className="text-onSurfaceVariant text-xs mr-2">•</Text>
+                      <Text className="text-onSurface text-sm flex-1">{feedbackItem}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {matchedKeywords && matchedKeywords.length > 0 && (
+                <View className="mt-3">
+                  <Text className="text-onSurface text-xs font-bold uppercase tracking-widest mb-2">Keywords Captured</Text>
+                  <View className="flex-row flex-wrap">
+                    {matchedKeywords.map((keyword, index) => (
+                      <View key={index} className="bg-primary/20 px-2 py-1 rounded-full mr-2 mb-1">
+                        <Text className="text-primary text-xs font-bold">{keyword}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </Card>
+          </View>
+        )}
+
+        {/* Attempt History */}
+        {attemptHistory.length > 0 && level.type === 'image' && (
+          <View className="mt-4">
+            <Card className="p-4 rounded-[24px] border border-outline/30 bg-surfaceVariant/20">
+              <Text className="text-onSurface text-sm font-black mb-3">Attempt History</Text>
+
+              <View className="space-y-3">
+                {attemptHistory.map((attempt) => (
+                  <View key={attempt.id} className="bg-surfaceVariant/30 rounded-lg p-3">
+                    <View className="flex-row items-center justify-between mb-2">
+                      <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">
+                        Attempt #{attempt.attemptNumber}
+                      </Text>
+                      <View className="flex-row items-center">
+                        <Text className="text-onSurfaceVariant text-sm mr-2">{attempt.score}%</Text>
+                        <View className={`w-2 h-2 rounded-full ${attempt.score >= (level?.passingScore || 75) ? 'bg-success' : 'bg-error'}`} />
+                      </View>
+                    </View>
+
+                    {attempt.feedback && attempt.feedback.length > 0 && (
+                      <View className="mt-2">
+                        <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest mb-1">Feedback</Text>
+                        {attempt.feedback.map((feedbackItem, index) => (
+                          <View key={index} className="flex-row mb-1">
+                            <Text className="text-onSurfaceVariant text-xs mr-2">•</Text>
+                            <Text className="text-onSurfaceVariant text-xs flex-1">{feedbackItem}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {attempt.keywordsMatched && attempt.keywordsMatched.length > 0 && (
+                      <View className="mt-2">
+                        <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest mb-1">Keywords</Text>
+                        <View className="flex-row flex-wrap">
+                          {attempt.keywordsMatched.map((keyword, index) => (
+                            <View key={index} className="bg-surfaceVariant/50 px-2 py-0.5 rounded mr-1 mb-1">
+                              <Text className="text-onSurfaceVariant text-xs">{keyword}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    <Text className="text-onSurfaceVariant text-xs mt-2">
+                      {new Date(attempt.createdAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Card>
+          </View>
+        )}
       </View>
     );
   };
 
   const renderFeedbackSection = () => {
     if (level.type !== 'copywriting') return null;
-    
+
     return (
       <View className="px-6 pb-8">
         <Text className="text-onSurface text-xl font-black mb-4">AI Feedback & Output</Text>
         <Card className="p-6 rounded-[32px] items-center">
           <RadarChart metrics={level.metrics || []} size={width - 100} />
-          
+
           <View className="flex-row w-full justify-around mt-6">
             {level.metrics?.map((m: { label: string; value: number }, i: number) => (
               <View key={i} className="items-center">
@@ -632,12 +747,15 @@ export default function GameScreen() {
               // Reload the level
               const loadLevel = async () => {
                 try {
-                  const apiLevel = await apiClient.getLevelById(id as string);
+                  const apiLevel = await getSharedClient().getLevelById(id as string);
                   if (apiLevel) {
                     const localLevel = getLocalLevelById(id as string);
                     const processedLevel = {
                       ...apiLevel,
-                      targetImageUrl: localLevel?.targetImageUrl || apiLevel.targetImageUrl,
+                      // Use local asset for display, API URL for evaluation
+                      targetImageUrl: localLevel?.targetImageUrl,
+                      // Use API-provided Convex storage URL for evaluation (ensure it's a string)
+                      targetImageUrlForEvaluation: typeof apiLevel.targetImageUrl === 'string' ? apiLevel.targetImageUrl : undefined,
                       hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
                     };
                     setLevel(processedLevel);
@@ -709,7 +827,7 @@ export default function GameScreen() {
 
       <ResultModal
         visible={showResult}
-        score={lastScore}
+        score={lastScore || 0}
         xp={50}
         testCases={level.testCases}
         output={level.type === 'code' ? "[{'name': 'Alice', 'age': 32}, {'name': 'Bob', 'age': 25}]" : undefined}

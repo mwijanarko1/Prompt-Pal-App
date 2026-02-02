@@ -1,7 +1,5 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
-import { setTokenProvider as setAiProxyTokenProvider } from './aiProxy';
-import { setApiClientToken, apiClient } from './api';
 import { logger } from './logger';
 import { registerSignOutCallback, registerTokenRefreshCallback } from './session-manager';
 import { getFreshToken } from './token-utils';
@@ -21,8 +19,6 @@ function AuthTokenSyncInner() {
 
   useEffect(() => {
     if (isLoaded) {
-      logger.debug('AuthTokenSync', 'Registering token providers', { isSignedIn });
-
       const tokenProvider = async () => {
         try {
           if (!isSignedIn) {
@@ -42,7 +38,6 @@ function AuthTokenSyncInner() {
             return null;
           }
 
-          logger.debug('AuthTokenSync', 'Providing fresh token for AI proxy call');
           return token;
         } catch (error) {
           logger.error('AuthTokenSync', error, { operation: 'getFreshToken' });
@@ -59,21 +54,18 @@ function AuthTokenSyncInner() {
         }
       };
 
-      // Set token provider for AI proxy
-      setAiProxyTokenProvider(tokenProvider);
+      // Set token provider for Unified API Client (new)
+      import('./unified-api').then(({ setSharedClientTokenProvider }) => {
+        setSharedClientTokenProvider(tokenProvider);
+      });
+    };
 
-      // Set token getter on the existing API client for fresh tokens on AI proxy calls
-      const freshTokenGetter = () => getFreshToken(getToken);
-      (apiClient as any).setTokenGetter(freshTokenGetter);
-
-      // Set token directly for API client (for non-AI proxy endpoints)
-      tokenProvider().then(token => {
-        if (token) {
-          setApiClientToken(token);
-          logger.debug('AuthTokenSync', 'API client token updated');
-        }
-      }).catch(error => {
-        logger.error('AuthTokenSync', error, { operation: 'setApiClientToken' });
+    if (isSignedIn) {
+      // Token provider is already set above - no additional action needed
+    } else {
+      // Clear tokens
+      import('./unified-api').then(({ setSharedClientTokenProvider }) => {
+        setSharedClientTokenProvider(() => Promise.resolve(null));
       });
     }
   }, [isLoaded, isSignedIn, getToken, signOut]);
@@ -107,7 +99,10 @@ export function SessionMonitor() {
         if (!isSignedIn) return null;
         const token = await getToken();
         if (token) {
-          setApiClientToken(token);
+          // Update the shared client with the refreshed token
+          import('./unified-api').then(({ setSharedClientTokenProvider }) => {
+            setSharedClientTokenProvider(() => Promise.resolve(token));
+          });
           logger.debug('SessionMonitor', 'API client token refreshed');
         }
         return token;
@@ -153,12 +148,12 @@ export function SessionMonitor() {
 export function AuthTokenSync() {
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const isClerkConfigured = publishableKey && publishableKey !== 'your_clerk_publishable_key_here';
-  
+
   // Only render the inner component if Clerk is configured
   // This prevents useAuth from being called when ClerkProvider is not available
   if (!isClerkConfigured) {
     return null;
   }
-  
+
   return <AuthTokenSyncInner />;
 }
