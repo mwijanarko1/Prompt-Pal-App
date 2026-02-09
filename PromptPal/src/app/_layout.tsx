@@ -3,7 +3,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ClerkProviderWrapper } from '@/lib/clerk';
+// TypeScript can miss export when package "react-native" field points to source; runtime is correct.
+// @ts-expect-error - GestureHandlerRootView is exported by react-native-gesture-handler (lib/typescript/index.d.ts)
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ClerkProviderWrapper, useAuth } from '@/lib/clerk';
 import { validateEnvironment } from '@/lib/env';
 import { SyncManager } from '@/lib/syncManager';
 import { AuthTokenSync, SessionMonitor } from '@/lib/auth-sync';
@@ -11,7 +14,25 @@ import { logger } from '@/lib/logger';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { initializeNetworkListener } from '@/lib/network';
 import { useGameStateSync } from '@/hooks/useGameStateSync';
+import { ConvexProviderWithClerk } from 'convex/react-clerk';
+import { ConvexReactClient } from 'convex/react';
 import "./global.css";
+
+// Initialize Convex client
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+  unsavedChangesWarning: false,
+});
+
+/**
+ * Convex provider wrapper that uses Clerk's useAuth hook
+ */
+function ConvexProviderWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+      {children}
+    </ConvexProviderWithClerk>
+  );
+}
 
 /**
  * Component that syncs game state after authentication is available
@@ -33,11 +54,9 @@ function AppInitializer() {
   useEffect(() => {
     // Start background sync when app loads
     SyncManager.startPeriodicSync();
-    logger.info('App', 'Started background sync');
 
     // Initialize network connectivity listener
     const networkUnsubscribe = initializeNetworkListener();
-    logger.info('App', 'Initialized network listener');
 
     // Sync on app focus and handle online/offline status
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
@@ -54,7 +73,6 @@ function AppInitializer() {
       networkUnsubscribe?.();
       SyncManager.stopPeriodicSync();
       subscription?.remove();
-      logger.info('App', 'Stopped background sync');
     };
   }, []);
 
@@ -73,8 +91,12 @@ function AppInitializer() {
 
 export default function RootLayout() {
   return (
-    <ClerkProviderWrapper>
-      <AppInitializer />
-    </ClerkProviderWrapper>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ClerkProviderWrapper>
+        <ConvexProviderWrapper>
+          <AppInitializer />
+        </ConvexProviderWrapper>
+      </ClerkProviderWrapper>
+    </GestureHandlerRootView>
   );
 }
