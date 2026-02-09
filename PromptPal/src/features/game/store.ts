@@ -1,10 +1,21 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import * as SecureStore from "expo-secure-store";
-import { apiClient } from "@/lib/api";
+import { convexHttpClient } from "@/lib/convex-client";
+import { api } from "../../../convex/_generated/api.js";
 import { logger } from "@/lib/logger";
 
 export type ChallengeType = 'image' | 'code' | 'copywriting';
+
+// Data-only version of GameState for backend communication
+export interface GameStateData {
+  currentLevelId: string | null;
+  lives: number;
+  score: number;
+  isPlaying: boolean;
+  unlockedLevels: string[];
+  completedLevels: string[];
+}
 
 export interface Level {
   id: string;
@@ -12,14 +23,13 @@ export interface Level {
   type?: ChallengeType;
   title?: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
-  targetImageUrl?: string;
-  hiddenPromptKeywords?: string[];
   passingScore: number;
   unlocked: boolean;
   prerequisites?: string[];
-  
+
   // Image Challenge specific
-  targetImageUrl?: string;
+  targetImageUrl?: string | number; // Can be local asset (number) or URL (string)
+  targetImageUrlForEvaluation?: string; // Hosted URL for evaluation API
   hiddenPromptKeywords?: string[];
   style?: string;
 
@@ -28,7 +38,8 @@ export interface Level {
   requirementBrief?: string;
   requirementImage?: string;
   language?: string;
-  testCases?: { id: string; name: string; passed: boolean }[];
+  functionName?: string;
+  testCases?: { id: string; name: string; input?: any; expectedOutput?: any; description?: string; passed?: boolean }[];
 
   // Copywriting Challenge specific
   briefTitle?: string;
@@ -36,7 +47,12 @@ export interface Level {
   briefTarget?: string;
   briefTone?: string;
   briefGoal?: string;
+  wordLimit?: { min?: number; max?: number };
+  requiredElements?: string[];
   metrics?: { label: string; value: number }[];
+
+  // General
+  description?: string;
 }
 
 export interface GameState {
@@ -53,17 +69,17 @@ export interface GameState {
   // Actions
   startLevel: (levelId: string) => void;
   endLevel: () => void;
-  loseLife: () => void;
+  loseLife: () => Promise<void>;
   resetLives: () => void;
-  unlockLevel: (levelId: string) => void;
-  completeLevel: (levelId: string) => void;
+  unlockLevel: (levelId: string) => Promise<void>;
+  completeLevel: (levelId: string) => Promise<void>;
   resetProgress: () => void;
   isLevelUnlocked: (levelId: string, prerequisites?: string[]) => boolean;
   checkAndUnlockLevels: (allLevels: Level[]) => void;
 
   // Backend sync
   syncFromBackend: (backendState: Partial<GameState>) => void;
-  getStateForBackend: () => GameState;
+  getStateForBackend: () => GameStateData;
   syncToBackend: () => Promise<void>;
 }
 
@@ -72,7 +88,7 @@ const initialState = {
   lives: 3,
   score: 0,
   isPlaying: false,
-  unlockedLevels: ["level_01"], // First level always unlocked
+  unlockedLevels: ["image-1-easy"], // First level always unlocked
   completedLevels: [],
 };
 
@@ -142,19 +158,29 @@ export const useGameStore = create<GameState>()(
         });
       },
 
-      loseLife: () => {
+      loseLife: async () => {
         const currentLives = get().lives;
         if (currentLives > 0) {
           const newLives = currentLives - 1;
           set({ lives: newLives });
-          
-          // If lives reach 0, end the current level but don't reset lives
-          // This allows the level select to show locked state
+
+          // If lives reach 0, end of current level but don't reset lives
+          // This allows level select to show locked state
           if (newLives === 0) {
             set({
               currentLevelId: null,
               isPlaying: false,
             });
+          }
+
+          // Sync lives change to backend
+          try {
+            await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+              appId: "prompt-pal",
+              ...get().getStateForBackend(),
+            });
+          } catch (error) {
+            logger.error('GameStore', error, { operation: 'loseLife sync' });
           }
         }
       },
@@ -163,17 +189,39 @@ export const useGameStore = create<GameState>()(
         set({ lives: 3 });
       },
 
-      unlockLevel: (levelId: string) => {
+      unlockLevel: async (levelId: string) => {
         const unlockedLevels = get().unlockedLevels;
         if (!unlockedLevels.includes(levelId)) {
-          set({ unlockedLevels: [...unlockedLevels, levelId] });
+          const newUnlockedLevels = [...unlockedLevels, levelId];
+          set({ unlockedLevels: newUnlockedLevels });
+
+          // Sync unlocked levels to backend
+          try {
+            await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+              appId: "prompt-pal",
+              ...get().getStateForBackend(),
+            });
+          } catch (error) {
+            logger.error('GameStore', error, { operation: 'unlockLevel sync', levelId });
+          }
         }
       },
 
-      completeLevel: (levelId: string) => {
+      completeLevel: async (levelId: string) => {
         const completedLevels = get().completedLevels;
         if (!completedLevels.includes(levelId)) {
-          set({ completedLevels: [...completedLevels, levelId] });
+          const newCompletedLevels = [...completedLevels, levelId];
+          set({ completedLevels: newCompletedLevels });
+
+          // Sync completed levels to backend
+          try {
+            await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+              appId: "prompt-pal",
+              ...get().getStateForBackend(),
+            });
+          } catch (error) {
+            logger.error('GameStore', error, { operation: 'completeLevel sync', levelId });
+          }
         }
       },
 
@@ -226,13 +274,24 @@ export const useGameStore = create<GameState>()(
       },
 
       getStateForBackend: () => {
-        return get();
+        const state = get();
+        // Return only the data fields, not the action functions
+        return {
+          currentLevelId: state.currentLevelId,
+          lives: state.lives,
+          score: state.score,
+          isPlaying: state.isPlaying,
+          unlockedLevels: state.unlockedLevels,
+          completedLevels: state.completedLevels,
+        };
       },
 
       syncToBackend: async () => {
         try {
-          const state = get();
-          await apiClient.updateGameState(state);
+          await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+            appId: "prompt-pal",
+            ...get().getStateForBackend(),
+          });
           logger.info('GameStore', 'Synced game state to backend');
         } catch (error) {
           logger.error('GameStore', error, { operation: 'syncToBackend' });

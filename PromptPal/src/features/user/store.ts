@@ -1,8 +1,59 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
-import { apiClient } from '@/lib/api';
+import { convexHttpClient } from '@/lib/convex-client';
+import { api } from '../../../convex/_generated/api.js';
 import { getModuleThumbnail } from '@/lib/thumbnails';
+
+// Default learning modules shown immediately (no API wait needed)
+const getDefaultLearningModules = (): LearningModule[] => [
+  {
+    id: 'coding-logic',
+    category: 'Programming',
+    title: 'Coding Logic',
+    level: 'Beginner',
+    topic: 'Problem Solving',
+    progress: 0,
+    icon: 'code',
+    thumbnail: getModuleThumbnail('Coding Logic', 'Programming', 'Problem Solving'),
+    accentColor: 'bg-blue-500',
+    buttonText: 'Start Coding',
+    type: 'module',
+    format: 'interactive',
+    estimatedTime: 15,
+  },
+  {
+    id: 'copywriting',
+    category: 'Writing',
+    title: 'Copywriting',
+    level: 'Beginner',
+    topic: 'Marketing',
+    progress: 0,
+    icon: 'create',
+    thumbnail: getModuleThumbnail('Copywriting', 'Writing', 'Marketing'),
+    accentColor: 'bg-purple-500',
+    buttonText: 'Start Writing',
+    type: 'module',
+    format: 'interactive',
+    estimatedTime: 20,
+  },
+  {
+    id: 'image-generation',
+    category: 'Design',
+    title: 'Image Generation',
+    level: 'Beginner',
+    topic: 'AI Art',
+    progress: 0,
+    icon: 'color-palette',
+    thumbnail: getModuleThumbnail('Image Generation', 'Design', 'AI Art'),
+    accentColor: 'bg-gray-500',
+    buttonText: 'Coming Soon',
+    type: 'module',
+    format: 'interactive',
+    estimatedTime: 10,
+    isLocked: true,
+  },
+];
 
 export interface LearningModule {
   id: string;
@@ -18,6 +69,7 @@ export interface LearningModule {
   type?: 'module' | 'course';
   format?: 'interactive' | 'video' | 'text';
   estimatedTime?: number;
+  isLocked?: boolean;
 }
 
 export interface DailyQuest {
@@ -45,18 +97,18 @@ export interface UserProgress {
   currentQuest: DailyQuest | null;
 
   // Actions
-  addXP: (amount: number) => void;
-  updateStreak: () => void;
+  addXP: (amount: number) => Promise<void>;
+  updateStreak: () => Promise<void>;
   resetStreak: () => void;
   updateModuleProgress: (moduleId: string, progress: number) => void;
   setCurrentQuest: (quest: DailyQuest) => void;
-  completeQuest: () => void;
+  completeQuest: () => Promise<void>;
   resetProgress: () => void;
 
   // Backend sync actions
   syncWithBackend: () => Promise<void>;
-  loadFromBackend: () => Promise<void>;
-      setLearningModules: (modules: LearningModule[]) => void;
+  loadFromBackend: (userId?: string) => Promise<void>;
+  setLearningModules: (modules: LearningModule[]) => void;
 }
 
 const initialState = {
@@ -65,7 +117,7 @@ const initialState = {
   currentStreak: 0,
   longestStreak: 0,
   lastActivityDate: null, // No activity yet for new users
-  learningModules: [], // Will be loaded from API
+  learningModules: getDefaultLearningModules(), // Show default modules immediately
   currentQuest: null, // Will be loaded from API
 };
 
@@ -77,6 +129,16 @@ const calculateLevel = (xp: number): number => {
 const calculateXPForNextLevel = (currentXP: number): number => {
   const currentLevel = calculateLevel(currentXP);
   return currentLevel * 200; // Next level at currentLevel * 200 XP
+};
+
+const getDateString = (date: Date): string => date.toISOString().split('T')[0];
+
+const getTodayString = (): string => getDateString(new Date());
+
+const getYesterdayString = (): string => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return getDateString(yesterday);
 };
 
 // Custom storage adapter for expo-secure-store
@@ -109,17 +171,28 @@ export const useUserProgressStore = create<UserProgress>()(
     (set, get) => ({
       ...initialState,
 
-      addXP: (amount: number) => {
+      addXP: async (amount: number) => {
         const newXP = get().xp + amount;
         const newLevel = calculateLevel(newXP);
         set({
           xp: newXP,
           level: newLevel
         });
+
+        // Sync XP and level changes to backend
+        try {
+          await convexHttpClient.mutation(api.mutations.updateUserXP, {
+            appId: "prompt-pal",
+            totalXp: newXP,
+            currentLevel: newLevel,
+          });
+        } catch (error) {
+          console.error('Failed to sync XP progress:', error);
+        }
       },
 
-      updateStreak: () => {
-        const today = new Date().toISOString().split('T')[0];
+      updateStreak: async () => {
+        const today = getTodayString();
         const lastActivityDate = get().lastActivityDate;
 
         if (lastActivityDate === today) {
@@ -127,9 +200,7 @@ export const useUserProgressStore = create<UserProgress>()(
           return;
         }
 
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const yesterdayStr = getYesterdayString();
 
         let newStreak = 1; // Default for new streak
         let newLongestStreak = get().longestStreak;
@@ -145,6 +216,8 @@ export const useUserProgressStore = create<UserProgress>()(
           longestStreak: newLongestStreak,
           lastActivityDate: today,
         });
+
+        await get().syncWithBackend();
       },
 
       resetStreak: () => {
@@ -165,7 +238,11 @@ export const useUserProgressStore = create<UserProgress>()(
 
         // Sync with backend
         try {
-          await apiClient.updateModuleProgress(moduleId, progress);
+          await convexHttpClient.mutation(api.mutations.updateModuleProgress, {
+            appId: "prompt-pal",
+            moduleId,
+            progress,
+          });
         } catch (error) {
           console.error('Failed to sync module progress:', error);
         }
@@ -179,15 +256,19 @@ export const useUserProgressStore = create<UserProgress>()(
         const quest = get().currentQuest;
         if (quest && !quest.completed) {
           // Add XP reward
-          get().addXP(quest.xpReward);
+          await get().addXP(quest.xpReward);
           // Mark quest as completed locally
           set({
             currentQuest: { ...quest, completed: true }
           });
 
+          await get().updateStreak();
+
           // Sync with backend
           try {
-            await apiClient.completeQuest();
+            await convexHttpClient.mutation(api.mutations.completeDailyQuest, {
+              questId: quest.id,
+            });
           } catch (error) {
             console.error('Failed to sync quest completion:', error);
           }
@@ -202,81 +283,105 @@ export const useUserProgressStore = create<UserProgress>()(
       syncWithBackend: async () => {
         try {
           // Sync progress data
-          const progressData = {
+          const progressData: {
+            totalXp: number;
+            currentLevel: number;
+            currentStreak: number;
+            longestStreak: number;
+            lastActivityDate?: string;
+          } = {
             totalXp: get().xp,
             currentLevel: get().level,
             currentStreak: get().currentStreak,
             longestStreak: get().longestStreak,
-            lastActivityDate: get().lastActivityDate,
           };
 
-          // This would be called after significant updates
-          // For now, just log that sync would happen
-          console.log('Syncing user data with backend:', progressData);
+          if (get().lastActivityDate) {
+            progressData.lastActivityDate = get().lastActivityDate ?? undefined;
+          }
+
+          await convexHttpClient.mutation(api.mutations.updateUserStatistics, progressData);
         } catch (error) {
           console.error('Failed to sync with backend:', error);
         }
       },
 
-      loadFromBackend: async () => {
+      loadFromBackend: async (userId?: string) => {
         try {
-          // Load learning modules
-          let modules = await apiClient.getLearningModules();
-          
-          // Map local thumbnails based on category or title
-          if (modules && modules.length > 0) {
-            modules = modules.map(m => ({
-              ...m,
-              thumbnail: m.thumbnail || getModuleThumbnail(m.title, m.category, m.topic)
-            }));
-          } else {
-            // Fallback to mock data if API returns empty
-            modules = [
-              {
-                id: 'mod_1',
-                category: 'Visual Arts',
-                title: 'Mastering Image Generation',
-                level: 'Beginner',
-                topic: 'DALL-E & Midjourney',
-                progress: 65,
-                icon: '🎨',
-                thumbnail: getModuleThumbnail('Mastering Image Generation', 'Visual Arts', 'DALL-E & Midjourney'),
-                accentColor: 'bg-primary',
-                buttonText: 'Start Creating'
-              },
-              {
-                id: 'mod_2',
-                category: 'Development',
-                title: 'Python for AI Engineers',
-                level: 'Intermediate',
-                topic: 'Automation',
-                progress: 30,
-                icon: '💻',
-                thumbnail: getModuleThumbnail('Python for AI Engineers', 'Development', 'Automation'),
-                accentColor: 'bg-info',
-                buttonText: 'Start Coding'
-              },
-              {
-                id: 'mod_3',
-                category: 'Marketing',
-                title: 'Copywriting Alchemist',
-                level: 'Advanced',
-                topic: 'Persuasion',
-                progress: 10,
-                icon: '✍️',
-                thumbnail: getModuleThumbnail('Copywriting Alchemist', 'Marketing', 'Persuasion'),
-                accentColor: 'bg-accent',
-                buttonText: 'Start Writing'
-              }
-            ];
-          }
-          
+          // Load learning modules and user module progress from Convex
+          const [apiModules, progressRows] = await Promise.all([
+            convexHttpClient.query(api.queries.getLearningModules, {
+              appId: "prompt-pal"
+            }),
+            userId
+              ? convexHttpClient.query(api.queries.getUserModuleProgress, {
+                userId,
+              })
+              : Promise.resolve([]),
+          ]);
+
+          const progressByModuleId = new Map(
+            (progressRows ?? []).map((row: any) => [row.moduleId, row.progress])
+          );
+
+          // Start with default modules
+          let modules = getDefaultLearningModules();
+
+          modules = modules.map(defaultModule => {
+            // Find matching API module by ID or category
+            const apiModule = apiModules?.find((api: any) =>
+              api.id === defaultModule.id ||
+              api.category.toLowerCase() === defaultModule.category.toLowerCase()
+            );
+
+            // Merge API data with default module
+            const mergedModule = {
+              ...defaultModule,
+              ...apiModule,
+              thumbnail: defaultModule.thumbnail, // Keep our local thumbnail
+            };
+
+            const moduleProgress = progressByModuleId.get(mergedModule.id);
+
+            return {
+              ...mergedModule,
+              progress: typeof moduleProgress === 'number' ? moduleProgress : mergedModule.progress,
+            };
+          });
+
           set({ learningModules: modules });
 
           // Load current quest
-          const quest = await apiClient.getCurrentQuest();
+          const quest = await convexHttpClient.mutation(api.mutations.getOrAssignCurrentQuest, {
+            appId: "prompt-pal",
+            ...(userId ? { userId } : {}),
+          });
           if (quest) {
             set({ currentQuest: quest });
+          }
+
+          // Load user statistics (streak, level, XP)
+          const stats = await convexHttpClient.query(api.queries.getMyUserStatistics, {});
+          if (stats) {
+            set({
+              xp: stats.totalXp,
+              level: stats.currentLevel,
+              currentStreak: stats.currentStreak,
+              longestStreak: stats.longestStreak,
+              lastActivityDate: stats.lastActivityDate ?? null,
+            });
+          }
+
+          const today = getTodayString();
+          const yesterdayStr = getYesterdayString();
+          const lastActivityDate = get().lastActivityDate;
+          const hasGap =
+            !lastActivityDate ||
+            (lastActivityDate !== today && lastActivityDate !== yesterdayStr);
+
+          if (hasGap && get().currentStreak !== 0) {
+            set({ currentStreak: 0 });
+            await get().syncWithBackend();
           }
         } catch (error: any) {
           console.error('Failed to load data from backend:', error);
@@ -287,8 +392,7 @@ export const useUserProgressStore = create<UserProgress>()(
             console.warn('Authentication failed when loading user data - session may be expired');
           }
 
-          // Keep empty state if API fails
-          set({ learningModules: [] });
+          // Keep existing/default state if API fails
         }
       },
 
@@ -304,22 +408,17 @@ export const useUserProgressStore = create<UserProgress>()(
           console.warn('User progress store rehydration error:', error);
         }
 
-        // Load data from backend after rehydration
+        // Ensure state is valid after rehydration
         if (state) {
           // Ensure learningModules is an array
           if (!state.learningModules || !Array.isArray(state.learningModules)) {
             state.learningModules = [];
           }
 
-          // Load learning modules and quest from backend
-          state.loadFromBackend();
-
-          // Check if current quest is expired
-          const now = Date.now();
-          if (state.currentQuest && state.currentQuest.expiresAt < now) {
-            // Quest expired, will be replaced by backend data
-            console.log('Current quest expired, loading new one from backend');
-          }
+          // Note: We no longer call loadFromBackend() here to avoid double initialization
+          // Backend data is now loaded via SyncManager.syncUserProgress() which is
+          // triggered once on app startup and periodically thereafter.
+          // This prevents duplicate API calls when both rehydration and SyncManager run.
         }
       },
     }

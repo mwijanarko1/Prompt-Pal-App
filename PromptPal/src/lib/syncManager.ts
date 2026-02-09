@@ -1,9 +1,11 @@
 import { useGameStore, GameState } from '@/features/game/store';
+import { useUserProgressStore } from '@/features/user/store';
 import { logger } from '@/lib/logger';
-import { apiClient } from './api';
+import { convexHttpClient } from '@/lib/convex-client';
+import { api } from "../../convex/_generated/api.js";
 
 // Constants
-const SYNC_INTERVAL_MS = 30000; // 30 seconds
+const SYNC_INTERVAL_MS = 300000; // 5 minutes (reduced from 30 seconds for event-driven sync)
 const MAX_SYNC_RETRIES = 3;
 const SYNC_RETRY_DELAY_MS = 1000; // 1 second
 const OFFLINE_QUEUE_KEY = 'promptpal_offline_queue';
@@ -94,7 +96,6 @@ export class SyncManager {
       return;
     }
 
-    logger.info('SyncManager', 'Starting periodic sync', { interval: SYNC_INTERVAL_MS });
     await this.loadOfflineQueue();
     this.syncIntervalId = setInterval(() => {
       this.syncUserProgress();
@@ -108,7 +109,6 @@ export class SyncManager {
     if (this.syncIntervalId) {
       clearInterval(this.syncIntervalId);
       this.syncIntervalId = null;
-      logger.info('SyncManager', 'Stopped periodic sync');
     }
   }
 
@@ -229,14 +229,14 @@ export class SyncManager {
       // Perform sync with conflict resolution
       await this.performSync(gameState);
 
+      // Sync user statistics (streak, XP, level) separately
+      await this.syncUserStatistics();
+
       // Update last sync timestamp
       await this.updateLastSyncTimestamp();
-
-      logger.info('SyncManager', 'Progress synced successfully');
-
     } catch (error) {
       logger.error('SyncManager', error, { operation: 'syncUserProgress' });
-      
+
       // Add to offline queue if sync fails
       const gameState = useGameStore.getState();
       await this.addToOfflineQueue(gameState);
@@ -270,10 +270,16 @@ export class SyncManager {
       const serverState = await this.fetchServerProgress();
 
       // Resolve conflicts between local and server state
-      const resolvedState = this.resolveConflicts(gameState, serverState);
+      const resolvedChanges = this.resolveConflicts(gameState, serverState);
 
-      // Send resolved state to server
-      await this.sendProgressToServer(resolvedState);
+      // Apply resolved changes to create complete state
+      const completeState: GameState = {
+        ...gameState,
+        ...resolvedChanges,
+      };
+
+      // Send complete state to server
+      await this.sendProgressToServer(completeState);
 
       // Simulate network delay (remove in production)
       // await new Promise(resolve => setTimeout(resolve, 500));
@@ -297,12 +303,18 @@ export class SyncManager {
    */
   private static async fetchServerProgress(): Promise<Partial<GameState> | null> {
     try {
-      // In a real implementation, fetch from backend
-      // const serverData = await apiClient.getUserProgress(userId);
-      // return serverData;
+      const gameState = await convexHttpClient.query(api.queries.getUserGameState, {
+        appId: "prompt-pal"
+      });
 
-      // Placeholder: return null for now
-      return null;
+      return {
+        currentLevelId: gameState.currentLevelId ?? null,
+        lives: gameState.lives,
+        score: gameState.score,
+        isPlaying: gameState.isPlaying,
+        unlockedLevels: gameState.unlockedLevels,
+        completedLevels: gameState.completedLevels,
+      };
     } catch (error) {
       logger.warn('SyncManager', 'Failed to fetch server progress', { error });
       return null;
@@ -312,16 +324,33 @@ export class SyncManager {
   /**
    * Sends resolved progress to server
    */
-  private static async sendProgressToServer(state: Partial<GameState>): Promise<void> {
+  private static async sendProgressToServer(state: GameState): Promise<void> {
     try {
-      // In a real implementation, send to backend
-      // await apiClient.updateUserProgress(userId, state);
+      await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+        appId: "prompt-pal",
+        currentLevelId: state.currentLevelId ?? undefined,
+        lives: state.lives,
+        score: state.score,
+        isPlaying: state.isPlaying,
+        unlockedLevels: state.unlockedLevels,
+        completedLevels: state.completedLevels,
+      });
 
-      // Placeholder: simulate success
-      logger.debug('SyncManager', 'Progress sent to server', { state });
+      logger.info('SyncManager', 'Progress synced to server');
     } catch (error) {
       logger.error('SyncManager', error, { operation: 'sendProgressToServer' });
       throw error;
+    }
+  }
+
+  /**
+   * Syncs user statistics with backend
+   */
+  private static async syncUserStatistics(): Promise<void> {
+    try {
+      await useUserProgressStore.getState().syncWithBackend();
+    } catch (error) {
+      logger.warn('SyncManager', 'Failed to sync user statistics', { error });
     }
   }
 
@@ -398,7 +427,7 @@ export class SyncManager {
       logger.info('SyncManager', 'Back online, triggering sync');
       // Trigger immediate sync when coming back online
       this.syncUserProgress();
-    } else if (!online && wasOnline) {
+    } else if (!online && !wasOffline) {
       logger.info('SyncManager', 'Going offline, queueing pending syncs');
     }
   }
@@ -409,7 +438,7 @@ export class SyncManager {
    */
   static async getSyncStatus(): Promise<SyncStatus> {
     let lastSyncTimestamp: number | null = null;
-    
+
     try {
       const lastSync = await secureStorage.getItem(LAST_SYNC_KEY);
       if (lastSync) {

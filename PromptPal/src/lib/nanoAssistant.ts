@@ -13,13 +13,12 @@
  */
 
 import { Level, ChallengeType } from '@/features/game/store';
-import { AIProxyClient } from './aiProxy';
-import { rateLimiter } from './rateLimiter';
+import { convexHttpClient } from './convex-client';
+import { api } from '../../convex/_generated/api.js';
 import { logger } from './logger';
 
 // Constants
 const HINT_COOLDOWN_MS = 30000; // 30 seconds between hints
-const HINT_RATE_LIMIT_KEY = 'nano-assistant-hints';
 const MAX_HINTS_PER_MINUTE = 3;
 
 // Flat penalty rate (same for all difficulties)
@@ -69,7 +68,7 @@ Keep hints concise (1-2 sentences max).`;
 
   switch (moduleType) {
     case 'image': {
-      const keywordsHint = levelData.hiddenPromptKeywords?.length 
+      const keywordsHint = levelData.hiddenPromptKeywords?.length
         ? `The target image contains elements related to: ${levelData.hiddenPromptKeywords.slice(0, 2).join(', ')}... (and more)`
         : '';
       return `${basePrompt}
@@ -106,7 +105,7 @@ function buildUserMessage(currentPrompt: string, moduleType: ChallengeType): str
   if (!currentPrompt.trim()) {
     return `I haven't written anything yet. Can you give me a hint on how to start my ${moduleType} prompt?`;
   }
-  
+
   return `Here's my current prompt attempt:
 "${currentPrompt}"
 
@@ -121,7 +120,7 @@ function buildAllHints(
   levelData: Level
 ): string[] {
   const allHints: string[] = [];
-  
+
   if (moduleType === 'image') {
     // General hints (always available)
     allHints.push(
@@ -131,18 +130,18 @@ function buildAllHints(
       'Try describing colors, lighting, or atmosphere in more detail.',
       'Add visual details - what textures or materials are visible?',
     );
-    
+
     // Level-specific hints
     if (levelData.hiddenPromptKeywords?.length) {
       const keywords = levelData.hiddenPromptKeywords;
       if (keywords[0]) allHints.push(`The target image has something related to "${keywords[0]}" - is this in your prompt?`);
       if (keywords[1]) allHints.push(`Consider adding elements related to "${keywords[1]}" to your description.`);
     }
-    
+
     if (levelData.style) {
       allHints.push(`Make sure your prompt captures the "${levelData.style}" style.`);
     }
-    
+
     allHints.push(
       'Check if you\'ve described the lighting - natural light, sunset, studio lighting?',
       'Try adding camera perspective details - eye level, bird\'s eye, low angle?',
@@ -155,14 +154,14 @@ function buildAllHints(
       'Mention the expected data types for inputs and outputs.',
       'Specify if you need error handling or validation.',
     );
-    
+
     if (levelData.requirementBrief) {
       allHints.push(`Re-read the requirement: "${levelData.requirementBrief.slice(0, 50)}..." - are all parts addressed?`);
     }
     if (levelData.language) {
       allHints.push(`Remember to use ${levelData.language}-specific conventions and best practices.`);
     }
-    
+
     allHints.push(
       'Have you specified the exact function name or method signature needed?',
       'Consider mentioning what libraries or imports might be used.',
@@ -176,7 +175,7 @@ function buildAllHints(
       'Consider the tone - professional, casual, urgent, friendly?',
       'Think about social proof - testimonials, numbers, credibility.',
     );
-    
+
     if (levelData.briefProduct) {
       allHints.push(`Make sure your prompt highlights key features of "${levelData.briefProduct}".`);
     }
@@ -186,7 +185,7 @@ function buildAllHints(
     if (levelData.briefTone) {
       allHints.push(`The tone should be "${levelData.briefTone}" - is your prompt reflecting that?`);
     }
-    
+
     allHints.push(
       'Consider adding urgency or scarcity elements.',
       'Make sure there\'s a clear value proposition.',
@@ -201,7 +200,7 @@ function buildAllHints(
       'Specify any constraints or requirements that must be met.',
     );
   }
-  
+
   // Return exactly 5 hints (or all if less than 5)
   return allHints.slice(0, Math.max(5, allHints.length));
 }
@@ -217,10 +216,10 @@ function getFallbackHint(
 ): string {
   const levelId = levelData.id;
   const hintNumber = hintCountsByLevel.get(levelId) || 1; // 1-indexed (already incremented)
-  
+
   // Build all hints for this level
   const allHints = buildAllHints(moduleType, levelData);
-  
+
   // Return the hint at the current position (0-indexed, so hintNumber - 1)
   const hintIndex = Math.min(hintNumber - 1, allHints.length - 1);
   return allHints[hintIndex];
@@ -247,25 +246,22 @@ export class NanoAssistant {
     const levelId = levelData.id;
     const currentCount = hintCountsByLevel.get(levelId) || 0;
     const maxHints = getMaxHintsForDifficulty(levelData.difficulty);
-    
+
     // Check if max hints reached for this level
     if (currentCount >= maxHints) {
       throw new Error(`You've used all ${maxHints} hints for this level. Try your best with what you have!`);
     }
-    
+
     // Check cooldown
     const now = Date.now();
     const timeSinceLastHint = now - lastHintTimestamp;
-    
+
     if (timeSinceLastHint < HINT_COOLDOWN_MS) {
       const remainingSeconds = Math.ceil((HINT_COOLDOWN_MS - timeSinceLastHint) / 1000);
       throw new Error(`Please wait ${remainingSeconds} seconds before requesting another hint.`);
     }
 
-    // Check rate limit
-    if (!rateLimiter.isAllowed(HINT_RATE_LIMIT_KEY, MAX_HINTS_PER_MINUTE, 60000)) {
-      throw new Error('You\'ve used too many hints. Please wait a minute before trying again.');
-    }
+    // Client-side rate limiting removed - implemented on server
 
     // Update timestamp and increment hint count
     lastHintTimestamp = now;
@@ -283,11 +279,12 @@ export class NanoAssistant {
       const systemPrompt = buildSystemPrompt(moduleType, levelData.difficulty, levelData);
       const userMessage = buildUserMessage(currentPrompt, moduleType);
 
-      // Try to get AI-generated hint
-      const response = await AIProxyClient.generateText(
-        userMessage,
-        systemPrompt
-      );
+      // Try to get AI-generated hint using Convex
+      const response = await convexHttpClient.action(api.ai.generateText, {
+        prompt: userMessage,
+        context: systemPrompt,
+        appId: "prompt-pal",
+      });
 
       if (response.result) {
         return response.result;
@@ -297,7 +294,7 @@ export class NanoAssistant {
       return getFallbackHint(currentPrompt, moduleType, levelData);
     } catch (error) {
       logger.warn('NanoAssistant', 'AI hint generation failed, using fallback', { error });
-      
+
       // Return fallback hint if AI fails
       return getFallbackHint(currentPrompt, moduleType, levelData);
     }
@@ -320,7 +317,6 @@ export class NanoAssistant {
    */
   static resetHintsForLevel(levelId: string): void {
     hintCountsByLevel.delete(levelId);
-    logger.debug('NanoAssistant', 'Reset hints for level', { levelId });
   }
 
   /**
@@ -411,18 +407,18 @@ export class NanoAssistant {
    * @returns Total penalty percentage
    */
   static calculatePenaltyPercentage(
-    hintsUsed: number, 
+    hintsUsed: number,
     difficulty: Level['difficulty'] = 'intermediate'
   ): number {
     if (hintsUsed === 0) return 0;
-    
+
     const penalties = NanoAssistant.getProgressivePenalties(difficulty);
     let totalPenalty = 0;
-    
+
     for (let i = 0; i < Math.min(hintsUsed, penalties.length); i++) {
       totalPenalty += penalties[i];
     }
-    
+
     return totalPenalty;
   }
 
@@ -442,28 +438,28 @@ export class NanoAssistant {
    * @returns Adjusted score after hint penalty
    */
   static calculateScoreWithHintPenalty(
-    levelId: string, 
-    baseScore: number, 
+    levelId: string,
+    baseScore: number,
     passingScore?: number,
     difficulty: Level['difficulty'] = 'intermediate'
   ): number {
     const hintsUsed = NanoAssistant.getHintsUsed(levelId);
-    
+
     if (hintsUsed === 0) {
       return Math.round(baseScore);
     }
-    
+
     // Calculate progressive penalty based on difficulty
     const penaltyPercentage = NanoAssistant.calculatePenaltyPercentage(hintsUsed, difficulty);
     const penalty = baseScore * (penaltyPercentage / 100);
     let adjustedScore = baseScore - penalty;
-    
+
     // If passing score is provided, ensure hints don't prevent a deserved pass
     // User still gets penalized, but score won't drop below passing if they earned it
     if (passingScore !== undefined && baseScore >= passingScore) {
       adjustedScore = Math.max(adjustedScore, passingScore);
     }
-    
+
     return Math.round(adjustedScore);
   }
 
@@ -477,8 +473,8 @@ export class NanoAssistant {
    * @returns Object with penalty details
    */
   static getPenaltyDetails(
-    levelId: string, 
-    baseScore: number, 
+    levelId: string,
+    baseScore: number,
     passingScore: number,
     difficulty: Level['difficulty'] = 'intermediate'
   ): {
@@ -499,7 +495,7 @@ export class NanoAssistant {
     const finalScore = NanoAssistant.calculateScoreWithHintPenalty(levelId, baseScore, passingScore, difficulty);
     const wouldHavePassed = baseScore >= passingScore;
     const passProtected = wouldHavePassed && rawAdjustedScore < passingScore;
-    
+
     return {
       hintsUsed,
       penaltyPercentage,
@@ -511,7 +507,7 @@ export class NanoAssistant {
       difficulty,
     };
   }
-  
+
   /**
    * Get a dynamic description of the next hint's penalty
    * 
@@ -523,27 +519,27 @@ export class NanoAssistant {
     const hintsUsed = NanoAssistant.getHintsUsed(levelId);
     const maxHints = getMaxHintsForDifficulty(difficulty);
     const penalties = NanoAssistant.getProgressivePenalties(difficulty);
-    
+
     // No more hints available - show total penalty
     if (hintsUsed >= maxHints) {
       const totalPenalty = NanoAssistant.calculatePenaltyPercentage(hintsUsed, difficulty);
       return `Total penalty: -${totalPenalty}% from score`;
     }
-    
+
     const nextPenalty = penalties[hintsUsed] || 0;
-    
+
     if (nextPenalty === 0) {
       return 'Next hint is free!';
     }
-    
+
     // Calculate current total penalty
     const currentTotal = NanoAssistant.calculatePenaltyPercentage(hintsUsed, difficulty);
-    
+
     // Show current accumulated penalty (flat rate makes this clear)
     if (currentTotal === 0) {
       return `Next hint: -${nextPenalty}% from score`;
     }
-    
+
     const newTotal = currentTotal + nextPenalty;
     return `Current: -${currentTotal}% | Next: -${newTotal}% total`;
   }

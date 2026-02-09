@@ -43,7 +43,7 @@ export function Modal({ visible, onClose, children, title, size = 'md' }: ModalP
               </TouchableOpacity>
             </View>
           )}
-          <View className="max-h-96">
+          <View className="max-h-[90vh]">
             {children}
           </View>
         </Pressable>

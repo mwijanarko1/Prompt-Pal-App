@@ -1,0 +1,190 @@
+/**
+ * CopyAnalysisView - Displays copywriting analysis results with metrics radar chart
+ * S6 component for copywriting challenges
+ * 
+ * Features:
+ * - Generated copy display
+ * - Metrics radar chart integration
+ * - Word count display
+ * - Highlight matched requirements
+ */
+
+import React from 'react';
+import { View, Text, ScrollView } from 'react-native';
+import { Card, RadarChart, Badge } from '@/components/ui';
+import type { CopyScoringResult } from '@/lib/scoring/copyScoring';
+
+export interface CopyAnalysisViewProps {
+  /** The generated copy text */
+  copy: string;
+  /** Scoring result from CopyScoringService */
+  scoringResult: CopyScoringResult | null;
+  /** Brief requirements to check against */
+  requirements?: string[];
+  /** Loading state */
+  isLoading?: boolean;
+}
+
+export function CopyAnalysisView({
+  copy,
+  scoringResult,
+  requirements,
+  isLoading = false,
+}: CopyAnalysisViewProps) {
+  if (isLoading) {
+    return (
+      <Card className="p-6 rounded-[32px]" variant="elevated">
+        <Text className="text-onSurface text-center">Analyzing your copy...</Text>
+      </Card>
+    );
+  }
+
+  if (!copy.trim()) {
+    return null;
+  }
+
+  const hasResult = scoringResult != null;
+  const wordCount = scoringResult?.wordCount ?? copy.trim().split(/\s+/).length;
+  const withinLimit = scoringResult?.withinLimit ?? true;
+  const metrics = scoringResult?.metrics ?? [];
+  const score = scoringResult?.score ?? 0;
+
+  // Check which requirements are met
+  const matchedRequirements = requirements?.filter(req => 
+    copy.toLowerCase().includes(req.toLowerCase())
+  ) ?? [];
+  const missedRequirements = requirements?.filter(req => 
+    !copy.toLowerCase().includes(req.toLowerCase())
+  ) ?? [];
+
+  return (
+    <View className="px-6 pb-8">
+      {/* Generated Copy Display */}
+      <Card className="p-6 rounded-[32px] mb-6" variant="elevated">
+        <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[2px] mb-3">
+          Generated Copy
+        </Text>
+        <View className="bg-surfaceVariant/30 rounded-2xl p-4">
+          <Text className="text-onSurface text-base leading-6 font-medium">
+            {copy}
+          </Text>
+        </View>
+        
+        {/* Word Count Badge */}
+        <View className="flex-row items-center mt-4">
+          <Badge
+            label={`${wordCount} words`}
+            variant={withinLimit ? 'primary' : 'surface'}
+            className={`mr-2 border-0 ${withinLimit ? 'bg-success/20' : 'bg-warning/20'}`}
+          />
+          {!withinLimit && (
+            <Text className="text-warning text-xs">
+              Word count outside recommended range
+            </Text>
+          )}
+        </View>
+      </Card>
+
+      {/* Score Overview */}
+      {hasResult && (
+        <Card className="p-6 rounded-[32px] mb-6" variant="elevated">
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-onSurface text-lg font-black">Overall Score</Text>
+            <View className="flex-row items-center">
+              <Text className="text-primary text-3xl font-black mr-2">{score}%</Text>
+              <View 
+                className={`w-3 h-3 rounded-full ${score >= 70 ? 'bg-success' : score >= 50 ? 'bg-warning' : 'bg-error'}`} 
+              />
+            </View>
+          </View>
+          
+          {/* Feedback */}
+          {scoringResult?.feedback && scoringResult.feedback.length > 0 && (
+            <View className="mt-2">
+              <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">
+                Feedback
+              </Text>
+              {scoringResult.feedback.map((item, index) => (
+                <View key={index} className="flex-row mb-1">
+                  <Text className="text-primary text-xs mr-2">•</Text>
+                  <Text className="text-onSurface text-sm flex-1">{item}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </Card>
+      )}
+
+      {/* Metrics Radar Chart */}
+      {hasResult && metrics.length > 0 && (
+        <Card className="p-6 rounded-[32px] mb-6 items-center" variant="elevated">
+          <Text className="text-onSurface text-xs font-black uppercase tracking-[2px] mb-4">
+            Metrics Breakdown
+          </Text>
+          <RadarChart metrics={metrics} size={240} />
+          
+          {/* Metric Values Grid */}
+          <View className="flex-row flex-wrap justify-center mt-4">
+            {metrics.map((metric, index) => (
+              <View key={index} className="items-center mx-2 mb-3">
+                <Text className="text-primary text-lg font-black">
+                  {Math.round(metric.value / 10)}/10
+                </Text>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase">
+                  {metric.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      )}
+
+      {/* Requirements Check */}
+      {requirements && requirements.length > 0 && (
+        <Card className="p-6 rounded-[32px]" variant="elevated">
+          <Text className="text-onSurface text-xs font-black uppercase tracking-[2px] mb-3">
+            Requirements Check
+          </Text>
+          
+          {/* Matched Requirements */}
+          {matchedRequirements.length > 0 && (
+            <View className="mb-3">
+              <Text className="text-success text-[10px] font-black uppercase tracking-widest mb-2">
+                ✓ Matched ({matchedRequirements.length}/{requirements.length})
+              </Text>
+              <View className="flex-row flex-wrap">
+                {matchedRequirements.map((req, index) => (
+                  <Badge
+                    key={index}
+                    label={req}
+                    variant="primary"
+                    className="bg-success/20 mr-2 mb-2 border-0"
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+          
+          {/* Missed Requirements */}
+          {missedRequirements.length > 0 && (
+            <View>
+              <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">
+                Missing ({missedRequirements.length}/{requirements.length})
+              </Text>
+              <View className="flex-row flex-wrap">
+                {missedRequirements.map((req, index) => (
+                  <Badge
+                    key={index}
+                    label={req}
+                    variant="surface"
+                    className="bg-surfaceVariant mr-2 mb-2 border-0"
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+        </Card>
+      )}
+    </View>
+  );
+}

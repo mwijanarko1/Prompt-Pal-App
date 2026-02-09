@@ -1,6 +1,5 @@
-import { aiProxy } from '../aiProxy';
+import { CodeExecutor, type PreparedExecution } from '../codeExecutor';
 import { logger } from '../logger';
-import { apiClient } from '../api';
 
 export interface TestCase {
   id: string;
@@ -24,6 +23,8 @@ export interface CodeTestResult {
   passed: boolean;
   error?: string;
   output?: any;
+  expectedOutput?: any;
+  actualOutput?: any;
   executionTime?: number;
 }
 
@@ -35,50 +36,9 @@ export interface CodeScoringResult {
 }
 
 export class CodeScoringService {
-  private static readonly EXECUTION_TIMEOUT_MS = 10000;
+  private static readonly EXECUTION_TIMEOUT_MS = 5000;
   private static readonly MAX_CODE_LENGTH = 10000;
   private static readonly MIN_CODE_LENGTH = 10;
-
-  private static readonly LANGUAGE_CONFIGS: Record<string, {
-    syntaxPatterns: RegExp[];
-    template: string;
-  }> = {
-    'PYTHON 3.10': {
-      syntaxPatterns: [
-        /^def\s+\w+\s*\(/m,
-        /^\s*return\s+/m,
-      ],
-      template: (code: string, fnName: string) => `
-${code}
-
-import json
-import sys
-
-try:
-    # Capture output
-    result = ${fnName}(TEST_INPUT)
-    print(json.dumps({"success": True, "output": result}))
-except Exception as e:
-    print(json.dumps({"success": False, "error": str(e)}))
-`,
-    },
-    'JAVASCRIPT': {
-      syntaxPatterns: [
-        /function\s+\w+\s*\(/,
-        /\w+\s*=>\s*\(/,
-      ],
-      template: (code: string, fnName: string) => `
-${code}
-
-try {
-  const result = ${fnName}(TEST_INPUT);
-  console.log(JSON.stringify({ success: true, output: result }));
-} catch (error) {
-  console.log(JSON.stringify({ success: false, error: error.message }));
-}
-`,
-    },
-  };
 
   /**
    * Scores generated code against test cases
@@ -109,18 +69,43 @@ try {
         throw new Error('At least one test case is required');
       }
 
-      const languageConfig = this.LANGUAGE_CONFIGS[language.toUpperCase()];
-      if (!languageConfig) {
-        throw new Error(`Unsupported language: ${language}`);
+      const normalizedLanguage = this.normalizeLanguage(language);
+      if (!normalizedLanguage) {
+        return this.createExecutionErrorResult(
+          testCases,
+          `Unsupported language: ${language}. Only JavaScript is supported.`,
+          false
+        );
       }
 
-      const syntaxValid = this.validateSyntax(trimmedCode, languageConfig);
-
-      if (!syntaxValid) {
-        return this.createSyntaxErrorResult(testCases);
+      const languageMismatch = this.detectLanguageMismatch(trimmedCode, normalizedLanguage);
+      if (languageMismatch) {
+        return this.createExecutionErrorResult(testCases, languageMismatch, false);
       }
 
-      const testResults = await this.runTestCases(trimmedCode, language, testCases, functionName);
+      CodeExecutor.clearCache();
+
+      const normalizedCodeResult = this.normalizeCodeForFunctionName(
+        trimmedCode,
+        functionName
+      );
+
+      const resolvedFunctionName = normalizedCodeResult.functionName;
+      if (!resolvedFunctionName) {
+        return this.createExecutionErrorResult(
+          testCases,
+          'Function name not found - check your function definition.',
+          false
+        );
+      }
+
+      const prepared = CodeExecutor.prepare({
+        code: normalizedCodeResult.code,
+        functionName: resolvedFunctionName,
+        timeoutMs: this.EXECUTION_TIMEOUT_MS,
+      });
+
+      const testResults = await this.runTestCases(prepared, testCases);
       const score = this.calculateScore(testResults);
       const feedback = this.generateFeedback(testResults, score, passingScore);
 
@@ -128,256 +113,176 @@ try {
         score,
         testResults,
         feedback,
-        syntaxValid,
+        syntaxValid: true,
       };
     } catch (error) {
       logger.error('CodeScoringService', error, { operation: 'scoreCode', input });
-      
-      return {
-        score: 0,
-        testResults: testCases.map(tc => ({
-          id: tc.id,
-          name: tc.name,
-          passed: false,
-          error: 'Scoring failed',
-        })),
-        feedback: ['Failed to score code. Please try again.'],
-        syntaxValid: false,
-      };
+
+      const normalizedError = this.normalizePrepareError(error);
+      return this.createExecutionErrorResult(
+        testCases,
+        normalizedError.message,
+        normalizedError.syntaxValid
+      );
     }
-  }
-
-  /**
-   * Validates code syntax using language-specific patterns
-   */
-  private static validateSyntax(code: string, languageConfig: any): boolean {
-    return languageConfig.syntaxPatterns.some(pattern => pattern.test(code));
-  }
-
-  /**
-   * Creates result for syntax errors
-   */
-  private static createSyntaxErrorResult(testCases: TestCase[]): CodeScoringResult {
-    return {
-      score: 0,
-      testResults: testCases.map(tc => ({
-        id: tc.id,
-        name: tc.name,
-        passed: false,
-        error: 'Syntax error in code',
-      })),
-      feedback: ['Syntax error detected. Please check your code structure.'],
-      syntaxValid: false,
-    };
   }
 
   /**
    * Runs test cases against the code
    */
   private static async runTestCases(
-    code: string,
-    language: string,
-    testCases: TestCase[],
-    functionName?: string
+    prepared: PreparedExecution,
+    testCases: TestCase[]
   ): Promise<CodeTestResult[]> {
-    const results: CodeTestResult[] = [];
-
-    for (const testCase of testCases) {
-      const result = await this.runSingleTest(code, language, testCase, functionName);
-      results.push(result);
-    }
-
-    return results;
+    return Promise.all(testCases.map(testCase => this.runSingleTest(prepared, testCase)));
   }
 
   /**
    * Runs a single test case
    */
   private static async runSingleTest(
-    code: string,
-    language: string,
-    testCase: TestCase,
-    functionName?: string
+    prepared: PreparedExecution,
+    testCase: TestCase
   ): Promise<CodeTestResult> {
     try {
-      const executionResult = await this.executeCode(code, language, testCase, functionName);
-      
-      const passed = this.compareOutputs(executionResult.output, testCase.expectedOutput);
+      const inputs = this.normalizeInputs(testCase.input);
+      const executionResult = await prepared.run(inputs);
+
+      if (!executionResult.success) {
+        return {
+          id: testCase.id,
+          name: testCase.name,
+          passed: false,
+          error: executionResult.error || 'Execution failed',
+          output: executionResult.output,
+          actualOutput: executionResult.output,
+          expectedOutput: testCase.expectedOutput,
+          executionTime: executionResult.executionTime,
+        };
+      }
+
+      const actualOutput = executionResult.output;
+      const passed = this.compareOutputs(actualOutput, testCase.expectedOutput);
 
       return {
         id: testCase.id,
         name: testCase.name,
         passed,
-        output: executionResult.output,
+        output: actualOutput,
+        actualOutput,
+        expectedOutput: testCase.expectedOutput,
         executionTime: executionResult.executionTime,
-        error: executionResult.error,
+        error: passed ? undefined : this.createMismatchError(actualOutput, testCase.expectedOutput),
       };
     } catch (error) {
       logger.warn('CodeScoringService', 'Test execution failed', { testCaseId: testCase.id, error });
-      
+
       return {
         id: testCase.id,
         name: testCase.name,
         passed: false,
         error: error instanceof Error ? error.message : 'Unknown error',
+        expectedOutput: testCase.expectedOutput,
       };
     }
   }
 
-  /**
-   * Executes code with test input
-   */
-  private static async executeCode(
-    code: string,
-    language: string,
-    testCase: TestCase,
-    functionName?: string
-  ): Promise<{ output?: any; error?: string; executionTime: number; warning?: string }> {
-    const startTime = Date.now();
-
-    try {
-      const result = await this.executeCodeViaBackend(code, language, testCase, functionName);
-      const executionTime = Date.now() - startTime;
-
-      if (result.success) {
-        return { output: result.output, executionTime };
-      } else {
-        return { error: result.error || 'Execution failed', executionTime };
-      }
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      logger.warn('CodeScoringService', 'Backend execution failed, trying fallback', { error: errorMessage });
-      
-      return this.fallbackExecution(code, language, testCase, functionName, executionTime);
-    }
+  private static normalizeInputs(input: any): any[] {
+    if (input === undefined) return [];
+    return Array.isArray(input) ? input : [input];
   }
 
-  /**
-   * Executes code via backend API
-   */
-  private static async executeCodeViaBackend(
-    code: string,
-    language: string,
-    testCase: TestCase,
-    functionName?: string
-  ): Promise<{ success: boolean; output?: any; error?: string }> {
-    try {
-      this.validateCodeSecurity(code);
-
-      const response = await aiProxy.post('/api/analyzer/execute-code', {
-        code,
-        language,
-        testInput: testCase.input,
-        functionName: functionName || this.extractFunctionName(code, language),
-      }, {
-        timeout: this.EXECUTION_TIMEOUT_MS,
-      });
-
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * Validates code for potentially dangerous patterns
-   */
-  private static validateCodeSecurity(code: string): void {
-    const dangerousPatterns = [
-      /while\s*\(\s*true\s*\)/i,
-      /for\s*\(\s*;\s*;\s*\)/i,
-      /__import__|eval\(|exec\(/i,
-      /open\s*\(|os\.|subprocess\(|popen\(/i,
-      /import\s+(?!.*from\s*['"])|exec\(|compile\(/i,
-    ];
-
-    const matchedPattern = dangerousPatterns.find(pattern => pattern.test(code));
-    if (matchedPattern) {
-      throw new Error('Code contains potentially dangerous constructs');
-    }
-  }
-
-  /**
-   * Fallback code execution (structural validation only)
-   * Note: This is a structure validation only - does not execute code or test correctness
-   * Returns a conservative estimate based on code quality indicators
-   */
-  private static async fallbackExecution(
-    code: string,
-    language: string,
-    testCase: TestCase,
-    functionName?: string,
-    startTime: number = 0
-  ): Promise<{ output?: any; error?: string; executionTime: number; warning?: string }> {
-    const executionTime = Date.now() - startTime;
-
-    if (!testCase.expectedOutput) {
-      return {
-        output: 'Structure validated (backend execution unavailable)',
-        executionTime,
-        warning: 'Code not actually executed - backend unavailable',
-      };
-    }
-
-    const keywordMatches = this.countKeywordMatches(code, testCase);
-    const hasBasicStructure = this.hasBasicStructure(code, language);
-
-    if (hasBasicStructure && keywordMatches > 0) {
-      return {
-        output: testCase.expectedOutput,
-        executionTime,
-        warning: 'Structure validated only - code not executed (backend unavailable)',
-      };
-    }
-
-    return {
-      error: 'Code structure validation failed',
-      executionTime,
-      warning: 'Backend execution unavailable - structural validation only',
-    };
-  }
-
-  /**
-   * Extracts function name from code
-   */
-  private static extractFunctionName(code: string, language: string): string | null {
-    if (language.toUpperCase().includes('PYTHON')) {
-      const match = code.match(/def\s+(\w+)\s*\(/);
-      return match ? match[1] : null;
-    } else if (language.toUpperCase().includes('JAVASCRIPT')) {
-      const arrowMatch = code.match(/(\w+)\s*=>\s*\(/);
-      if (arrowMatch) return arrowMatch[1];
-
-      const funcMatch = code.match(/function\s+(\w+)\s*\(/);
-      return funcMatch ? funcMatch[1] : null;
-    }
+  private static normalizeLanguage(language: string): 'javascript' | null {
+    const normalized = language.trim().toLowerCase();
+    if (normalized === 'javascript' || normalized === 'js') return 'javascript';
+    if (normalized === 'typescript' || normalized === 'ts') return 'javascript';
+    if (normalized.includes('javascript')) return 'javascript';
     return null;
   }
 
-  /**
-   * Counts keyword matches in code
-   */
-  private static countKeywordMatches(code: string, testCase: TestCase): number {
-    if (!testCase.description) return 0;
-    
-    const keywords = testCase.description.split(/\s+/).filter(w => w.length > 3);
-    const codeLower = code.toLowerCase();
-    
-    return keywords.filter(keyword => 
-      codeLower.includes(keyword.toLowerCase())
-    ).length;
+  private static normalizePrepareError(error: unknown): { message: string; syntaxValid: boolean } {
+    if (error instanceof Error) {
+      const invalidNames = new Set([
+        'SyntaxError',
+        'FunctionNotFoundError',
+        'InvalidFunctionNameError',
+        'ValidationError',
+        'Error',
+      ]);
+      const syntaxValid = !invalidNames.has(error.name);
+      return { message: error.message || 'Execution failed', syntaxValid };
+    }
+
+    return { message: 'Execution failed', syntaxValid: false };
   }
 
-  /**
-   * Checks basic code structure
-   */
-  private static hasBasicStructure(code: string, language: string): boolean {
-    const languageConfig = this.LANGUAGE_CONFIGS[language.toUpperCase()];
-    if (!languageConfig) return false;
-    
-    return languageConfig.syntaxPatterns.some(pattern => pattern.test(code));
+  private static detectLanguageMismatch(code: string, language: 'javascript'): string | null {
+    if (language !== 'javascript') return null;
+
+    const pythonSignals = [
+      /^\s*def\s+\w+\s*\(/m,
+      /^\s*class\s+\w+\s*:/m,
+      /print\s*\(/,
+      /elif\s+/,
+      /:\s*$/m,
+      /f\"[^\"]*\"/,
+    ];
+
+    if (pythonSignals.some(pattern => pattern.test(code))) {
+      return 'Language mismatch: expected JavaScript but received Python. Please return JavaScript code only.';
+    }
+
+    return null;
+  }
+
+  private static normalizeCodeForFunctionName(
+    code: string,
+    expectedName?: string
+  ): { code: string; functionName: string | null } {
+    const foundName = CodeExecutor.extractFunctionName(code);
+
+    if (expectedName) {
+      if (foundName && foundName !== expectedName) {
+        return {
+          code: `${code}\nconst ${expectedName} = ${foundName};`,
+          functionName: expectedName,
+        };
+      }
+
+      if (!foundName) {
+        const trimmed = code.trim();
+        const looksLikeExpression = /^(\(|function\b|async\b|[A-Za-z_$][\w$]*\s*=>)/.test(trimmed);
+        if (looksLikeExpression) {
+          return {
+            code: `const ${expectedName} = ${trimmed};`,
+            functionName: expectedName,
+          };
+        }
+      }
+
+      return { code, functionName: expectedName };
+    }
+
+    return { code, functionName: foundName };
+  }
+
+  private static createExecutionErrorResult(
+    testCases: TestCase[],
+    message: string,
+    syntaxValid: boolean
+  ): CodeScoringResult {
+    return {
+      score: 0,
+      testResults: (testCases || []).map(tc => ({
+        id: tc.id,
+        name: tc.name,
+        passed: false,
+        error: message,
+        expectedOutput: tc.expectedOutput,
+      })),
+      feedback: [message],
+      syntaxValid,
+    };
   }
 
   /**
@@ -385,12 +290,61 @@ try {
    */
   private static compareOutputs(actual: any, expected: any): boolean {
     if (actual === expected) return true;
+    if (Number.isNaN(actual) && Number.isNaN(expected)) return true;
+    return this.deepEqual(actual, expected);
+  }
 
-    if (typeof actual === 'object' && typeof expected === 'object') {
-      return JSON.stringify(actual) === JSON.stringify(expected);
+  private static deepEqual(actual: any, expected: any): boolean {
+    if (actual === expected) return true;
+    if (typeof actual !== typeof expected) return false;
+
+    if (actual && expected && typeof actual === 'object') {
+      if (Array.isArray(actual) || Array.isArray(expected)) {
+        if (!Array.isArray(actual) || !Array.isArray(expected)) return false;
+        if (actual.length !== expected.length) return false;
+        for (let i = 0; i < actual.length; i += 1) {
+          if (!this.deepEqual(actual[i], expected[i])) return false;
+        }
+        return true;
+      }
+
+      const actualKeys = Object.keys(actual);
+      const expectedKeys = Object.keys(expected);
+      if (actualKeys.length !== expectedKeys.length) return false;
+
+      for (const key of actualKeys) {
+        if (!Object.prototype.hasOwnProperty.call(expected, key)) return false;
+        if (!this.deepEqual(actual[key], expected[key])) return false;
+      }
+
+      return true;
     }
 
-    return String(actual) === String(expected);
+    return false;
+  }
+
+  private static formatValue(value: any): string {
+    if (value === undefined) return 'undefined';
+    if (value === null) return 'null';
+    if (typeof value === 'string') return `"${value}"`;
+    if (typeof value === 'bigint') return value.toString();
+    if (typeof value === 'function') return '[Function]';
+
+    try {
+      const json = JSON.stringify(value);
+      if (json !== undefined) return json;
+    } catch {
+      // ignore JSON errors
+    }
+
+    return String(value);
+  }
+
+  private static createMismatchError(actual: any, expected: any): string {
+    if (actual === undefined && expected !== undefined) {
+      return `Expected ${this.formatValue(expected)} but got undefined - did you forget to return?`;
+    }
+    return `Expected ${this.formatValue(expected)} but got ${this.formatValue(actual)}.`;
   }
 
   /**
@@ -425,20 +379,22 @@ try {
   ): string[] {
     const feedback: string[] = [];
 
-    if (passingScore && score >= passingScore) {
-      feedback.push('Excellent! All requirements met.');
-      return feedback;
+    if (testResults.length === 0) {
+      return ['No tests were executed.'];
     }
 
     const failedTests = testResults.filter(r => !r.passed);
     const passedTests = testResults.filter(r => r.passed);
 
-    if (passedTests.length > 0) {
-      feedback.push(`${passedTests.length}/${testResults.length} tests passed.`);
-    }
+    feedback.push(`${passedTests.length}/${testResults.length} tests passed.`);
 
     if (failedTests.length > 0) {
       feedback.push(`${failedTests.length} test(s) failed.`);
+
+      const timeoutFailures = failedTests.filter(test => test.error?.includes('timed out'));
+      if (timeoutFailures.length > 0) {
+        feedback.push('Your code timed out - check for infinite loops.');
+      }
 
       if (failedTests.length <= 3) {
         failedTests.forEach(test => {
@@ -449,6 +405,11 @@ try {
       } else {
         feedback.push('Review the failed test cases for details.');
       }
+    }
+
+    if (passingScore && score >= passingScore) {
+      feedback.push('Excellent! All requirements met.');
+      return feedback;
     }
 
     if (score < 30) {

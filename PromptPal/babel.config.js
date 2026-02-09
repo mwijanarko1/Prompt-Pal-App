@@ -1,4 +1,4 @@
-module.exports = function(api) {
+module.exports = function (api) {
   api.cache(true);
   return {
     presets: [
@@ -6,7 +6,7 @@ module.exports = function(api) {
       'nativewind/babel'
     ],
     plugins: [
-      // Removed reanimated/worklets plugin to fix Mismatch error in Expo Go
+      // Plugins are automatically handled by presets
     ]
   };
 };

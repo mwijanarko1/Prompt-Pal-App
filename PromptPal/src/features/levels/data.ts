@@ -1,5 +1,9 @@
 import { Level } from '../game/store';
-import { apiClient, Task } from '../../lib/api';
+import { convexHttpClient } from '../../lib/convex-client';
+import { api } from '../../../convex/_generated/api.js';
+
+// Note: Target images are now stored in Convex and URLs are provided by the backend API
+// Local assets are only used for UI display
 
 // Pre-import local level images mapped by API level ID for instant loading
 // Map API level IDs (e.g., "image-1-easy") to local assets
@@ -43,6 +47,8 @@ const LEVEL_IMAGE_ASSETS = {
   'level-10': require('../../../assets/images/level-10-image.png'),
 } as const;
 
+// Note: getHostedImageUrlForLevel removed - backend now provides URLs directly
+
 // Helper function to get local image asset for a level ID
 function getLocalImageForLevel(levelId: string): any {
   const image = LEVEL_IMAGE_ASSETS[levelId as keyof typeof LEVEL_IMAGE_ASSETS];
@@ -54,11 +60,21 @@ function getLocalImageForLevel(levelId: string): any {
   return image;
 }
 
+const APP_ID = 'prompt-pal';
+
+const MODULE_ID_BY_TYPE: Record<string, string> = {
+  image: 'image-generation',
+  code: 'coding-logic',
+  copywriting: 'copywriting',
+};
+
 // Process API levels to use local assets for images
 export function processApiLevelsWithLocalAssets(apiLevels: Level[]): Level[] {
   return apiLevels.map(level => ({
     ...level,
-    targetImageUrl: getLocalImageForLevel(level.id), // Override API image with local asset
+    moduleId: level.moduleId ?? (level.type ? MODULE_ID_BY_TYPE[level.type] : undefined),
+    // Only get local image for image-based levels
+    targetImageUrl: level.type === 'image' ? getLocalImageForLevel(level.id) : level.targetImageUrl,
   }));
 }
 
@@ -286,48 +302,18 @@ export function createLocalLevelsFromAssets(): Level[] {
   }));
 }
 
-// Convert API Task to Level format
-
-function taskToLevel(task: Task, index: number = 0): Level {
-  // Use local assets for target images - ignore API image URLs
-  // Prefer task.id/documentId from API, fallback to generated ID
-  const levelId = task.id || task.documentId || task.name || `task_${index}`;
-  const localImageUrl = getLocalImageForLevel(levelId);
-
-  // Determine difficulty based on Day or default to beginner
-  let difficulty: 'beginner' | 'intermediate' | 'advanced' = 'beginner';
-  if (task.Day) {
-    if (task.Day <= 3) difficulty = 'beginner';
-    else if (task.Day <= 7) difficulty = 'intermediate';
-    else difficulty = 'advanced';
-  }
-
-  // Prerequisites: All previous tasks in the sequence
-  const prerequisites = index > 0
-    ? Array.from({ length: index }, (_, i) => `task_${i}`)
-    : [];
-
-  return {
-    id: levelId,
-    type: 'image', // Default to image type since Task interface doesn't have type
-    title: task.name || `Level ${index + 1}`, // Use task name as title
-    difficulty,
-    targetImageUrl: localImageUrl, // Always use local asset
-    hiddenPromptKeywords: task.idealPrompt?.split(',').map(k => k.trim()) || [],
-    passingScore: 75, // Default passing score since Task interface doesn't have it
-    unlocked: index === 0, // First task is unlocked
-    prerequisites,
-  };
-}
-
 // Fetch levels from API
 export async function fetchLevelsFromApi(): Promise<Level[]> {
   try {
-    const tasks = await apiClient.getDailyTasks();
-    if (tasks && tasks.length > 0) {
-      return tasks.map((task, index) => taskToLevel(task, index));
+    const levels = await convexHttpClient.query(api.queries.getLevels, { appId: APP_ID });
+
+    // Process levels to add local assets if needed (or if API returns full URLs, updated logic might be needed)
+    // For now, mapping IDs to local assets for consistency as per existing logic
+    if (levels && levels.length > 0) {
+      return processApiLevelsWithLocalAssets(levels as Level[]);
     }
-    // If no tasks from API, return empty array (no fallback data)
+
+    // If no levels from API, return empty array (no fallback data)
     return [];
   } catch (error) {
     console.warn('[Levels] Failed to fetch from API:', error);
@@ -338,8 +324,16 @@ export async function fetchLevelsFromApi(): Promise<Level[]> {
 // Fetch a single level by ID from API
 export async function fetchLevelById(id: string): Promise<Level | undefined> {
   try {
-    const task = await apiClient.getTaskById(id);
-    return taskToLevel(task);
+    const level = await convexHttpClient.query(api.queries.getLevelById, { id });
+
+    if (level) {
+      // Convert/process if needed, or return directly.
+      // Existing logic used taskToLevel. Here we assume Level.
+      // We still want local image assets for consistent UI if they use local images.
+      const levels = processApiLevelsWithLocalAssets([level as Level]);
+      return levels[0];
+    }
+    return undefined;
   } catch (error) {
     console.warn('[Levels] Failed to fetch level from API:', error);
     return getLevelById(id);
@@ -375,6 +369,48 @@ export function getNextLevel(currentId: string): Level | undefined {
 export function getUnlockedLevels(): Level[] {
   const localLevels = createLocalLevelsFromAssets();
   return localLevels.filter(level => level.unlocked);
+}
+
+/**
+ * Checks if a level is unlocked based on its prerequisites
+ * @param level - The level to check
+ * @param completedLevels - Array of completed level IDs
+ * @returns Whether the level is unlocked
+ */
+export function isLevelUnlocked(level: Level, completedLevels: string[] = []): boolean {
+  if (!level.prerequisites || level.prerequisites.length === 0) {
+    return level.unlocked;
+  }
+
+  const allPrerequisitesMet = level.prerequisites.every(prereqId =>
+    completedLevels.includes(prereqId)
+  );
+
+  return level.unlocked && allPrerequisitesMet;
+}
+
+/**
+ * Gets all levels that should be unlocked based on completed levels
+ * @param completedLevels - Array of completed level IDs
+ * @returns Array of unlocked levels
+ */
+export function getUnlockedLevelsByProgress(completedLevels: string[]): Level[] {
+  const localLevels = createLocalLevelsFromAssets();
+  return localLevels.filter(level => isLevelUnlocked(level, completedLevels));
+}
+
+/**
+ * Gets the next level that should be unlocked after completing a level
+ * @param completedLevelId - The ID of the completed level
+ * @returns The next level to unlock, or null if none
+ */
+export function getNextUnlockableLevel(completedLevelId: string): Level | null {
+  const localLevels = createLocalLevelsFromAssets();
+  const lockedLevels = localLevels.filter(level => !level.unlocked);
+
+  return lockedLevels.find(level =>
+    level.prerequisites?.includes(completedLevelId)
+  ) || null;
 }
 
 /**

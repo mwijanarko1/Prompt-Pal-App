@@ -8,7 +8,7 @@ import { logger } from './logger';
 /**
  * Decode a JWT token and extract its payload
  */
-export function decodeJwtToken(token: string): { exp: number; iat: number; [key: string]: any } | null {
+export function decodeJwtToken(token: string): { exp: number; iat: number;[key: string]: any } | null {
   try {
     const payload = token.split('.')[1];
     const decoded = JSON.parse(atob(payload));
@@ -33,29 +33,35 @@ export function isTokenExpiringSoon(token: string, withinSeconds: number = 300):
 }
 
 /**
+ * Options for getToken function (matches Clerk's API)
+ */
+interface GetTokenOptions {
+  skipCache?: boolean;
+}
+
+/**
  * Get a fresh token with forced refresh if needed
  * This bypasses the token cache to ensure we get a fresh token
+ * 
+ * @param getToken - Clerk's getToken function that accepts options
  */
-export async function getFreshToken(getToken: () => Promise<string | null>): Promise<string | null> {
+export async function getFreshToken(
+  getToken: (options?: GetTokenOptions) => Promise<string | null>
+): Promise<string | null> {
   try {
     // First try to get cached token
     const cachedToken = await getToken();
 
     // If cached token exists and is not expiring soon, use it
     if (cachedToken && !isTokenExpiringSoon(cachedToken, 60)) { // 60 seconds buffer
-      logger.debug('TokenUtils', 'Using cached token (not expiring soon)');
       return cachedToken;
     }
 
-    // Token is expiring soon or doesn't exist, try to get fresh token
-    logger.debug('TokenUtils', 'Token expiring soon or missing, attempting refresh');
-
-    // For Clerk, we can try to get a fresh token by calling getToken again
-    // This should trigger a refresh if the token is stale
-    const freshToken = await getToken();
+    // Token is expiring soon or doesn't exist - request fresh token with skipCache
+    // This is the correct Clerk pattern instead of double-calling getToken()
+    const freshToken = await getToken({ skipCache: true });
 
     if (freshToken && !isTokenExpiringSoon(freshToken, 30)) { // 30 seconds buffer for fresh token
-      logger.debug('TokenUtils', 'Successfully obtained fresh token');
       return freshToken;
     }
 

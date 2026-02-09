@@ -11,12 +11,10 @@ const SIGN_OUT_DEBOUNCE_MS = 5000;
 
 export const registerSignOutCallback = (callback: SignOutCallback) => {
   signOutCallback = callback;
-  logger.debug('SessionManager', 'Sign-out callback registered');
 };
 
 export const registerTokenRefreshCallback = (callback: TokenRefreshCallback) => {
   tokenRefreshCallback = callback;
-  logger.debug('SessionManager', 'Token refresh callback registered');
 };
 
 export const triggerSignOut = async () => {
