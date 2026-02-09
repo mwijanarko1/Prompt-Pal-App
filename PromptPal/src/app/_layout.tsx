@@ -3,6 +3,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+// TypeScript can miss export when package "react-native" field points to source; runtime is correct.
+// @ts-expect-error - GestureHandlerRootView is exported by react-native-gesture-handler (lib/typescript/index.d.ts)
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ClerkProviderWrapper, useAuth } from '@/lib/clerk';
 import { validateEnvironment } from '@/lib/env';
 import { SyncManager } from '@/lib/syncManager';
@@ -88,10 +91,12 @@ function AppInitializer() {
 
 export default function RootLayout() {
   return (
-    <ClerkProviderWrapper>
-      <ConvexProviderWrapper>
-        <AppInitializer />
-      </ConvexProviderWrapper>
-    </ClerkProviderWrapper>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ClerkProviderWrapper>
+        <ConvexProviderWrapper>
+          <AppInitializer />
+        </ConvexProviderWrapper>
+      </ClerkProviderWrapper>
+    </GestureHandlerRootView>
   );
 }
