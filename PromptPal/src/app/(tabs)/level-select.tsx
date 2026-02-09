@@ -1,22 +1,104 @@
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { processApiLevelsWithLocalAssets, getLevelsByModuleId } from "../../features/levels/data";
+import { processApiLevelsWithLocalAssets } from "../../features/levels/data";
 import { useGameStore } from "../../features/game/store";
-import { apiClient, Level } from "../../lib/api";
-import { useEffect, useState } from "react";
+import { Level } from "../../features/game/store";
+import { convexHttpClient } from "../../lib/convex-client";
+import { api } from "../../../convex/_generated/api_cjs";
+import { useEffect, useState, useCallback, memo } from "react";
+
+interface LevelItemProps {
+  level: Level;
+  unlocked: boolean;
+  completed: boolean;
+  difficultyColor: string;
+  lives: number;
+  onPress: (levelId: string) => void;
+}
+
+const LevelItem = memo(function LevelItem({
+  level,
+  unlocked,
+  completed,
+  difficultyColor,
+  lives,
+  onPress,
+}: LevelItemProps) {
+  const handlePress = useCallback(() => {
+    onPress(level.id);
+  }, [onPress, level.id]);
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      disabled={!unlocked}
+      style={[
+        styles.levelCard,
+        unlocked ? styles.levelCardUnlocked : styles.levelCardLocked,
+      ]}
+    >
+      <View style={styles.levelHeader}>
+        <Text
+          style={[styles.levelTitle, { opacity: unlocked ? 1 : 0.5 }]}
+        >
+          {level.id.replace("_", " ").toUpperCase()}
+        </Text>
+        {completed && (
+          <View style={styles.completedBadge}>
+            <Text style={styles.completedCheck}>✓</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.levelMeta}>
+        <View
+          style={[
+            styles.difficultyBadge,
+            { backgroundColor: difficultyColor + "20" },
+          ]}
+        >
+          <Text
+            style={[
+              styles.difficultyText,
+              { color: difficultyColor },
+            ]}
+          >
+            {level.difficulty}
+          </Text>
+        </View>
+        {!unlocked && (
+          <Text style={styles.lockedText}>
+            {lives <= 0 ? 'No Lives Remaining' : 'Locked'}
+          </Text>
+        )}
+      </View>
+
+      <Text
+        style={[
+          styles.passingScore,
+          { opacity: unlocked ? 0.7 : 0.4 },
+        ]}
+      >
+        Passing Score: {level.passingScore}%
+      </Text>
+    </Pressable>
+  );
+});
 
 export default function LevelSelectScreen() {
-  console.log("[LevelSelect] Component rendering...");
+  console.log("[LevelSelect] ===== COMPONENT RENDERING - LEVEL SELECT SCREEN LOADED! =====");
+  console.log("[LevelSelect] Current route params:", useLocalSearchParams());
   const router = useRouter();
-  const { module } = useLocalSearchParams<{ module?: string }>();
+  const { type } = useLocalSearchParams<{ type?: 'image' | 'code' | 'copywriting' }>();
+  console.log("[DEBUG] LevelSelect type parameter:", type);
   const [levels, setLevels] = useState<Level[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,59 +116,50 @@ export default function LevelSelectScreen() {
       setIsLoading(true);
       setError(null);
       try {
-        // Fetch all levels from API
-        const rawApiLevels = await apiClient.getLevels();
+        // Fetch levels from Convex with type filtering
+        const rawApiLevels = await convexHttpClient.query(api.queries.getAllLevels, {
+          type: type || undefined,
+          limit: 50
+        });
 
         if (rawApiLevels && rawApiLevels.length > 0) {
-          let processedLevels = processApiLevelsWithLocalAssets(rawApiLevels);
-
-          // Filter by module if specified
-          if (module) {
-            processedLevels = processedLevels.filter(level => level.moduleId === module);
-          }
-
+          const processedLevels = processApiLevelsWithLocalAssets(rawApiLevels);
           setLevels(processedLevels);
         } else {
-          // Fallback to local levels if API fails and module is specified
-          if (module) {
-            const localLevels = getLevelsByModuleId(module);
-            setLevels(localLevels);
-          } else {
-            setError('No levels available from the server');
-          }
+          setError(`No ${type || ''} levels available from the server`);
         }
       } catch (error) {
         console.error('[LevelSelect] Failed to load levels:', error);
         setError('Failed to load levels. Please check your connection and try again.');
 
-        // Fallback to local levels if API fails and module is specified
-        if (module) {
-          const localLevels = getLevelsByModuleId(module);
-          setLevels(localLevels);
-          setIsLoading(false);
-        }
+        // No local fallback for type-based filtering
+        setLevels([]);
+        setIsLoading(false);
       } finally {
-        if (!module || levels.length > 0) {
+        if (!type || levels.length > 0) {
           setIsLoading(false);
         }
       }
     };
 
     loadLevels();
-  }, [module]);
+  }, [type]);
 
-  const isLevelUnlocked = (levelId: string) => {
-    // Level is unlocked only if:
-    // 1. It's in the unlockedLevels array AND
-    // 2. Player has lives remaining (lives > 0)
+  const isLevelUnlocked = useCallback((levelId: string) => {
+    // Since we're not implementing user plans for now, all coding and copywriting levels are available
+    // Image generation levels are hidden anyway (module locked), but kept locked for future
+    if (levelId.startsWith('code-') || levelId.startsWith('copywriting-')) {
+      return lives > 0; // Only check lives, not unlock status
+    }
+    // For image levels (future implementation), use normal unlock logic
     return unlockedLevels.includes(levelId) && lives > 0;
-  };
+  }, [unlockedLevels, lives]);
 
-  const isLevelCompleted = (levelId: string) => {
+  const isLevelCompleted = useCallback((levelId: string) => {
     return completedLevels.includes(levelId);
-  };
+  }, [completedLevels]);
 
-  const getDifficultyColor = (difficulty: string) => {
+  const getDifficultyColor = useCallback((difficulty: string) => {
     switch (difficulty) {
       case "beginner":
         return "#03DAC6"; // secondary (teal)
@@ -97,9 +170,9 @@ export default function LevelSelectScreen() {
       default:
         return "#FFFFFF";
     }
-  };
+  }, []);
 
-  const handleLevelPress = (levelId: string) => {
+  const handleLevelPress = useCallback((levelId: string) => {
     if (lives <= 0) {
       Alert.alert(
         'No Lives Remaining',
@@ -109,33 +182,69 @@ export default function LevelSelectScreen() {
       return;
     }
 
-    if (isLevelUnlocked(levelId)) {
+    if (unlockedLevels.includes(levelId) && lives > 0) {
       // Navigate to game screen - use the root game screen (not the one in route group)
       // This ensures navigation back goes to level select, not dashboard
       router.push(`/game/${levelId}`);
     }
-  };
+  }, [lives, unlockedLevels, router]);
 
-  const handleBackPress = () => {
+  const handleBackPress = useCallback(() => {
     // Navigate back to home/dashboard
     router.back();
-  };
+  }, [router]);
+
+  const renderLevelItem = useCallback(({ item }: { item: Level }) => {
+    const unlocked = isLevelUnlocked(item.id);
+    const completed = isLevelCompleted(item.id);
+    const difficultyColor = getDifficultyColor(item.difficulty);
+
+    return (
+      <LevelItem
+        level={item}
+        unlocked={unlocked}
+        completed={completed}
+        difficultyColor={difficultyColor}
+        lives={lives}
+        onPress={handleLevelPress}
+      />
+    );
+  }, [isLevelUnlocked, isLevelCompleted, getDifficultyColor, lives, handleLevelPress]);
+
+  const retryLoadLevels = useCallback(async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const rawApiLevels = await convexHttpClient.query(api.queries.getLevels);
+      if (rawApiLevels && rawApiLevels.length > 0) {
+        const processedLevels = processApiLevelsWithLocalAssets(rawApiLevels);
+        setLevels(processedLevels);
+      } else {
+        setError('No levels available from the server');
+      }
+    } catch (error) {
+      console.error('[LevelSelect] Failed to reload levels:', error);
+      setError('Failed to load levels. Please check your connection and try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+          <Pressable onPress={handleBackPress} style={styles.backButton}>
             <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
+          </Pressable>
           <View style={styles.titleContainer}>
             <Text style={styles.titlePrompt}>Prompt</Text>
             <Text style={styles.titlePal}>Pal</Text>
           </View>
         </View>
         <Text style={styles.subtitle}>
-          {module ? `Select a ${module.replace('-', ' ')} level` : 'Select a level to begin'}
+          {type ? `Select a ${type === 'image' ? 'image generation' : type === 'code' ? 'coding logic' : 'copywriting'} challenge` : 'Select a challenge to begin'}
         </Text>
 
         {/* Lives Display */}
@@ -160,104 +269,22 @@ export default function LevelSelectScreen() {
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorTitle}>Unable to Load Levels</Text>
           <Text style={styles.errorMessage}>{error}</Text>
-          <TouchableOpacity
+          <Pressable
             style={styles.retryButton}
-            onPress={() => {
-              setError(null);
-              setIsLoading(true);
-              // Trigger reload
-              const loadLevels = async () => {
-                try {
-                  const rawApiLevels = await apiClient.getLevels();
-                  if (rawApiLevels && rawApiLevels.length > 0) {
-                    const processedLevels = processApiLevelsWithLocalAssets(rawApiLevels);
-                    setLevels(processedLevels);
-                  } else {
-                    setError('No levels available from the server');
-                  }
-                } catch (error) {
-                  console.error('[LevelSelect] Failed to reload levels:', error);
-                  setError('Failed to load levels. Please check your connection and try again.');
-                } finally {
-                  setIsLoading(false);
-                }
-              };
-              loadLevels();
-            }}
+            onPress={retryLoadLevels}
           >
             <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       ) : (
-        <ScrollView
-          style={styles.scrollView}
+        <FlashList
+          data={levels}
+          renderItem={renderLevelItem}
+          keyExtractor={(item) => item.id}
+          estimatedItemSize={140}
+          contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.levelsContainer}>
-            {levels.map((level) => {
-            const unlocked = isLevelUnlocked(level.id);
-            const completed = isLevelCompleted(level.id);
-            const difficultyColor = getDifficultyColor(level.difficulty);
-
-            return (
-              <TouchableOpacity
-                key={level.id}
-                onPress={() => handleLevelPress(level.id)}
-                disabled={!unlocked}
-                style={[
-                  styles.levelCard,
-                  unlocked ? styles.levelCardUnlocked : styles.levelCardLocked,
-                ]}
-              >
-                <View style={styles.levelHeader}>
-                  <Text
-                    style={[styles.levelTitle, { opacity: unlocked ? 1 : 0.5 }]}
-                  >
-                    {level.id.replace("_", " ").toUpperCase()}
-                  </Text>
-                  {completed && (
-                    <View style={styles.completedBadge}>
-                      <Text style={styles.completedCheck}>✓</Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.levelMeta}>
-                  <View
-                    style={[
-                      styles.difficultyBadge,
-                      { backgroundColor: difficultyColor + "20" },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.difficultyText,
-                        { color: difficultyColor },
-                      ]}
-                    >
-                      {level.difficulty}
-                    </Text>
-                  </View>
-                         {!unlocked && (
-                           <Text style={styles.lockedText}>
-                             {lives <= 0 ? 'No Lives Remaining' : 'Locked'}
-                           </Text>
-                         )}
-                </View>
-
-                <Text
-                  style={[
-                    styles.passingScore,
-                    { opacity: unlocked ? 0.7 : 0.4 },
-                  ]}
-                >
-                  Passing Score: {level.passingScore}%
-                </Text>
-              </TouchableOpacity>
-            );
-            })}
-          </View>
-        </ScrollView>
+        />
       )}
     </View>
   );
@@ -317,11 +344,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.7,
   },
-  scrollView: {
-    flex: 1,
+  listContainer: {
     paddingHorizontal: 16,
-  },
-  levelsContainer: {
     paddingBottom: 24,
   },
   levelCard: {

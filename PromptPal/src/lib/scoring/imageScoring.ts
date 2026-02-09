@@ -1,4 +1,5 @@
-import { getSharedClient, AIProxyResponse } from '../unified-api';
+import { convexHttpClient } from '../convex-client';
+import { api } from '../../../convex/_generated/api.js';
 import { logger } from '../logger';
 
 export interface ImageScoringInput {
@@ -37,33 +38,38 @@ export class ImageScoringService {
       const feedback: string[] = [];
       const keywordsMatched: string[] = [];
 
-      let aiResponse: AIProxyResponse | null = null;
+      let aiResponse: any = null;
       let similarity = 0;
 
       try {
-        const client = getSharedClient();
         aiResponse = await Promise.race([
-          client.compareImages(targetImageUrl, resultImageUrl),
+          convexHttpClient.action(api.ai.evaluateImage, {
+            taskId: `task-${Date.now()}`,
+            userImageUrl: resultImageUrl,
+            expectedImageUrl: targetImageUrl,
+            hiddenPromptKeywords,
+            style,
+          }),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Image comparison timeout')), this.TIMEOUT_MS)
           )
-        ]) as AIProxyResponse;
+        ]);
 
-        similarity = aiResponse.score !== undefined ? Math.round(aiResponse.score * 100) : 0;
+        similarity = aiResponse.evaluation?.score !== undefined ? Math.round(aiResponse.evaluation.score * 100) : 0;
 
-        if (!aiResponse.score && aiResponse.score !== 0) {
+        if (aiResponse.evaluation?.score === undefined && aiResponse.evaluation?.score !== 0) {
           logger.warn('ImageScoringService', 'No similarity score in AI response');
         }
       } catch (error) {
         logger.warn('ImageScoringService', 'AI comparison failed, using fallback scoring', { error });
-        similarity = this.calculateFallbackSimilarity(targetImageUrl, resultImageUrl);
+        similarity = this.calculateFallbackSimilarity();
       }
 
       const keywordScore = hiddenPromptKeywords && hiddenPromptKeywords.length > 0
-        ? this.calculateKeywordScore(aiResponse, hiddenPromptKeywords, keywordsMatched)
+        ? this.calculateKeywordScore(aiResponse?.evaluation, hiddenPromptKeywords, keywordsMatched)
         : 0;
 
-      const styleScore = style ? this.calculateStyleScore(aiResponse, style) : 0;
+      const styleScore = style ? this.calculateStyleScore(aiResponse?.evaluation, style) : 0;
 
       const overallScore = this.calculateOverallScore(similarity, keywordScore, styleScore);
 
@@ -102,7 +108,7 @@ export class ImageScoringService {
    * Calculates keyword matching score from AI response
    */
   private static calculateKeywordScore(
-    aiResponse: AIProxyResponse | null,
+    aiResponse: any,
     keywords: string[],
     matchedKeywords: string[]
   ): number {
@@ -133,7 +139,7 @@ export class ImageScoringService {
   /**
    * Calculates style matching score
    */
-  private static calculateStyleScore(aiResponse: AIProxyResponse | null, targetStyle: string): number {
+  private static calculateStyleScore(aiResponse: any, targetStyle: string): number {
     if (!aiResponse || !aiResponse.metadata) {
       return 0;
     }

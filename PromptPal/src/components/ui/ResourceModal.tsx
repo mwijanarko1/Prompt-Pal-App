@@ -4,7 +4,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Badge } from './Badge';
-import { Resource } from '@/lib/unified-api';
+
+// Resource type definition
+export interface Resource {
+  id: string;
+  appId: string;
+  type: 'guide' | 'cheatsheet' | 'lexicon' | 'case-study' | 'prompting-tip';
+  title: string;
+  description: string;
+  content: unknown;
+  category: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimatedTime: number | null;
+  tags: string[];
+  icon: string | null;
+  metadata: unknown | null;
+  order: number;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
 
 interface ResourceModalProps {
   isVisible: boolean;
@@ -22,11 +41,13 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
 
     if (!content) return <Text className="text-onSurfaceVariant italic">No content available for this resource.</Text>;
 
+    const contentData = content as any; // Cast to any to access dynamic properties
+
     switch (type) {
       case 'lexicon':
         return (
           <View className="space-y-4">
-            {Array.isArray(content.terms) && content.terms.map((item: any, index: number) => (
+            {Array.isArray(contentData.terms) && contentData.terms.map((item: any, index: number) => (
               <View key={index} className="bg-surfaceVariant/20 p-4 rounded-2xl border border-outline/10">
                 <Text className="text-primary font-black text-lg mb-1">{item.term}</Text>
                 <Text className="text-onSurface text-sm leading-5">{item.definition}</Text>
@@ -43,7 +64,7 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
       case 'cheatsheet':
         return (
           <View className="space-y-4">
-            {Array.isArray(content.snippets) && content.snippets.map((item: any, index: number) => (
+            {Array.isArray(contentData.snippets) && contentData.snippets.map((item: any, index: number) => (
               <View key={index} className="space-y-2">
                 <Text className="text-onSurface font-bold text-base">{item.title}</Text>
                 <View className="bg-[#1E1E2E] p-4 rounded-xl border border-white/5">
@@ -60,7 +81,7 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
       case 'guide':
         return (
           <View className="space-y-6">
-            {Array.isArray(content.sections) && content.sections.map((section: any, index: number) => (
+            {Array.isArray(contentData.sections) && contentData.sections.map((section: any, index: number) => (
               <View key={index} className="space-y-2">
                 <Text className="text-onSurface font-black text-xl">{section.title}</Text>
                 <Text className="text-onSurfaceVariant text-sm leading-6">
@@ -85,18 +106,41 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
           <View className="space-y-6">
             <View className="bg-surfaceVariant/30 p-5 rounded-[32px] border border-outline/10">
               <Text className="text-primary font-black text-xs uppercase tracking-[2px] mb-2">The Challenge</Text>
-              <Text className="text-onSurface text-base leading-6">{content.challenge}</Text>
+              <Text className="text-onSurface text-base leading-6">{contentData.challenge}</Text>
             </View>
 
             <View className="space-y-4">
               <Text className="text-onSurface font-black text-xl">The Solution</Text>
-              <Text className="text-onSurfaceVariant text-sm leading-6">{content.solution}</Text>
+              <Text className="text-onSurfaceVariant text-sm leading-6">{contentData.solution}</Text>
             </View>
 
             <View className="bg-success/10 p-5 rounded-[32px] border border-success/20">
               <Text className="text-success font-black text-xs uppercase tracking-[2px] mb-2">Key Result</Text>
-              <Text className="text-onSurface text-base leading-6 font-bold">{content.result}</Text>
+              <Text className="text-onSurface text-base leading-6 font-bold">{contentData.result}</Text>
             </View>
+          </View>
+        );
+
+      case 'prompting-tip':
+        return (
+          <View className="space-y-6">
+            {Array.isArray(contentData.sections) && contentData.sections.map((section: any, index: number) => (
+              <View key={index} className="space-y-3">
+                <View className="flex-row items-center">
+                  <Ionicons name="bulb" size={20} color="#FF6B00" />
+                  <Text className="text-onSurface font-black text-lg ml-2">{section.title}</Text>
+                </View>
+                <Text className="text-onSurfaceVariant text-sm leading-6 pl-7">
+                  {section.content}
+                </Text>
+                {section.example && (
+                  <View className="bg-primary/5 p-4 rounded-2xl border border-primary/10 ml-7">
+                    <Text className="text-primary font-bold text-xs uppercase tracking-widest mb-1">Example Prompt</Text>
+                    <Text className="text-onSurface text-sm italic leading-5">{section.example}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
           </View>
         );
 
@@ -111,12 +155,13 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
       case 'cheatsheet': return 'flash';
       case 'lexicon': return 'text';
       case 'case-study': return 'bulb';
+      case 'prompting-tip': return 'chatbubble-ellipses';
       default: return 'document-text';
     }
   };
 
   return (
-    <Modal isVisible={isVisible} onClose={onClose}>
+    <Modal visible={isVisible} onClose={onClose}>
       <View className="max-h-[85%] bg-surface rounded-[40px] overflow-hidden">
         {/* Header */}
         <View className="px-6 pt-8 pb-4 border-b border-outline/5">
@@ -149,7 +194,7 @@ export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose
 
         {/* Content */}
         <ScrollView
-          className="px-6 py-6"
+          className="flex-1 px-6 py-6"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40 }}
         >

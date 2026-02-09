@@ -1,4 +1,5 @@
-import { getSharedClient } from '@/lib/unified-api';
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api.js";
 import { logger } from '@/lib/logger';
 
 // Constants
@@ -9,46 +10,49 @@ export interface UsageStats {
   used: {
     textCalls: number;
     imageCalls: number;
+    audioSummaries: number;
   };
   limits: {
     textCalls: number;
     imageCalls: number;
+    audioSummaries: number;
   };
   periodStart: number;
   periodEnd: number;
 }
 
+
+export function useUsage() {
+  // userId is automatically extracted from Clerk JWT by Convex
+  const usageData = useQuery(api.queries.getUserUsage, {
+    appId: "prompt-pal"
+  });
+
+  if (!usageData) {
+    return null;
+  }
+
+  // Transform the Convex query response to match UsageStats interface
+  return {
+    tier: usageData.tier,
+    used: usageData.used,
+    limits: usageData.limits,
+    periodStart: usageData.periodStart,
+    periodEnd: usageData.periodEnd,
+  } as UsageStats;
+}
+
 export class UsageClient {
   /**
-   * Fetches current user usage statistics from the backend
+   * @deprecated Use the useUsage hook instead for React components
+   * Fetches current user usage statistics from Convex
    * @returns Promise resolving to usage statistics
-   * @throws {Error} If API request fails
+   * @throws {Error} If query fails
    */
   static async getUsage(): Promise<UsageStats> {
-    try {
-      const client = getSharedClient();
-      const usageData = await client.getUserUsage();
-
-      // Debug logging
-      console.log('[UsageClient] Raw API response:', usageData);
-      console.log('[UsageClient] Image calls limit:', usageData.limits?.imageCalls);
-
-      // Transform the unified API response to match UsageStats interface
-      const resetAt = new Date(usageData.resetAt);
-      // Assume 30-day billing cycle for periodStart calculation
-      const periodStart = new Date(resetAt.getTime() - (30 * 24 * 60 * 60 * 1000));
-
-      return {
-        tier: usageData.tier as 'free' | 'pro',
-        used: usageData.used,
-        limits: usageData.limits,
-        periodStart: periodStart.getTime(),
-        periodEnd: resetAt.getTime(),
-      };
-    } catch (error) {
-      logger.error('UsageClient', error, { operation: 'getUsage' });
-      throw new Error('Failed to load usage statistics. Please check your connection and try again.');
-    }
+    // This method is deprecated - use the useUsage hook in React components
+    logger.warn('UsageClient', 'getUsage() is deprecated. Use the useUsage hook instead.');
+    throw new Error('UsageClient.getUsage() is deprecated. Use the useUsage hook in React components.');
   }
 
 

@@ -1,26 +1,24 @@
-// Gemini API integration - delegated to unified backend API
-import { getSharedClient } from './unified-api';
+// Gemini API integration - delegated to Convex backend
+import { convexHttpClient } from './convex-client';
+import { api } from '../../convex/_generated/api.js';
 
-export interface GeminiConfig {
-  apiKey: string;
-  models: {
-    text: 'gemini-2.5-flash';
-    image: 'gemini-2.5-flash-image';
-    vision: 'gemini-2.5-flash';
-  };
-  useBackendApi?: boolean;
-}
+// Model configuration - used for reference only (actual calls go through Convex)
+const MODELS = {
+  text: 'gemini-2.5-flash' as const,
+  image: 'gemini-2.5-flash-image-preview' as const,
+  vision: 'gemini-2.5-flash' as const,
+};
 
 export class GeminiService {
-  constructor(private config: GeminiConfig) { }
-
   // Generate an image based on a text prompt
   async generateImage(prompt: string): Promise<string> {
     try {
       console.log('[Gemini] 🎨 Generating image:', prompt.substring(0, 50));
-      const client = getSharedClient();
-      // unified-api generateImage returns { imageUrl: string, remaining: ... }
-      const result = await client.generateImage(prompt);
+      // Convex generateImage returns { imageUrl: string, remainingQuota: ... }
+      const result = await convexHttpClient.action(api.ai.generateImage, {
+        prompt,
+        appId: "prompt-pal",
+      });
       console.log('[Gemini] ✅ Image generated successfully:', result.imageUrl);
       return result.imageUrl;
     } catch (error) {
@@ -33,21 +31,14 @@ export class GeminiService {
   async compareImages(targetUrl: string, resultUrl: string, taskId?: string): Promise<number> {
     try {
       console.log('[Gemini] 🔍 Comparing images');
-      const client = getSharedClient();
 
-      if (taskId) {
-        // Use advanced evaluation if taskId is provided
-        const result = await client.evaluateImage({
-          taskId,
-          userImageUrl: resultUrl,
-          expectedImageUrl: targetUrl
-        });
-        return result.evaluation.score;
-      } else {
-        // Use basic comparison
-        const result = await client.compareImages(targetUrl, resultUrl);
-        return result.score || 0;
-      }
+      // Use advanced evaluation
+      const result = await convexHttpClient.action(api.ai.evaluateImage, {
+        taskId: taskId || `task-${Date.now()}`,
+        userImageUrl: resultUrl,
+        expectedImageUrl: targetUrl,
+      });
+      return result.evaluation?.score || 0;
     } catch (error) {
       console.error('[Gemini] ❌ Comparison failed:', error);
       throw error;
@@ -57,9 +48,12 @@ export class GeminiService {
   // Get contextual hints for prompt improvement
   async getPromptHints(prompt: string): Promise<string[]> {
     try {
-      const client = getSharedClient();
-      const systemPrompt = "You are an expert AI artist. Provide 3 specific, short hints to improve the user's image generation prompt. Output ONLY valid JSON array of strings.";
-      const result = await client.generateText(prompt, systemPrompt);
+      const systemPrompt = "You are an expert AI artist. Provide 3 specific, short hints to improve user's image generation prompt. Output ONLY valid JSON array of strings.";
+      const result = await convexHttpClient.action(api.ai.generateText, {
+        prompt,
+        context: systemPrompt,
+        appId: "prompt-pal",
+      });
 
       if (result.result) {
         try {
@@ -81,14 +75,6 @@ export class GeminiService {
 }
 
 // Export singleton instance
-export const geminiService = new GeminiService({
-  apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY || '',
-  models: {
-    text: 'gemini-2.5-flash',
-    image: 'gemini-2.5-flash-image',
-    vision: 'gemini-2.5-flash',
-  },
-  useBackendApi: true,
-});
+export const geminiService = new GeminiService();
 
-console.log('[Gemini Service] Initialized using Unified API');
+console.log('[Gemini Service] Initialized using Convex backend');

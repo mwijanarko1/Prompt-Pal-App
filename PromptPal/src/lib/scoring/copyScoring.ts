@@ -1,4 +1,5 @@
-import { getSharedClient, AIProxyResponse } from '../unified-api';
+import { convexHttpClient } from '../convex-client';
+import { api } from '../../../convex/_generated/api.js';
 import { logger } from '../logger';
 
 export interface CopyScoringInput {
@@ -115,10 +116,13 @@ export class CopyScoringService {
     try {
       const prompt = this.buildAnalysisPrompt(text, brief);
 
-      const client = getSharedClient();
-      const aiResponse = await client.generateText(prompt);
+      const aiResponse = await convexHttpClient.action(api.ai.generateText, {
+        prompt,
+        appId: "prompt-pal",
+        context: brief.briefTone,
+      });
 
-      return this.parseMetricsFromResponse(aiResponse, brief);
+      return this.parseMetricsFromResponse({ result: aiResponse.result }, brief);
     } catch (error) {
       logger.warn('CopyScoringService', 'AI analysis failed, using fallback', { error });
 

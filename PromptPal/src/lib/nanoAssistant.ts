@@ -13,7 +13,8 @@
  */
 
 import { Level, ChallengeType } from '@/features/game/store';
-import { getSharedClient } from './unified-api';
+import { convexHttpClient } from './convex-client';
+import { api } from '../../convex/_generated/api.js';
 import { logger } from './logger';
 
 // Constants
@@ -278,9 +279,12 @@ export class NanoAssistant {
       const systemPrompt = buildSystemPrompt(moduleType, levelData.difficulty, levelData);
       const userMessage = buildUserMessage(currentPrompt, moduleType);
 
-      // Try to get AI-generated hint using Unified API
-      const client = getSharedClient();
-      const response = await client.generateText(userMessage, systemPrompt);
+      // Try to get AI-generated hint using Convex
+      const response = await convexHttpClient.action(api.ai.generateText, {
+        prompt: userMessage,
+        context: systemPrompt,
+        appId: "prompt-pal",
+      });
 
       if (response.result) {
         return response.result;

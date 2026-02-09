@@ -1,5 +1,5 @@
-import { TouchableOpacity, Text, ActivityIndicator, View, StyleSheet } from 'react-native';
-import { ReactNode } from 'react';
+import { Pressable, Text, ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ReactNode, useCallback } from 'react';
 
 interface ButtonProps {
   children: ReactNode;
@@ -22,61 +22,73 @@ export function Button({
   fullWidth = false,
   className = '',
 }: ButtonProps) {
-  const variantStyles = {
-    primary: { backgroundColor: '#FF6B00' },
-    secondary: { backgroundColor: '#4151FF' },
-    outline: { borderWidth: 2, borderColor: '#374151', backgroundColor: 'transparent' },
-    ghost: { backgroundColor: 'transparent' },
+  const variantClasses = {
+    primary: 'bg-primary',
+    secondary: 'bg-secondary',
+    outline: 'border-2 border-outline bg-transparent',
+    ghost: 'bg-transparent',
   };
 
-  const sizeStyles = {
-    sm: { paddingHorizontal: 16, paddingVertical: 8 },
-    md: { paddingHorizontal: 24, paddingVertical: 12 },
-    lg: { paddingHorizontal: 32, paddingVertical: 16 },
+  const sizeClasses = {
+    sm: 'px-4 py-2',
+    md: 'px-6 py-3',
+    lg: 'px-8 py-4',
   };
 
-  const textVariantStyles = {
-    primary: { color: '#FFFFFF' },
-    secondary: { color: '#FFFFFF' },
-    outline: { color: '#FFFFFF' },
-    ghost: { color: '#FF6B00' },
+  const textVariantClasses = {
+    primary: 'text-onPrimary',
+    secondary: 'text-onSecondary',
+    outline: 'text-onSurface',
+    ghost: 'text-primary',
   };
 
-  const textSizeStyles = {
-    sm: { fontSize: 14 },
-    md: { fontSize: 16 },
-    lg: { fontSize: 18 },
+  const textSizeClasses = {
+    sm: 'text-sm',
+    md: 'text-base',
+    lg: 'text-lg',
   };
+
+  const handlePress = useCallback(() => {
+    if (!disabled && !loading) {
+      onPress();
+    }
+  }, [disabled, loading, onPress]);
+
+  const isTextChild = typeof children === 'string' || typeof children === 'number';
+
+  const buttonClassName = `${variantClasses[variant]} ${sizeClasses[size]} ${fullWidth ? 'w-full' : ''} ${disabled || loading ? 'opacity-50' : ''} ${className}`;
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
+    <Pressable
+      onPress={handlePress}
       disabled={disabled || loading}
-      style={[
+      className={buttonClassName}
+      style={({ pressed }) => [
         styles.base,
-        variantStyles[variant],
-        sizeStyles[size],
-        fullWidth && { width: '100%' },
-        (disabled || loading) && { opacity: 0.5 },
+        pressed && { opacity: 0.8 },
       ]}
     >
       {loading ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View className="flex-row items-center">
           <ActivityIndicator
             size="small"
             color={variant === 'primary' || variant === 'secondary' ? '#FFFFFF' : '#FF6B00'}
             style={{ marginRight: 8 }}
           />
-          <Text style={[textVariantStyles[variant], textSizeStyles[size], styles.text]}>
+          <Text className={`${textVariantClasses[variant]} ${textSizeClasses[size]} font-semibold text-center`}>
             Loading...
           </Text>
         </View>
       ) : (
-        <Text style={[textVariantStyles[variant], textSizeStyles[size], styles.text]}>
-          {children}
-        </Text>
+        isTextChild ? (
+          <Text className={`${textVariantClasses[variant]} ${textSizeClasses[size]} font-semibold text-center`}>
+            {children}
+          </Text>
+        ) : (
+          children
+        )
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -86,8 +98,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  text: {
-    fontWeight: '600',
-  },
 });
-

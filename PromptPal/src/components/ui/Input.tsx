@@ -14,6 +14,7 @@ interface InputProps {
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   className?: string;
   onFocus?: () => void;
+  inputAccessoryViewID?: string;
 }
 
 export function Input({
@@ -29,6 +30,7 @@ export function Input({
   autoCapitalize = 'sentences',
   className = '',
   onFocus,
+  inputAccessoryViewID,
 }: InputProps) {
   const hasError = !!error;
   const borderColor = hasError ? 'border-error' : 'border-outline';
@@ -52,6 +54,7 @@ export function Input({
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          inputAccessoryViewID={inputAccessoryViewID}
           style={{
             paddingHorizontal: 16,
             paddingVertical: 12,

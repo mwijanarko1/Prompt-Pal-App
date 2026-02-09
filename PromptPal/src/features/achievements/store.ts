@@ -1,36 +1,54 @@
 import { create } from 'zustand';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 
-interface Achievement {
+export interface Achievement {
   id: string;
   title: string;
   description: string;
   icon: string;
   unlocked: boolean;
-  unlockedAt?: string;
+  unlockedAt?: number;
 }
 
 interface AchievementsState {
   achievements: Achievement[];
-  unlockAchievement: (id: string) => void;
-  resetAchievements: () => void;
+  setAchievements: (achievements: Achievement[]) => void;
   getUnlockedCount: () => number;
 }
 
 export const useAchievementsStore = create<AchievementsState>((set, get) => ({
-  achievements: [
-    { id: 'first_level', title: 'First Steps', description: 'Complete your first level', icon: '🎯', unlocked: false },
-    { id: 'streak_7', title: 'Week Warrior', description: 'Maintain a 7-day streak', icon: '🔥', unlocked: false },
-    { id: 'xp_1000', title: 'XP Hunter', description: 'Earn 1000 XP', icon: '⭐', unlocked: false },
-    { id: 'level_5', title: 'Level Master', description: 'Reach level 5', icon: '🏆', unlocked: false },
-    { id: 'perfect_score', title: 'Perfectionist', description: 'Get a perfect score', icon: '💯', unlocked: false },
-  ],
-  unlockAchievement: (id) => set((state) => ({
-    achievements: state.achievements.map(a => 
-      a.id === id ? { ...a, unlocked: true, unlockedAt: new Date().toISOString() } : a
-    )
-  })),
-  resetAchievements: () => set((state) => ({
-    achievements: state.achievements.map(a => ({ ...a, unlocked: false, unlockedAt: undefined }))
-  })),
+  achievements: [],
+  setAchievements: (achievements) => set({ achievements }),
   getUnlockedCount: () => get().achievements.filter(a => a.unlocked).length,
 }));
+
+/**
+ * Hook to fetch and sync user achievements from Convex
+ * @param userId Clerk user ID
+ */
+export function useUserAchievements(userId: string | undefined) {
+  const setAchievements = useAchievementsStore((state) => state.setAchievements);
+
+  const achievements = useQuery(api.queries.getUserAchievements, userId ? { userId } : "skip") ?? [];
+
+  const formattedAchievements: Achievement[] = achievements.map(a => ({
+    id: a.id,
+    title: a.title,
+    description: a.description,
+    icon: a.icon,
+    unlocked: true, // If they are returned by getUserAchievements, they are unlocked
+    unlockedAt: a.unlockedAt,
+  }));
+
+  // We should also get ALL achievements to show locked ones if needed
+  // But for the profile page, maybe we just want to show what the user has?
+  // The plan says "Replace useAchievementsStore() with useQuery(api.queries.getUserAchievements, { userId })" in profile.tsx
+  // "Keep local store only for optimistic UI updates"
+
+  return {
+    achievements: formattedAchievements,
+    isLoading: achievements === undefined,
+  };
+}
+

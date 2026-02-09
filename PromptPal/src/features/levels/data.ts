@@ -1,5 +1,6 @@
 import { Level } from '../game/store';
-import { getSharedClient } from '../../lib/unified-api';
+import { convexHttpClient } from '../../lib/convex-client';
+import { api } from '../../../convex/_generated/api.js';
 
 // Note: Target images are now stored in Convex and URLs are provided by the backend API
 // Local assets are only used for UI display
@@ -59,11 +60,21 @@ function getLocalImageForLevel(levelId: string): any {
   return image;
 }
 
+const APP_ID = 'prompt-pal';
+
+const MODULE_ID_BY_TYPE: Record<string, string> = {
+  image: 'image-generation',
+  code: 'coding-logic',
+  copywriting: 'copywriting',
+};
+
 // Process API levels to use local assets for images
 export function processApiLevelsWithLocalAssets(apiLevels: Level[]): Level[] {
   return apiLevels.map(level => ({
     ...level,
-    targetImageUrl: getLocalImageForLevel(level.id), // Override API image with local asset
+    moduleId: level.moduleId ?? (level.type ? MODULE_ID_BY_TYPE[level.type] : undefined),
+    // Only get local image for image-based levels
+    targetImageUrl: level.type === 'image' ? getLocalImageForLevel(level.id) : level.targetImageUrl,
   }));
 }
 
@@ -294,8 +305,7 @@ export function createLocalLevelsFromAssets(): Level[] {
 // Fetch levels from API
 export async function fetchLevelsFromApi(): Promise<Level[]> {
   try {
-    const client = getSharedClient();
-    const levels = await client.getLevels();
+    const levels = await convexHttpClient.query(api.queries.getLevels, { appId: APP_ID });
 
     // Process levels to add local assets if needed (or if API returns full URLs, updated logic might be needed)
     // For now, mapping IDs to local assets for consistency as per existing logic
@@ -314,11 +324,10 @@ export async function fetchLevelsFromApi(): Promise<Level[]> {
 // Fetch a single level by ID from API
 export async function fetchLevelById(id: string): Promise<Level | undefined> {
   try {
-    const client = getSharedClient();
-    const level = await client.getLevelById(id);
+    const level = await convexHttpClient.query(api.queries.getLevelById, { id });
 
     if (level) {
-      // Convert/process if needed, or return directly. 
+      // Convert/process if needed, or return directly.
       // Existing logic used taskToLevel. Here we assume Level.
       // We still want local image assets for consistent UI if they use local images.
       const levels = processApiLevelsWithLocalAssets([level as Level]);
@@ -403,4 +412,3 @@ export function getNextUnlockableLevel(completedLevelId: string): Level | null {
     level.prerequisites?.includes(completedLevelId)
   ) || null;
 }
-

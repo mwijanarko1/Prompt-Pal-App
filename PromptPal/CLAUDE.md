@@ -6,8 +6,15 @@ A gamified AI prompt engineering learning app built with React Native and Expo.
 
 PromptPal helps users learn AI prompt engineering through interactive challenges across three domains: image generation, coding, and copywriting. Users earn XP, maintain streaks, complete daily quests, and compete on global leaderboards.
 
-**Tech Stack**: React Native, Expo Router, Zustand, Clerk Auth, NativeWind/Tailwind
+**Tech Stack**: React Native, Expo Router, Zustand, Clerk Auth, **Convex Backend**, NativeWind/Tailwind
 **Structure**: File-based routing with feature-based state management
+
+## Architecture
+
+**Backend**: Convex (convex.dev) - Serverless backend with real-time queries
+**Authentication**: Clerk with JWT tokens for Convex authentication
+**State Management**: Zustand for local state, Convex for server state
+**AI Services**: Google Gemini API via Convex mutations
 
 ## Key Files
 
@@ -16,7 +23,8 @@ PromptPal helps users learn AI prompt engineering through interactive challenges
 | App entry | `src/app/_layout.tsx` |
 | Screens | `src/app/(tabs)/` |
 | State stores | `src/features/*/store.ts` |
-| API clients | `src/lib/api.ts`, `src/lib/aiProxy.ts` |
+| **Convex client** | `src/lib/convex-client.ts` |
+| **Convex functions** | `convex/` (queries.ts, mutations.ts, ai.ts) |
 | UI components | `src/components/ui/` |
 | Utilities | `src/lib/` |
 
@@ -26,9 +34,18 @@ PromptPal helps users learn AI prompt engineering through interactive challenges
 
 **Adding state**: Create store in `src/features/{feature}/store.ts`
 
-**Adding API endpoint**: Add method to `src/lib/api.ts`
+**Adding Convex query**: Add to `convex/queries.ts` and regenerate client
 
-**Modifying auth**: See `src/lib/auth*.ts*` files
+**Adding Convex mutation**: Add to `convex/mutations.ts` or `convex/ai.ts`
+
+**Modifying auth**: See `src/lib/auth*.ts*` files and `convex/auth.config.ts`
+
+## Migration Notes
+
+✅ **Completed**: Migrated from proxy backend to Convex (100% complete)
+- All API calls now go through `convexHttpClient`
+- Legacy `api.ts` and `unified-api.ts` removed
+- Authentication handled automatically via Clerk + Convex
 
 ## Documentation
 

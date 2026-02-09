@@ -1,6 +1,8 @@
 import { useGameStore, GameState } from '@/features/game/store';
+import { useUserProgressStore } from '@/features/user/store';
 import { logger } from '@/lib/logger';
-import { createUnifiedClient, UnifiedApiClient } from './unified-api';
+import { convexHttpClient } from '@/lib/convex-client';
+import { api } from "../../convex/_generated/api.js";
 
 // Constants
 const SYNC_INTERVAL_MS = 300000; // 5 minutes (reduced from 30 seconds for event-driven sync)
@@ -227,6 +229,9 @@ export class SyncManager {
       // Perform sync with conflict resolution
       await this.performSync(gameState);
 
+      // Sync user statistics (streak, XP, level) separately
+      await this.syncUserStatistics();
+
       // Update last sync timestamp
       await this.updateLastSyncTimestamp();
     } catch (error) {
@@ -298,13 +303,12 @@ export class SyncManager {
    */
   private static async fetchServerProgress(): Promise<Partial<GameState> | null> {
     try {
-      const { getSharedClient } = await import('./unified-api');
-      const client = getSharedClient();
-
-      const gameState = await client.getGameState();
+      const gameState = await convexHttpClient.query(api.queries.getUserGameState, {
+        appId: "prompt-pal"
+      });
 
       return {
-        currentLevelId: gameState.currentLevelId,
+        currentLevelId: gameState.currentLevelId ?? null,
         lives: gameState.lives,
         score: gameState.score,
         isPlaying: gameState.isPlaying,
@@ -322,15 +326,31 @@ export class SyncManager {
    */
   private static async sendProgressToServer(state: GameState): Promise<void> {
     try {
-      const { getSharedClient } = await import('./unified-api');
-      const client = getSharedClient();
-
-      await client.updateGameState(state);
+      await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+        appId: "prompt-pal",
+        currentLevelId: state.currentLevelId ?? undefined,
+        lives: state.lives,
+        score: state.score,
+        isPlaying: state.isPlaying,
+        unlockedLevels: state.unlockedLevels,
+        completedLevels: state.completedLevels,
+      });
 
       logger.info('SyncManager', 'Progress synced to server');
     } catch (error) {
       logger.error('SyncManager', error, { operation: 'sendProgressToServer' });
       throw error;
+    }
+  }
+
+  /**
+   * Syncs user statistics with backend
+   */
+  private static async syncUserStatistics(): Promise<void> {
+    try {
+      await useUserProgressStore.getState().syncWithBackend();
+    } catch (error) {
+      logger.warn('SyncManager', 'Failed to sync user statistics', { error });
     }
   }
 

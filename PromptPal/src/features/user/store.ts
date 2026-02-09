@@ -1,26 +1,12 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
-import { getSharedClient } from '@/lib/unified-api';
+import { convexHttpClient } from '@/lib/convex-client';
+import { api } from '../../../convex/_generated/api.js';
 import { getModuleThumbnail } from '@/lib/thumbnails';
 
 // Default learning modules shown immediately (no API wait needed)
 const getDefaultLearningModules = (): LearningModule[] => [
-  {
-    id: 'image-generation',
-    category: 'Design',
-    title: 'Image Generation',
-    level: 'Beginner',
-    topic: 'AI Art',
-    progress: 0,
-    icon: 'color-palette',
-    thumbnail: getModuleThumbnail('Image Generation', 'Design', 'AI Art'),
-    accentColor: 'bg-green-500',
-    buttonText: 'Start Creating',
-    type: 'module',
-    format: 'interactive',
-    estimatedTime: 10,
-  },
   {
     id: 'coding-logic',
     category: 'Programming',
@@ -51,6 +37,22 @@ const getDefaultLearningModules = (): LearningModule[] => [
     format: 'interactive',
     estimatedTime: 20,
   },
+  {
+    id: 'image-generation',
+    category: 'Design',
+    title: 'Image Generation',
+    level: 'Beginner',
+    topic: 'AI Art',
+    progress: 0,
+    icon: 'color-palette',
+    thumbnail: getModuleThumbnail('Image Generation', 'Design', 'AI Art'),
+    accentColor: 'bg-gray-500',
+    buttonText: 'Coming Soon',
+    type: 'module',
+    format: 'interactive',
+    estimatedTime: 10,
+    isLocked: true,
+  },
 ];
 
 export interface LearningModule {
@@ -67,6 +69,7 @@ export interface LearningModule {
   type?: 'module' | 'course';
   format?: 'interactive' | 'video' | 'text';
   estimatedTime?: number;
+  isLocked?: boolean;
 }
 
 export interface DailyQuest {
@@ -95,16 +98,16 @@ export interface UserProgress {
 
   // Actions
   addXP: (amount: number) => Promise<void>;
-  updateStreak: () => void;
+  updateStreak: () => Promise<void>;
   resetStreak: () => void;
   updateModuleProgress: (moduleId: string, progress: number) => void;
   setCurrentQuest: (quest: DailyQuest) => void;
-  completeQuest: () => void;
+  completeQuest: () => Promise<void>;
   resetProgress: () => void;
 
   // Backend sync actions
   syncWithBackend: () => Promise<void>;
-  loadFromBackend: () => Promise<void>;
+  loadFromBackend: (userId?: string) => Promise<void>;
   setLearningModules: (modules: LearningModule[]) => void;
 }
 
@@ -126,6 +129,16 @@ const calculateLevel = (xp: number): number => {
 const calculateXPForNextLevel = (currentXP: number): number => {
   const currentLevel = calculateLevel(currentXP);
   return currentLevel * 200; // Next level at currentLevel * 200 XP
+};
+
+const getDateString = (date: Date): string => date.toISOString().split('T')[0];
+
+const getTodayString = (): string => getDateString(new Date());
+
+const getYesterdayString = (): string => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return getDateString(yesterday);
 };
 
 // Custom storage adapter for expo-secure-store
@@ -168,7 +181,8 @@ export const useUserProgressStore = create<UserProgress>()(
 
         // Sync XP and level changes to backend
         try {
-          await getSharedClient().updateProgress({
+          await convexHttpClient.mutation(api.mutations.updateUserXP, {
+            appId: "prompt-pal",
             totalXp: newXP,
             currentLevel: newLevel,
           });
@@ -177,8 +191,8 @@ export const useUserProgressStore = create<UserProgress>()(
         }
       },
 
-      updateStreak: () => {
-        const today = new Date().toISOString().split('T')[0];
+      updateStreak: async () => {
+        const today = getTodayString();
         const lastActivityDate = get().lastActivityDate;
 
         if (lastActivityDate === today) {
@@ -186,9 +200,7 @@ export const useUserProgressStore = create<UserProgress>()(
           return;
         }
 
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const yesterdayStr = getYesterdayString();
 
         let newStreak = 1; // Default for new streak
         let newLongestStreak = get().longestStreak;
@@ -204,6 +216,8 @@ export const useUserProgressStore = create<UserProgress>()(
           longestStreak: newLongestStreak,
           lastActivityDate: today,
         });
+
+        await get().syncWithBackend();
       },
 
       resetStreak: () => {
@@ -224,7 +238,11 @@ export const useUserProgressStore = create<UserProgress>()(
 
         // Sync with backend
         try {
-          await getSharedClient().updateModuleProgress(moduleId, progress);
+          await convexHttpClient.mutation(api.mutations.updateModuleProgress, {
+            appId: "prompt-pal",
+            moduleId,
+            progress,
+          });
         } catch (error) {
           console.error('Failed to sync module progress:', error);
         }
@@ -244,9 +262,13 @@ export const useUserProgressStore = create<UserProgress>()(
             currentQuest: { ...quest, completed: true }
           });
 
+          await get().updateStreak();
+
           // Sync with backend
           try {
-            await getSharedClient().completeQuest();
+            await convexHttpClient.mutation(api.mutations.completeDailyQuest, {
+              questId: quest.id,
+            });
           } catch (error) {
             console.error('Failed to sync quest completion:', error);
           }
@@ -261,54 +283,105 @@ export const useUserProgressStore = create<UserProgress>()(
       syncWithBackend: async () => {
         try {
           // Sync progress data
-          const progressData = {
+          const progressData: {
+            totalXp: number;
+            currentLevel: number;
+            currentStreak: number;
+            longestStreak: number;
+            lastActivityDate?: string;
+          } = {
             totalXp: get().xp,
             currentLevel: get().level,
             currentStreak: get().currentStreak,
             longestStreak: get().longestStreak,
-            lastActivityDate: get().lastActivityDate,
           };
 
-          // This would be called after significant updates
-          // For now, just log that sync would happen
-          console.log('Syncing user data with backend:', progressData);
+          if (get().lastActivityDate) {
+            progressData.lastActivityDate = get().lastActivityDate ?? undefined;
+          }
+
+          await convexHttpClient.mutation(api.mutations.updateUserStatistics, progressData);
         } catch (error) {
           console.error('Failed to sync with backend:', error);
         }
       },
 
-      loadFromBackend: async () => {
+      loadFromBackend: async (userId?: string) => {
         try {
-          // Load learning modules from API (for progress updates)
-          const apiModules = await getSharedClient().getLearningModules();
+          // Load learning modules and user module progress from Convex
+          const [apiModules, progressRows] = await Promise.all([
+            convexHttpClient.query(api.queries.getLearningModules, {
+              appId: "prompt-pal"
+            }),
+            userId
+              ? convexHttpClient.query(api.queries.getUserModuleProgress, {
+                userId,
+              })
+              : Promise.resolve([]),
+          ]);
+
+          const progressByModuleId = new Map(
+            (progressRows ?? []).map((row: any) => [row.moduleId, row.progress])
+          );
 
           // Start with default modules
           let modules = getDefaultLearningModules();
 
-          // If API returns modules, merge progress data
-          if (apiModules && apiModules.length > 0) {
-            modules = modules.map(defaultModule => {
-              // Find matching API module by ID or category
-              const apiModule = apiModules.find((api: any) =>
-                api.id === defaultModule.id ||
-                api.category.toLowerCase() === defaultModule.category.toLowerCase()
-              );
+          modules = modules.map(defaultModule => {
+            // Find matching API module by ID or category
+            const apiModule = apiModules?.find((api: any) =>
+              api.id === defaultModule.id ||
+              api.category.toLowerCase() === defaultModule.category.toLowerCase()
+            );
 
-              // Merge API data with default module
-              return {
-                ...defaultModule,
-                ...apiModule,
-                thumbnail: defaultModule.thumbnail, // Keep our local thumbnail
-              };
-            });
-          }
+            // Merge API data with default module
+            const mergedModule = {
+              ...defaultModule,
+              ...apiModule,
+              thumbnail: defaultModule.thumbnail, // Keep our local thumbnail
+            };
+
+            const moduleProgress = progressByModuleId.get(mergedModule.id);
+
+            return {
+              ...mergedModule,
+              progress: typeof moduleProgress === 'number' ? moduleProgress : mergedModule.progress,
+            };
+          });
 
           set({ learningModules: modules });
 
           // Load current quest
-          const quest = await getSharedClient().getCurrentQuest();
+          const quest = await convexHttpClient.mutation(api.mutations.getOrAssignCurrentQuest, {
+            appId: "prompt-pal",
+            ...(userId ? { userId } : {}),
+          });
           if (quest) {
             set({ currentQuest: quest });
+          }
+
+          // Load user statistics (streak, level, XP)
+          const stats = await convexHttpClient.query(api.queries.getMyUserStatistics, {});
+          if (stats) {
+            set({
+              xp: stats.totalXp,
+              level: stats.currentLevel,
+              currentStreak: stats.currentStreak,
+              longestStreak: stats.longestStreak,
+              lastActivityDate: stats.lastActivityDate ?? null,
+            });
+          }
+
+          const today = getTodayString();
+          const yesterdayStr = getYesterdayString();
+          const lastActivityDate = get().lastActivityDate;
+          const hasGap =
+            !lastActivityDate ||
+            (lastActivityDate !== today && lastActivityDate !== yesterdayStr);
+
+          if (hasGap && get().currentStreak !== 0) {
+            set({ currentStreak: 0 });
+            await get().syncWithBackend();
           }
         } catch (error: any) {
           console.error('Failed to load data from backend:', error);
@@ -319,8 +392,7 @@ export const useUserProgressStore = create<UserProgress>()(
             console.warn('Authentication failed when loading user data - session may be expired');
           }
 
-          // Keep empty state if API fails
-          set({ learningModules: [] });
+          // Keep existing/default state if API fails
         }
       },
 

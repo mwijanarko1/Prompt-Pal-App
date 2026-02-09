@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import * as SecureStore from "expo-secure-store";
-import { getSharedClient } from "@/lib/unified-api";
+import { convexHttpClient } from "@/lib/convex-client";
+import { api } from "../../../convex/_generated/api.js";
 import { logger } from "@/lib/logger";
 
 export type ChallengeType = 'image' | 'code' | 'copywriting';
@@ -37,7 +38,8 @@ export interface Level {
   requirementBrief?: string;
   requirementImage?: string;
   language?: string;
-  testCases?: { id: string; name: string; passed: boolean }[];
+  functionName?: string;
+  testCases?: { id: string; name: string; input?: any; expectedOutput?: any; description?: string; passed?: boolean }[];
 
   // Copywriting Challenge specific
   briefTitle?: string;
@@ -45,7 +47,12 @@ export interface Level {
   briefTarget?: string;
   briefTone?: string;
   briefGoal?: string;
+  wordLimit?: { min?: number; max?: number };
+  requiredElements?: string[];
   metrics?: { label: string; value: number }[];
+
+  // General
+  description?: string;
 }
 
 export interface GameState {
@@ -157,8 +164,8 @@ export const useGameStore = create<GameState>()(
           const newLives = currentLives - 1;
           set({ lives: newLives });
 
-          // If lives reach 0, end the current level but don't reset lives
-          // This allows the level select to show locked state
+          // If lives reach 0, end of current level but don't reset lives
+          // This allows level select to show locked state
           if (newLives === 0) {
             set({
               currentLevelId: null,
@@ -168,7 +175,10 @@ export const useGameStore = create<GameState>()(
 
           // Sync lives change to backend
           try {
-            await getSharedClient().updateGameState(get().getStateForBackend());
+            await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+              appId: "prompt-pal",
+              ...get().getStateForBackend(),
+            });
           } catch (error) {
             logger.error('GameStore', error, { operation: 'loseLife sync' });
           }
@@ -187,7 +197,10 @@ export const useGameStore = create<GameState>()(
 
           // Sync unlocked levels to backend
           try {
-            await getSharedClient().updateGameState(get().getStateForBackend());
+            await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+              appId: "prompt-pal",
+              ...get().getStateForBackend(),
+            });
           } catch (error) {
             logger.error('GameStore', error, { operation: 'unlockLevel sync', levelId });
           }
@@ -202,7 +215,10 @@ export const useGameStore = create<GameState>()(
 
           // Sync completed levels to backend
           try {
-            await getSharedClient().updateGameState(get().getStateForBackend());
+            await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+              appId: "prompt-pal",
+              ...get().getStateForBackend(),
+            });
           } catch (error) {
             logger.error('GameStore', error, { operation: 'completeLevel sync', levelId });
           }
@@ -272,7 +288,10 @@ export const useGameStore = create<GameState>()(
 
       syncToBackend: async () => {
         try {
-          await getSharedClient().updateGameState(get().getStateForBackend());
+          await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+            appId: "prompt-pal",
+            ...get().getStateForBackend(),
+          });
           logger.info('GameStore', 'Synced game state to backend');
         } catch (error) {
           logger.error('GameStore', error, { operation: 'syncToBackend' });

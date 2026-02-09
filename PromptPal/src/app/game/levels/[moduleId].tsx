@@ -3,11 +3,11 @@ import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { processApiLevelsWithLocalAssets } from '@/features/levels/data';
+import { fetchLevelsFromApi, getLevelsByModuleId } from '@/features/levels/data';
 import { Card, Badge, ProgressBar } from '@/components/ui';
 import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
-import { getSharedClient, Level } from '@/lib/unified-api';
+import { Level } from '@/features/game/store';
 import { logger } from '@/lib/logger';
 
 export default function LevelsScreen() {
@@ -47,21 +47,19 @@ export default function LevelsScreen() {
       setIsLoading(true);
       setError(null);
       try {
-        let type: any = moduleId;
-        if (moduleId === 'image-generation') type = 'image';
-        // Fetch all levels from API only
-        const rawApiLevels = await getSharedClient().getLevels();
+        const apiLevels = await fetchLevelsFromApi();
+        const sourceLevels = apiLevels.length > 0 ? apiLevels : getLevelsByModuleId(moduleId as string);
 
-        if (rawApiLevels && rawApiLevels.length > 0) {
+        if (sourceLevels.length > 0) {
           // Filter levels by module type - try moduleId first, fallback to type mapping
-          let moduleLevels = rawApiLevels.filter(level => level.moduleId === moduleId);
+          let moduleLevels = sourceLevels.filter(level => level.moduleId === moduleId);
 
           // If no levels found by moduleId, try filtering by type
           if (moduleLevels.length === 0) {
             const expectedType = moduleId === 'image-generation' ? 'image' :
-              moduleId === 'code-logic' ? 'code' :
+              moduleId === 'coding-logic' ? 'code' :
                 moduleId === 'copywriting' ? 'copywriting' : moduleId;
-            moduleLevels = rawApiLevels.filter(level => level.type === expectedType);
+            moduleLevels = sourceLevels.filter(level => level.type === expectedType);
           }
 
           if (moduleLevels.length === 0) {
@@ -69,8 +67,7 @@ export default function LevelsScreen() {
             return;
           }
 
-          const processedLevels = processApiLevelsWithLocalAssets(moduleLevels as any);
-          setLevels(processedLevels as any);
+          setLevels(moduleLevels as Level[]);
         } else {
           setError('No levels available from the server');
         }
@@ -94,7 +91,7 @@ export default function LevelsScreen() {
     return (
       <TouchableOpacity
         key={level.id}
-        onPress={() => isUnlocked && router.push(`/(tabs)/game/${level.id}`)}
+        onPress={() => isUnlocked && router.push(`/game/${level.id}`)}
         disabled={!isUnlocked}
         className="mb-4"
       >

@@ -1,6 +1,6 @@
-import { useAuth } from '@clerk/clerk-expo';
 import { useGameStore } from '@/features/game/store';
-import { createClientWithToken } from '@/lib/unified-api';
+import { convexHttpClient } from '@/lib/convex-client';
+import { api } from '../../convex/_generated/api.js';
 import { logger } from '@/lib/logger';
 
 /**
@@ -8,7 +8,6 @@ import { logger } from '@/lib/logger';
  * Auto-sync on app startup is now handled by the SyncManager
  */
 export function useGameStateSync() {
-  const { getToken } = useAuth();
   const { getStateForBackend } = useGameStore();
 
   // Return function to manually sync back to backend
@@ -16,15 +15,11 @@ export function useGameStateSync() {
     try {
       const localState = getStateForBackend();
 
-      // Get fresh token for this request
-      const token = await getToken();
-      if (!token) {
-        throw new Error('No authentication token available');
-      }
-
-      // Create authenticated client for this operation
-      const client = createClientWithToken(token);
-      await client.updateGameState(localState);
+      // Convex client is already authenticated with Clerk tokens
+      await convexHttpClient.mutation(api.mutations.updateUserGameState, {
+        appId: "prompt-pal",
+        ...localState,
+      });
       logger.info('GameStateSync', 'Synced game state to backend');
     } catch (error) {
       logger.error('GameStateSync', error, { operation: 'syncToBackend' });

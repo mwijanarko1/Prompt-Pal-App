@@ -11,7 +11,7 @@ export const handleDeepLink = (url: string) => {
         logger.warn('DeepLinking', 'Missing id parameter for level link');
         return;
       }
-      router.push(`/(tabs)/game/levels/${queryParams.id}`);
+      router.push(`/game/levels/${queryParams.id}`);
     } else if (path === 'quest') {
       router.push('/(tabs)/library');
     } else if (path === 'module') {
@@ -19,7 +19,7 @@ export const handleDeepLink = (url: string) => {
         logger.warn('DeepLinking', 'Missing id parameter for module link');
         return;
       }
-      router.push(`/(tabs)/game/levels/${queryParams.id}`);
+      router.push(`/game/levels/${queryParams.id}`);
     }
   } catch (error) {
     logger.error('DeepLinking', error, { operation: 'handleDeepLink', url });
