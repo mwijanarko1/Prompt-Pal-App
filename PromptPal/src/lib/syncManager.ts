@@ -1,7 +1,7 @@
 import { useGameStore, GameState } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
 import { logger } from '@/lib/logger';
-import { convexHttpClient } from '@/lib/convex-client';
+import { convexHttpClient, refreshConvexAuth } from '@/lib/convex-client';
 import { api } from "../../convex/_generated/api.js";
 
 // Constants
@@ -219,6 +219,9 @@ export class SyncManager {
 
     try {
       this.syncInProgress = true;
+
+      // Ensure Convex HTTP client has a token before any queries/mutations (e.g. right after login)
+      await refreshConvexAuth();
 
       // Process offline queue first
       await this.processOfflineQueue();

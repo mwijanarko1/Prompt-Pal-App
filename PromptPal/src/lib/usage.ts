@@ -1,4 +1,5 @@
 import { useQuery } from "convex/react";
+import { useAuth } from "@clerk/clerk-expo";
 import { api } from "../../convex/_generated/api.js";
 import { logger } from '@/lib/logger';
 
@@ -23,10 +24,12 @@ export interface UsageStats {
 
 
 export function useUsage() {
-  // userId is automatically extracted from Clerk JWT by Convex
-  const usageData = useQuery(api.queries.getUserUsage, {
-    appId: "prompt-pal"
-  });
+  const { isLoaded, isSignedIn } = useAuth();
+  // Skip query when not signed in to avoid "User must be authenticated" errors
+  const usageData = useQuery(
+    api.queries.getUserUsage,
+    isLoaded && isSignedIn ? { appId: "prompt-pal" } : "skip"
+  );
 
   if (!usageData) {
     return null;

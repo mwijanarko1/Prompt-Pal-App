@@ -25,8 +25,27 @@ export const getUserUsage = query({
       .withIndex("by_app_id", (q) => q.eq("id", appId))
       .first();
 
+    // When app is not seeded (e.g. local dev), return default free limits so the app doesn't crash.
+    // Run `npx convex run seed:seedApps` to create the prompt-pal app.
+    const defaultLimits = {
+      textCalls: 50,
+      imageCalls: 50,
+      audioSummaries: 0,
+    };
     if (!app) {
-      throw new Error(`App ${appId} not found`);
+      const now = Date.now();
+      const currentDate = new Date(now);
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const oneMonthMs = daysInMonth * 24 * 60 * 60 * 1000;
+      return {
+        tier: "free" as const,
+        used: { textCalls: 0, imageCalls: 0, audioSummaries: 0 },
+        limits: defaultLimits,
+        periodStart: now,
+        periodEnd: now + oneMonthMs,
+      };
     }
 
     // Get user plan

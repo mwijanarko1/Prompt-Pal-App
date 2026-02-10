@@ -21,7 +21,8 @@ export function validateEnvironment(): void {
   console.log('[Environment] Validating environment variables...');
   for (const varName of REQUIRED_ENV_VARS) {
     const value = process.env[varName];
-    console.log(`[Environment] ${varName}: ${value ? 'SET' : 'MISSING'} (${value || 'undefined'})`);
+    // Never log actual values - they may contain secrets
+    console.log(`[Environment] ${varName}: ${value ? 'SET' : 'MISSING'}`);
     if (!value) {
       missingVars.push(varName);
     }

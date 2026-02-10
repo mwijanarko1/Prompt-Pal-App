@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ClerkProviderWrapper, useAuth } from '@/lib/clerk';
 import { validateEnvironment } from '@/lib/env';
 import { SyncManager } from '@/lib/syncManager';
+import { refreshConvexAuth } from '@/lib/convex-client';
 import { AuthTokenSync, SessionMonitor } from '@/lib/auth-sync';
 import { logger } from '@/lib/logger';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -43,38 +44,56 @@ function GameStateInitializer() {
 }
 
 /**
- * Component that handles app initialization after Clerk provider is set up
+ * Component that handles app initialization after Clerk provider is set up.
+ * Only starts SyncManager when user is signed in to avoid "User must be authenticated" errors.
  */
 function AppInitializer() {
+  const { isLoaded, isSignedIn } = useAuth();
+
   // Validate environment variables on app startup (non-blocking in development)
   useEffect(() => {
     validateEnvironment();
   }, []);
 
   useEffect(() => {
-    // Start background sync when app loads
-    SyncManager.startPeriodicSync();
-
-    // Initialize network connectivity listener
     const networkUnsubscribe = initializeNetworkListener();
 
-    // Sync on app focus and handle online/offline status
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (!isLoaded || !isSignedIn) return;
       if (nextAppState === 'active') {
         SyncManager.setOnlineStatus(true);
         SyncManager.syncUserProgress();
       } else if (nextAppState === 'background') {
-        // App going to background, ensure final sync
         SyncManager.syncUserProgress();
       }
     });
 
     return () => {
       networkUnsubscribe?.();
-      SyncManager.stopPeriodicSync();
       subscription?.remove();
     };
-  }, []);
+  }, [isLoaded, isSignedIn]);
+
+  // Start/stop SyncManager only when signed in. Refresh Convex HTTP auth first so sync has a token.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      let cancelled = false;
+      (async () => {
+        await refreshConvexAuth();
+        if (cancelled) return;
+        SyncManager.startPeriodicSync();
+        SyncManager.setOnlineStatus(true);
+        SyncManager.syncUserProgress();
+      })();
+      return () => {
+        cancelled = true;
+        SyncManager.stopPeriodicSync();
+      };
+    } else {
+      SyncManager.stopPeriodicSync();
+    }
+  }, [isLoaded, isSignedIn]);
 
   return (
     <SafeAreaProvider>

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
-import { convexHttpClient } from '@/lib/convex-client';
+import { convexHttpClient, refreshConvexAuth } from '@/lib/convex-client';
 import { api } from '../../../convex/_generated/api.js';
 import { getModuleThumbnail } from '@/lib/thumbnails';
 
@@ -308,6 +308,9 @@ export const useUserProgressStore = create<UserProgress>()(
 
       loadFromBackend: async (userId?: string) => {
         try {
+          // Ensure Convex HTTP client has a token before queries (e.g. right after login)
+          await refreshConvexAuth();
+
           // Load learning modules and user module progress from Convex
           const [apiModules, progressRows] = await Promise.all([
             convexHttpClient.query(api.queries.getLearningModules, {
