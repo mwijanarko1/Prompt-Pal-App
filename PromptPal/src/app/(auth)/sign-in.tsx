@@ -1,11 +1,13 @@
 import { useSignIn, useSSO } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
-import { Text, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import React, { useState, useCallback, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { GoogleIcon } from '@/components/GoogleIcon'
 import * as AuthSession from 'expo-auth-session'
 import * as WebBrowser from 'expo-web-browser'
+import { logger } from '@/lib/logger'
 
 // Browser warming hook for better OAuth UX
 const useWarmUpBrowser = () => {
@@ -31,11 +33,11 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isOAuthLoading, setIsOAuthLoading] = useState<string | null>(null)
-  const [errors, setErrors] = useState<{email?: string; password?: string; general?: string}>({})
+  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({})
 
   // Validate form inputs
   const validateForm = () => {
-    const newErrors: {email?: string; password?: string} = {}
+    const newErrors: { email?: string; password?: string } = {}
 
     if (!emailAddress.trim()) {
       newErrors.email = 'Email is required'
@@ -45,8 +47,8 @@ export default function SignInScreen() {
 
     if (!password.trim()) {
       newErrors.password = 'Password is required'
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters'
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters'
     }
 
     setErrors(newErrors)
@@ -79,11 +81,10 @@ export default function SignInScreen() {
         setErrors({ general: 'Sign in failed. Please try again.' })
       }
     } catch (err) {
-      // See Clerk docs: custom flows error handling
-      const errorMessage = (err && typeof err === 'object' && 'errors' in err && Array.isArray((err as { errors?: Array<{ message?: string }> }).errors))
-        ? (err as { errors: Array<{ message?: string }> }).errors[0]?.message || 'Sign in failed'
-        : 'Sign in failed'
-      setErrors({ general: errorMessage })
+      // Use generic error message to prevent user enumeration attacks
+      // Don't expose whether email exists or if password is wrong
+      logger.error('SignIn', err, { email: emailAddress })
+      setErrors({ general: 'Invalid email or password. Please try again.' })
     } finally {
       setIsLoading(false)
     }
@@ -248,7 +249,7 @@ export default function SignInScreen() {
                 <Text className="text-white font-black text-lg uppercase tracking-widest">Sign In</Text>
               )}
             </TouchableOpacity>
-            
+
             <TouchableOpacity className="mt-6 self-center">
               <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest">Forgot Password?</Text>
             </TouchableOpacity>

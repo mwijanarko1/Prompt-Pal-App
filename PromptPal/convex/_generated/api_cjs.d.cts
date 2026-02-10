@@ -17,6 +17,7 @@ import type * as levels_data from "../levels_data.js";
 import type * as mutations from "../mutations.js";
 import type * as queries from "../queries.js";
 import type * as rankings from "../rankings.js";
+import type * as rateLimit from "../rateLimit.js";
 import type * as seed from "../seed.js";
 
 import type {
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   mutations: typeof mutations;
   queries: typeof queries;
   rankings: typeof rankings;
+  rateLimit: typeof rateLimit;
   seed: typeof seed;
 }>;
 

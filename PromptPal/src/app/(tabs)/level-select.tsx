@@ -182,9 +182,15 @@ export default function LevelSelectScreen() {
       return;
     }
 
+    // Always allow coding and copywriting levels, regardless of unlocking status
+    // This matches the visual unlock state in renderLevelItem
+    if (levelId.startsWith('code-') || levelId.startsWith('copywriting-')) {
+      router.push(`/game/${levelId}`);
+      return;
+    }
+
     if (unlockedLevels.includes(levelId) && lives > 0) {
-      // Navigate to game screen - use the root game screen (not the one in route group)
-      // This ensures navigation back goes to level select, not dashboard
+      // Navigate to game screen
       router.push(`/game/${levelId}`);
     }
   }, [lives, unlockedLevels, router]);

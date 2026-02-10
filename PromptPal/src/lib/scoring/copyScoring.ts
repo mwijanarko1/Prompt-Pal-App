@@ -188,18 +188,48 @@ Provide scores in JSON format:
   ): { label: string; value: number }[] {
     try {
       if (aiResponse.result) {
-        const jsonMatch = aiResponse.result.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const scores = JSON.parse(jsonMatch[0]);
+        let jsonText = aiResponse.result;
 
-          return this.METRIC_LABELS.map(label => {
-            const key = label.replace(/ /g, '_').toUpperCase();
-            return {
-              label,
-              value: Math.min(Math.max(scores[key] || 50, 0), 100),
-            };
-          });
+        // 1. Try to find JSON block in markdown backticks
+        const backtickMatch = aiResponse.result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (backtickMatch && backtickMatch[1]) {
+          jsonText = backtickMatch[1];
+        } else {
+          // 2. Try to find the first { and last }
+          const braceMatch = aiResponse.result.match(/\{[\s\S]*\}/);
+          if (braceMatch) {
+            jsonText = braceMatch[0];
+          }
         }
+
+        jsonText = jsonText.trim();
+
+        let scores: Record<string, number>;
+        try {
+          scores = JSON.parse(jsonText);
+        } catch (firstError) {
+          // 3. Try to fix single backslashes
+          try {
+            const fixedJsonText = jsonText.replace(/\\([^"\\\/bfnrtu])/g, '\\\\$1');
+            scores = JSON.parse(fixedJsonText);
+          } catch (secondError) {
+            logger.warn('CopyScoringService', 'Failed to parse AI response', {
+              response: aiResponse.result,
+              jsonText,
+              firstError: firstError instanceof Error ? firstError.message : String(firstError),
+              secondError: secondError instanceof Error ? secondError.message : String(secondError)
+            });
+            return this.calculateFallbackMetrics('', brief);
+          }
+        }
+
+        return this.METRIC_LABELS.map(label => {
+          const key = label.replace(/ /g, '_').toUpperCase();
+          return {
+            label,
+            value: Math.min(Math.max(scores[key] || 50, 0), 100),
+          };
+        });
       }
 
       return this.calculateFallbackMetrics('', brief);

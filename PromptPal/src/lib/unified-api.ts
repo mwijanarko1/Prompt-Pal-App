@@ -16,8 +16,19 @@ import { record401Error } from './auth-diagnostics';
 // Constants
 // ============================================================================
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:1337';
-const AI_PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL || API_BASE_URL;
+// Validate required environment variables
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+const AI_PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL;
+
+if (!API_BASE_URL) {
+  throw new Error(
+    'EXPO_PUBLIC_API_URL environment variable is required. ' +
+    'Please set it in your .env file or environment configuration.'
+  );
+}
+
+// Use AI_PROXY_URL if set, otherwise fall back to API_BASE_URL
+const resolvedAiProxyUrl = AI_PROXY_URL || API_BASE_URL;
 const API_TIMEOUT_MS = 30000;
 const APP_ID = 'prompt-pal';
 
@@ -360,26 +371,109 @@ export class UnifiedApiClient {
     }
 
     /**
-     * Configures retry logic with exponential backoff
+     * Configures retry logic with exponential backoff and strict limits
      */
     private setupRetry(): void {
+        const MAX_RETRIES = 3;
+        const MAX_RETRY_DELAY_MS = 10000; // Cap retry delay at 10 seconds
+        
         axiosRetry(this.client, {
-            retries: 3,
-            retryDelay: axiosRetry.exponentialDelay,
-            retryCondition: (error) => {
-                return (
-                    axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-                    (error.response?.status !== undefined && error.response.status >= 500) ||
-                    error.response?.status === 429
+            retries: MAX_RETRIES,
+            retryDelay: (retryCount) => {
+                // Exponential backoff with max delay cap
+                const delay = Math.min(
+                    Math.pow(2, retryCount) * 1000 + Math.random() * 1000,
+                    MAX_RETRY_DELAY_MS
                 );
+                return delay;
+            },
+            retryCondition: (error) => {
+                const status = error.response?.status;
+                
+                // Only retry on network errors and 5xx server errors
+                // DO NOT retry on 429 (rate limiting) - that's handled separately
+                const shouldRetry = (
+                    axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+                    (status !== undefined && status >= 500 && status < 600)
+                );
+                
+                return shouldRetry;
             },
             onRetry: (retryCount, error, requestConfig) => {
-                logger.warn('UnifiedApiClient', `Request failed, retrying (${retryCount}/3)`, {
+                // Track total retry attempts across all requests
+                const retryKey = `${requestConfig.url}:${requestConfig.method}`;
+                const currentRetries = (requestConfig as any)._retryCount || 0;
+                
+                if (currentRetries >= MAX_RETRIES) {
+                    logger.error('UnifiedApiClient', 'Max retries exceeded', {
+                        url: requestConfig.url,
+                        totalAttempts: currentRetries + 1,
+                    });
+                    return;
+                }
+                
+                (requestConfig as any)._retryCount = currentRetries + 1;
+                
+                logger.warn('UnifiedApiClient', `Request failed, retrying (${retryCount}/${MAX_RETRIES})`, {
                     url: requestConfig.url,
                     status: error.response?.status,
+                    method: requestConfig.method,
                 });
             },
         });
+        
+        // Add request deduplication to prevent duplicate concurrent requests
+        this.setupRequestDeduplication();
+    }
+    
+    private pendingRequests = new Map<string, Promise<any>>();
+    
+    /**
+     * Sets up request deduplication to prevent duplicate concurrent requests
+     */
+    private setupRequestDeduplication(): void {
+        // Intercept requests to implement deduplication
+        this.client.interceptors.request.use(
+            async (config) => {
+                // Skip deduplication for non-idempotent methods
+                if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+                    return config;
+                }
+                
+                const requestKey = `${config.method}:${config.url}:${JSON.stringify(config.params)}:${JSON.stringify(config.data)}`;
+                
+                // If there's already a pending identical request, return that promise
+                if (this.pendingRequests.has(requestKey)) {
+                    logger.debug('UnifiedApiClient', 'Deduplicating identical request', { url: config.url });
+                    // Return a special marker that the response interceptor will detect
+                    (config as any)._deduplicationKey = requestKey;
+                    (config as any)._isDuplicate = true;
+                } else {
+                    (config as any)._deduplicationKey = requestKey;
+                    (config as any)._isDuplicate = false;
+                }
+                
+                return config;
+            }
+        );
+        
+        // Clean up pending requests after completion
+        this.client.interceptors.response.use(
+            (response) => {
+                const config = response.config as any;
+                if (config._deduplicationKey && !config._isDuplicate) {
+                    this.pendingRequests.delete(config._deduplicationKey);
+                }
+                return response;
+            },
+            (error) => {
+                const config = error.config as any;
+                if (config?._deduplicationKey && !config?._isDuplicate) {
+                    this.pendingRequests.delete(config._deduplicationKey);
+                }
+                return Promise.reject(error);
+            }
+        );
     }
 
     /**
@@ -785,5 +879,5 @@ export function setSharedClientTokenProvider(provider: TokenProvider): void {
 // Log initialization
 logger.info('UnifiedApiClient', 'Module initialized', {
     baseUrl: API_BASE_URL,
-    aiProxyUrl: AI_PROXY_URL,
+    aiProxyUrl: resolvedAiProxyUrl,
 });

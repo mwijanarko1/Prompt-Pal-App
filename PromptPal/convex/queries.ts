@@ -97,13 +97,20 @@ export const getApp = query({
 });
 
 // Get user progress data
+// NOTE: userId is now extracted from authentication context for security
 export const getUserProgress = query({
   args: {
-    userId: v.string(),
     appId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { userId, appId } = args;
+    const { appId } = args;
+    
+    // Get userId from authenticated identity - prevents spoofing
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    const userId = identity.subject;
 
     const progress = await ctx.db
       .query("userProgress")
