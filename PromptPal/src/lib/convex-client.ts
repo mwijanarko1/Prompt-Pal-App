@@ -89,5 +89,13 @@ setInterval(() => {
   });
 }, 45 * 60 * 1000);
 
+/**
+ * Refresh the Convex HTTP client's auth token (e.g. after user signs in).
+ * Call this when isSignedIn becomes true so Convex calls succeed immediately.
+ */
+export async function refreshConvexAuth(): Promise<void> {
+  await setupAuth();
+}
+
 // Export the client (authentication will be set up automatically)
 export { client as convexHttpClient };

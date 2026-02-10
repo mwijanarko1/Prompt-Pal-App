@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
 import { logger } from './logger';
 import { registerSignOutCallback } from './session-manager';
+import { refreshConvexAuth } from './convex-client';
 
 /**
  * Component that monitors Clerk authentication session health.
@@ -14,6 +15,11 @@ function AuthTokenSyncInner() {
     if (isLoaded) {
       if (!isSignedIn) {
         logger.warn('AuthTokenSync', 'User not signed in');
+      } else {
+        // Refresh Convex HTTP client token so SyncManager and other convexHttpClient callers work right after login
+        refreshConvexAuth().catch((err) => {
+          logger.warn('AuthTokenSync', 'Failed to refresh Convex auth', { error: err });
+        });
       }
     }
   }, [isLoaded, isSignedIn]);
