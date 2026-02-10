@@ -11,12 +11,67 @@ import { convexHttpClient } from '@/lib/convex-client';
 import { api } from '../../../convex/_generated/api.js';
 import { getModuleThumbnail } from '@/lib/thumbnails';
 import { promptingTipsData } from '@/lib/promptingTips';
+import type { IoniconsName } from '@/types/icons';
+
+// Define proper types for Module and Resource
+interface Module {
+  id: string;
+  category: string;
+  title: string;
+  level: string;
+  topic: string;
+  progress: number;
+  icon: IoniconsName;
+  thumbnail?: string;
+  accentColor: string;
+  buttonText: string;
+  type?: 'module' | 'course';
+  format?: 'interactive' | 'video' | 'text';
+  estimatedTime?: number;
+  userProgress?: number;
+  isCompleted?: boolean;
+}
+
+interface Resource {
+  id: string;
+  appId: string;
+  type: 'guide' | 'cheatsheet' | 'lexicon' | 'case-study' | 'prompting-tip';
+  title: string;
+  description: string;
+  content: unknown;
+  category: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimatedTime: number | null;
+  tags: string[];
+  icon: string | null;
+  metadata: unknown | null;
+  order: number;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface Category {
+  category: string;
+  modules: Module[];
+  resources: Resource[];
+}
+
+interface LibraryData {
+  userSummary: {
+    totalXp: number;
+    currentLevel: number;
+    streak: number;
+    completedLevels: number;
+  };
+  categories: Category[];
+}
 
 interface ModuleCardProps {
-  module: any;
+  module: Module;
   categoryIdx: number;
   moduleIdx: number;
-  onPress: (module: any) => void;
+  onPress: (module: Module) => void;
 }
 
 const ModuleCard = memo(function ModuleCard({ module, categoryIdx, moduleIdx, onPress }: ModuleCardProps) {
@@ -37,7 +92,7 @@ const ModuleCard = memo(function ModuleCard({ module, categoryIdx, moduleIdx, on
           {thumbnail ? (
             <Image source={thumbnail} style={{ width: '100%', height: '100%' }} contentFit="cover" />
           ) : (
-            <Ionicons name={module.icon as any || 'school'} size={48} color="#FF6B00" />
+            <Ionicons name={module.icon || 'school'} size={48} color="#FF6B00" />
           )}
           <View className="absolute top-3 right-3">
             <Badge
@@ -67,14 +122,14 @@ const ModuleCard = memo(function ModuleCard({ module, categoryIdx, moduleIdx, on
 });
 
 interface ResourceCardProps {
-  resource: any;
+  resource: Resource;
   categoryIdx: number;
   resIdx: number;
-  onPress: (resource: any) => void;
+  onPress: (resource: Resource) => void;
 }
 
 const ResourceCard = memo(function ResourceCard({ resource, categoryIdx, resIdx, onPress }: ResourceCardProps) {
-  const getResourceIcon = useCallback((type: string) => {
+  const getResourceIcon = useCallback((type: Resource['type']): IoniconsName => {
     switch (type) {
       case 'guide': return 'book';
       case 'cheatsheet': return 'flash';
@@ -96,7 +151,7 @@ const ResourceCard = memo(function ResourceCard({ resource, categoryIdx, resIdx,
     >
       <Card className="flex-row items-center p-4 rounded-[24px] border-0 bg-surfaceVariant/30">
         <View className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center mr-4">
-          <Ionicons name={getResourceIcon(resource.type) as any} size={24} color="#FF6B00" />
+          <Ionicons name={getResourceIcon(resource.type)} size={24} color="#FF6B00" />
         </View>
         <View className="flex-1">
           <Text className="text-onSurface text-base font-black">{resource.title}</Text>

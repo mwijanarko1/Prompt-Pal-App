@@ -4,8 +4,14 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText as aiGenerateText } from "ai";
 import { api } from "./_generated/api";
 
+// Validate environment variable at startup
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY environment variable is required");
+}
+
 const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  apiKey: GEMINI_API_KEY,
 });
 
 type QuotaResult = {

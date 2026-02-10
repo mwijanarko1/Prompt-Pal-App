@@ -58,8 +58,14 @@ export class GeminiService {
       if (result.result) {
         try {
           // Extract JSON array from text if needed
-          const jsonMatch = result.result.match(/\[.*\]/s);
-          const hints = JSON.parse(jsonMatch ? jsonMatch[0] : result.result);
+          let jsonText = result.result;
+          const jsonMatch = result.result.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+
+          jsonText = jsonText.trim();
+          const hints = JSON.parse(jsonText);
           return Array.isArray(hints) ? hints.slice(0, 3) : [];
         } catch {
           // Fallback if not valid JSON

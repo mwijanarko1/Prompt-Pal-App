@@ -506,4 +506,17 @@ export default defineSchema({
     .index("by_app", ["appId"])
     .index("by_request", ["requestId"])
     .index("by_created", ["createdAt"]),
+
+  // ===== RATE LIMITING =====
+
+  // Rate limit tracking
+  rateLimits: defineTable({
+    identifier: v.string(), // Unique identifier (e.g., "user:userId" or "ip:127.0.0.1")
+    count: v.number(), // Number of requests in current window
+    windowStart: v.number(), // Timestamp when the window started
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_identifier", ["identifier"])
+    .index("by_window", ["windowStart"]),
 });

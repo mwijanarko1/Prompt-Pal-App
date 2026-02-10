@@ -30,7 +30,7 @@ export interface LearningModule {
   currentLevelOrder?: number;
   progress: number;
   icon: string;
-  thumbnail?: any;
+  thumbnail?: string | number; // string for URL, number for require() asset
   accentColor: string;
   buttonText: string;
   type?: 'module' | 'course';
@@ -61,7 +61,7 @@ const getGreeting = (): string => {
 };
 
 // Helper to map emoji icons to Ionicons names
-const getIconName = (icon: string): any => {
+const getIconName = (icon: string): string => {
   const mapping: Record<string, string> = {
     "🎨": "color-palette",
     "💻": "laptop",

@@ -277,10 +277,10 @@ export const updateUserStatistics = mutation({
 
 /**
  * Save a new user level attempt with auto-numbering
+ * NOTE: userId is now extracted from authentication context for security
  */
 export const saveUserLevelAttempt = mutation({
   args: {
-    userId: v.string(),
     levelId: v.string(),
     score: v.number(), // 0-100
     feedback: v.array(v.string()), // Array of feedback strings
@@ -300,7 +300,17 @@ export const saveUserLevelAttempt = mutation({
     }))),
   },
   handler: async (ctx, args) => {
-    const { userId, levelId, score, feedback, keywordsMatched, imageUrl, code, copy, testResults } = args;
+    const { levelId, score, feedback, keywordsMatched, imageUrl, code, copy, testResults } = args;
+    
+    // Get userId from authenticated identity - prevents spoofing
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    const userId = identity.subject;
+    
+    // Verify user has permission to attempt this level
+    // (Add additional checks here if needed, e.g., level is unlocked for user)
 
     // Validate score range
     if (score < 0 || score > 100) {
@@ -322,8 +332,30 @@ export const saveUserLevelAttempt = mutation({
     }
 
     // Validate image URL domain (must be from convex.cloud)
-    if (imageUrl && !imageUrl.includes('convex.cloud')) {
-      throw new Error("Image URL must be from convex.cloud domain");
+    if (imageUrl) {
+      try {
+        const url = new URL(imageUrl);
+        // Whitelist specific Convex storage domains
+        const allowedDomains = ['convex.cloud', 'storage.convex.dev'];
+        const hostname = url.hostname.toLowerCase();
+        const isAllowedDomain = allowedDomains.some(domain => 
+          hostname === domain || hostname.endsWith(`.${domain}`)
+        );
+        
+        if (!isAllowedDomain) {
+          throw new Error("Image URL must be from a trusted domain");
+        }
+        
+        // Ensure HTTPS protocol
+        if (url.protocol !== 'https:') {
+          throw new Error("Image URL must use HTTPS protocol");
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("trusted domain")) {
+          throw error;
+        }
+        throw new Error("Invalid image URL format");
+      }
     }
 
     // Get the next attempt number

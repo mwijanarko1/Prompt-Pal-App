@@ -417,7 +417,7 @@ export default function QuestScreen() {
                     'Focus on what the user is asking for, but ensure it\'s a valid, executable function.',
                     '',
                     'EVALUATION CRITERIA:',
-                    `The function should be named "${level.functionName}" and meet these requirements:`,
+                    `The function MUST be named "${level.functionName || 'solution'}" and meet these requirements:`,
                     level.requirementBrief || 'Solve the given problem.',
                     '',
                     'TEST CASES TO EVALUATE AGAINST:',
@@ -453,7 +453,8 @@ export default function QuestScreen() {
                     '- Score should reflect how well the code meets the test case requirements (0-100)',
                     '- passed should be true if score >= 70',
                     '- Test results should show how the generated code performs against each test case',
-                    '- Feedback should be helpful and specific about what needs to be improved'
+                    '- Feedback should be helpful and specific about what needs to be improved',
+                    '- IMPORTANT: If the code contains backslashes (like in regex), you MUST escape them correctly for JSON (use \\\\ for a single backslash in the code string).'
                 ].join('\n');
 
                 const generateResult = await generateText(prompt, codeSystemPrompt);
@@ -481,16 +482,46 @@ export default function QuestScreen() {
                     };
                 }
 
-                let parsedResponse: AIResponse;
-                try {
-                    // Try to extract JSON from the response
-                    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                    const jsonText = jsonMatch ? jsonMatch[0] : responseText;
-                    parsedResponse = JSON.parse(jsonText);
-                } catch (parseError) {
-                    logger.error('GameScreen', 'Failed to parse AI response as JSON', { responseText, parseError });
-                    throw new Error('AI response was not in the expected JSON format');
-                }
+                // Helper function to extract and parse JSON from AI response
+                const extractAndParseJSON = (text: string): AIResponse => {
+                    let jsonText = text;
+
+                    // 1. Try to find JSON block in markdown backticks
+                    const backtickMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                    if (backtickMatch && backtickMatch[1]) {
+                        jsonText = backtickMatch[1];
+                    } else {
+                        // 2. Try to find the first { and last }
+                        const braceMatch = text.match(/\{[\s\S]*\}/);
+                        if (braceMatch) {
+                            jsonText = braceMatch[0];
+                        }
+                    }
+
+                    // 3. Clean up the string - remove any potential non-JSON characters at start/end
+                    jsonText = jsonText.trim();
+
+                    try {
+                        return JSON.parse(jsonText);
+                    } catch (firstError) {
+                        // 4. Common issue: AI outputs single backslashes in code strings (e.g. \s in regex)
+                        // which results in invalid JSON. We try to escape them.
+                        try {
+                            const fixedJsonText = jsonText.replace(/\\([^"\\\/bfnrtu])/g, '\\\\$1');
+                            return JSON.parse(fixedJsonText);
+                        } catch (secondError) {
+                            logger.error('QuestScreen', 'Failed to parse AI response as JSON', {
+                                responseText: text,
+                                jsonText,
+                                firstError: firstError instanceof Error ? firstError.message : String(firstError),
+                                secondError: secondError instanceof Error ? secondError.message : String(secondError)
+                            });
+                            throw new Error('AI response was not in the expected JSON format');
+                        }
+                    }
+                };
+
+                const parsedResponse = extractAndParseJSON(responseText);
 
                 const { code: generatedCodeText, evaluation } = parsedResponse;
 
