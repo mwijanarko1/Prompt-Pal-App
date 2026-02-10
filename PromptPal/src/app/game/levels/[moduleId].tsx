@@ -86,7 +86,18 @@ export default function LevelsScreen() {
 
   const renderLevelCard = (level: any, index: number) => {
     const isCompleted = completedLevels.includes(level.id);
-    const isUnlocked = unlockedLevels.includes(level.id) || level.unlocked;
+
+    // Code and copywriting levels are always unlocked (no plan gating)
+    const isCodingOrCopywriting = level.type === 'code' || level.type === 'copywriting' ||
+      level.id.startsWith('code-') || level.id.startsWith('copywriting-');
+
+    // For code/copywriting: always unlocked
+    // For image levels: check store + static field + prerequisites
+    const prerequisitesMet = !level.prerequisites || level.prerequisites.length === 0 ||
+      level.prerequisites.every((prereqId: string) => completedLevels.includes(prereqId));
+    const isUnlocked = isCodingOrCopywriting ||
+      unlockedLevels.includes(level.id) ||
+      (level.unlocked && prerequisitesMet);
 
     return (
       <TouchableOpacity

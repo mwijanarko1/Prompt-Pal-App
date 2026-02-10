@@ -323,6 +323,7 @@ export default defineSchema({
     description: v.string(),
     xpReward: v.number(),
     questType: v.union(v.literal("image"), v.literal("code"), v.literal("copywriting")),
+    levelId: v.optional(v.string()), // Associated level to complete
     type: v.string(), // 'image', 'code', 'copywriting'
     category: v.string(),
     requirements: v.any(), // Specific requirements for quest

@@ -34,9 +34,11 @@ const CircularProgress = memo(function CircularProgress({
   color = "#FF6B00",
   isDark = true
 }: CircularProgressProps) {
+  // Guard against invalid percentage
+  const safePercentage = isNaN(percentage) || !isFinite(percentage) ? 0 : Math.min(100, Math.max(0, percentage));
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const strokeDashoffset = circumference - (safePercentage / 100) * circumference;
   const bgStroke = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
   return (

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
-import { convexHttpClient } from '@/lib/convex-client';
+import { convexHttpClient, refreshAuth } from '@/lib/convex-client';
 import { api } from '../../../convex/_generated/api.js';
 import { getModuleThumbnail } from '@/lib/thumbnails';
 
@@ -13,6 +13,8 @@ const getDefaultLearningModules = (): LearningModule[] => [
     title: 'Coding Logic',
     level: 'Beginner',
     topic: 'Problem Solving',
+    currentLevelName: 'Hello Function',
+    currentLevelOrder: 1,
     progress: 0,
     icon: 'code',
     thumbnail: getModuleThumbnail('Coding Logic', 'Programming', 'Problem Solving'),
@@ -28,6 +30,8 @@ const getDefaultLearningModules = (): LearningModule[] => [
     title: 'Copywriting',
     level: 'Beginner',
     topic: 'Marketing',
+    currentLevelName: 'Product Headline',
+    currentLevelOrder: 1,
     progress: 0,
     icon: 'create',
     thumbnail: getModuleThumbnail('Copywriting', 'Writing', 'Marketing'),
@@ -43,6 +47,8 @@ const getDefaultLearningModules = (): LearningModule[] => [
     title: 'Image Generation',
     level: 'Beginner',
     topic: 'AI Art',
+    currentLevelName: 'Color Match',
+    currentLevelOrder: 1,
     progress: 0,
     icon: 'color-palette',
     thumbnail: getModuleThumbnail('Image Generation', 'Design', 'AI Art'),
@@ -61,6 +67,8 @@ export interface LearningModule {
   title: string;
   level: string;
   topic: string;
+  currentLevelName?: string;
+  currentLevelOrder?: number;
   progress: number; // 0-100
   icon: string;
   thumbnail?: any;
@@ -74,6 +82,7 @@ export interface LearningModule {
 
 export interface DailyQuest {
   id: string;
+  levelId?: string;
   title: string;
   description: string;
   xpReward: number;
@@ -141,10 +150,13 @@ const getYesterdayString = (): string => {
   return getDateString(yesterday);
 };
 
-// Custom storage adapter for expo-secure-store
+// Custom storage adapter for expo-secure-store (native) or localStorage (web)
 const secureStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        return window.localStorage.getItem(name);
+      }
       return await SecureStore.getItemAsync(name);
     } catch {
       return null;
@@ -152,14 +164,22 @@ const secureStorage = {
   },
   setItem: async (name: string, value: string): Promise<void> => {
     try {
-      await SecureStore.setItemAsync(name, value);
-    } catch {
-      // Handle error silently
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(name, value);
+      } else {
+        await SecureStore.setItemAsync(name, value);
+      }
+    } catch (error) {
+      console.warn('SecureStore setItem failed:', error);
     }
   },
   removeItem: async (name: string): Promise<void> => {
     try {
-      await SecureStore.deleteItemAsync(name);
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(name);
+      } else {
+        await SecureStore.deleteItemAsync(name);
+      }
     } catch {
       // Handle error silently
     }
@@ -179,10 +199,9 @@ export const useUserProgressStore = create<UserProgress>()(
           level: newLevel
         });
 
-        // Sync XP and level changes to backend
+        // Sync XP and level changes to backend via updateUserStatistics
         try {
-          await convexHttpClient.mutation(api.mutations.updateUserXP, {
-            appId: "prompt-pal",
+          await convexHttpClient.mutation(api.mutations.updateUserStatistics, {
             totalXp: newXP,
             currentLevel: newLevel,
           });
@@ -239,7 +258,6 @@ export const useUserProgressStore = create<UserProgress>()(
         // Sync with backend
         try {
           await convexHttpClient.mutation(api.mutations.updateModuleProgress, {
-            appId: "prompt-pal",
             moduleId,
             progress,
           });
@@ -386,10 +404,78 @@ export const useUserProgressStore = create<UserProgress>()(
         } catch (error: any) {
           console.error('Failed to load data from backend:', error);
 
-          // If authentication failed, don't try to load data
-          // The SessionMonitor will handle signing out if needed
-          if (error?.response?.status === 401) {
-            console.warn('Authentication failed when loading user data - session may be expired');
+          // If authentication failed, try to refresh auth and retry once
+          if (error?.message?.includes('User must be authenticated') || error?.response?.status === 401) {
+            console.warn('Authentication failed when loading user data, attempting to refresh...');
+
+            try {
+              await refreshAuth();
+
+              // Retry queries once
+              const [apiModules, progressRows] = await Promise.all([
+                convexHttpClient.query(api.queries.getLearningModules, {
+                  appId: "prompt-pal"
+                }),
+                userId
+                  ? convexHttpClient.query(api.queries.getUserModuleProgress, {
+                    userId,
+                  })
+                  : Promise.resolve([]),
+              ]);
+
+              // Process retry results (same logic as above)
+              const progressByModuleId = new Map(
+                (progressRows ?? []).map((row: any) => [row.moduleId, row.progress])
+              );
+
+              let modules = getDefaultLearningModules();
+              modules = modules.map(defaultModule => {
+                const apiModule = apiModules?.find((api: any) =>
+                  api.id === defaultModule.id ||
+                  api.category.toLowerCase() === defaultModule.category.toLowerCase()
+                );
+
+                const mergedModule = {
+                  ...defaultModule,
+                  ...apiModule,
+                  thumbnail: defaultModule.thumbnail,
+                };
+
+                const moduleProgress = progressByModuleId.get(mergedModule.id);
+
+                return {
+                  ...mergedModule,
+                  progress: typeof moduleProgress === 'number' ? moduleProgress : mergedModule.progress,
+                };
+              });
+
+              set({ learningModules: modules });
+
+              // Load current quest
+              const quest = await convexHttpClient.mutation(api.mutations.getOrAssignCurrentQuest, {
+                appId: "prompt-pal",
+                ...(userId ? { userId } : {}),
+              });
+              if (quest) {
+                set({ currentQuest: quest });
+              }
+
+              // Load user statistics
+              const stats = await convexHttpClient.query(api.queries.getMyUserStatistics, {});
+              if (stats) {
+                set({
+                  xp: stats.totalXp,
+                  level: stats.currentLevel,
+                  currentStreak: stats.currentStreak,
+                  longestStreak: stats.longestStreak,
+                  lastActivityDate: stats.lastActivityDate ?? null,
+                });
+              }
+
+              return; // Success on retry
+            } catch (retryError) {
+              console.error('Retry failed:', retryError);
+            }
           }
 
           // Keep existing/default state if API fails
@@ -430,15 +516,16 @@ export const getXPForNextLevel = (currentXP: number): number => {
   return calculateXPForNextLevel(currentXP);
 };
 
-export const getOverallProgress = (currentXP: number): { current: number; total: number; percentage: number } => {
-  const currentLevel = calculateLevel(currentXP);
-  const xpForCurrentLevel = (currentLevel - 1) * 200;
-  const xpInCurrentLevel = currentXP - xpForCurrentLevel;
-  const xpForNextLevel = 200;
+/**
+ * Returns overall mastery progress showing total accumulated XP.
+ * Max mastery is capped at MAX_MASTERY_XP.
+ */
+const MAX_MASTERY_XP = 5000; // Total XP representing full mastery
 
+export const getOverallProgress = (currentXP: number): { current: number; total: number; percentage: number } => {
   return {
-    current: xpInCurrentLevel,
-    total: xpForNextLevel,
-    percentage: (xpInCurrentLevel / xpForNextLevel) * 100,
+    current: currentXP,
+    total: MAX_MASTERY_XP,
+    percentage: Math.min((currentXP / MAX_MASTERY_XP) * 100, 100),
   };
 };

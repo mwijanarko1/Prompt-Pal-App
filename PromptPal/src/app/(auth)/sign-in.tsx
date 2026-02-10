@@ -1,6 +1,7 @@
 import { useSignIn, useSSO } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
-import { Text, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import React, { useState, useCallback, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { GoogleIcon } from '@/components/GoogleIcon'
@@ -31,11 +32,11 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isOAuthLoading, setIsOAuthLoading] = useState<string | null>(null)
-  const [errors, setErrors] = useState<{email?: string; password?: string; general?: string}>({})
+  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({})
 
   // Validate form inputs
   const validateForm = () => {
-    const newErrors: {email?: string; password?: string} = {}
+    const newErrors: { email?: string; password?: string } = {}
 
     if (!emailAddress.trim()) {
       newErrors.email = 'Email is required'
@@ -248,7 +249,7 @@ export default function SignInScreen() {
                 <Text className="text-white font-black text-lg uppercase tracking-widest">Sign In</Text>
               )}
             </TouchableOpacity>
-            
+
             <TouchableOpacity className="mt-6 self-center">
               <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest">Forgot Password?</Text>
             </TouchableOpacity>

@@ -1,10 +1,10 @@
 import { View, Text, Image, Alert, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, InputAccessoryView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Card, Badge, ProgressBar, RadarChart, ResultModal } from '@/components/ui';
-import { getLevelById as getLocalLevelById } from '@/features/levels/data';
+import { getLevelById as getLocalLevelById, fetchLevelsFromApi, getLevelsByModuleId } from '@/features/levels/data';
 import { useGameStore, Level, ChallengeType } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
 import { useConvexAI } from '@/hooks/useConvexAI';
@@ -84,10 +84,45 @@ export default function GameScreen() {
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [hintCooldown, setHintCooldown] = useState(0);
   const [showHints, setShowHints] = useState(false);
+  const [moduleLevels, setModuleLevels] = useState<Level[]>([]);
   const inputAccessoryId = 'promptInputAccessory';
 
+  const progressInfo = useMemo(() => {
+    if (!level || moduleLevels.length === 0) return { current: 1, total: 1, percentage: 0 };
+
+    // Find all levels for the current module/type
+    const currentModuleId = level.moduleId || getModuleIdFromLevelType(level.type || 'image');
+    const relevantLevels = moduleLevels.filter(l =>
+      l.moduleId === currentModuleId ||
+      l.type === level.type
+    );
+
+    // Sort by order
+    const sortedLevels = [...relevantLevels].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    // Find index of current level
+    const currentIndex = sortedLevels.findIndex(l => l.id === level.id);
+    const current = currentIndex >= 0 ? currentIndex + 1 : 1;
+    const total = sortedLevels.length;
+    const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+
+    return { current, total, percentage };
+  }, [level, moduleLevels]);
+
   const { lives, loseLife, startLevel, completeLevel } = useGameStore();
-  const { updateStreak } = useUserProgressStore();
+  const { updateStreak, addXP } = useUserProgressStore();
+
+  // Helper to determine XP reward for a level
+  const getLevelXPReward = useCallback((lvl: Level): number => {
+    // Use the level's points field if available, otherwise fallback by difficulty
+    if (lvl.points && lvl.points > 0) return lvl.points;
+    switch (lvl.difficulty) {
+      case 'beginner': return 50;
+      case 'intermediate': return 100;
+      case 'advanced': return 200;
+      default: return 50;
+    }
+  }, []);
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -116,6 +151,21 @@ export default function GameScreen() {
           NanoAssistant.resetHintsForLevel(processedLevel.id);
           setHints([]);
 
+          // Fetch all levels to calculate progress
+          try {
+            const apiLevels = await fetchLevelsFromApi();
+            const currentModuleId = processedLevel.moduleId || getModuleIdFromLevelType(processedLevel.type || 'image');
+            const sourceLevels = apiLevels.length > 0 ? apiLevels : getLevelsByModuleId(currentModuleId);
+
+            if (sourceLevels && sourceLevels.length > 0) {
+              setModuleLevels(sourceLevels);
+            }
+          } catch (levelsError) {
+            logger.warn('GameScreen', 'Failed to load all levels for progress', { error: levelsError });
+            const currentModuleId = processedLevel.moduleId || getModuleIdFromLevelType(processedLevel.type || 'image');
+            setModuleLevels(getLevelsByModuleId(currentModuleId));
+          }
+
           // Fetch attempt history for this level
           try {
             const attempts = user?.id
@@ -126,7 +176,7 @@ export default function GameScreen() {
             // Restore the latest attempt's data based on level type
             if (attempts.length > 0) {
               const latestAttempt = attempts[attempts.length - 1]; // Most recent attempt
-              
+
               // Restore based on level type
               if (processedLevel.type === 'image') {
                 if (latestAttempt.imageUrl) {
@@ -152,7 +202,7 @@ export default function GameScreen() {
                   setGeneratedCopy(latestAttempt.copy);
                 }
               }
-              
+
               if (latestAttempt.score) {
                 setLastScore(latestAttempt.score);
               }
@@ -380,6 +430,8 @@ export default function GameScreen() {
           }
 
           await updateStreak();
+          // Award XP for completing the level
+          await addXP(getLevelXPReward(level));
           setShowResult(true);
           await completeLevel(level.id);
         } else {
@@ -544,6 +596,19 @@ export default function GameScreen() {
               .map((r: any) => r.name)
               .filter((name: any): name is string => name !== undefined);
 
+            // Sanitize test results: Convex v.optional(v.string()) rejects null,
+            // so convert null fields to undefined before saving
+            const sanitizedTestResults = aiTestResults.map((r: any) => ({
+              ...r,
+              id: r.id ?? undefined,
+              name: r.name ?? undefined,
+              error: r.error ?? undefined,
+              output: r.output ?? undefined,
+              expectedOutput: r.expectedOutput ?? undefined,
+              actualOutput: r.actualOutput ?? undefined,
+              executionTime: r.executionTime ?? undefined,
+            }));
+
             await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
               userId: user.id,
               levelId: level.id,
@@ -551,7 +616,7 @@ export default function GameScreen() {
               feedback: aiFeedback,
               keywordsMatched: passedTestNames.length > 0 ? passedTestNames : [],
               code: generatedCodeText,
-              testResults: aiTestResults,
+              testResults: sanitizedTestResults,
             });
 
             // Refresh attempt history to include the new attempt
@@ -580,6 +645,8 @@ export default function GameScreen() {
           }
 
           await updateStreak();
+          // Award XP for completing the level
+          await addXP(getLevelXPReward(level));
           setShowResult(true);
           await completeLevel(level.id);
         } else {
@@ -711,7 +778,7 @@ export default function GameScreen() {
               .filter(m => m.value >= 60 && m.label)
               .map(m => m.label)
               .filter((label): label is string => label !== undefined);
-            
+
             await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
               userId: user.id,
               levelId: level.id,
@@ -747,6 +814,8 @@ export default function GameScreen() {
           }
 
           await updateStreak();
+          // Award XP for completing the level
+          await addXP(getLevelXPReward(level));
           setShowResult(true);
           await completeLevel(level.id);
         } else {
@@ -802,14 +871,6 @@ export default function GameScreen() {
           </TouchableOpacity>
         </View>
 
-        {level.type !== 'image' && (
-          <View className="flex-row items-center mb-2">
-            <ProgressBar progress={level.type === 'code' ? 0.33 : 0.6} className="flex-1 mr-4" />
-            <Text className="text-primary text-[10px] font-black uppercase tracking-widest">
-              {level.type === 'code' ? '4/12' : '60% COMPLETE'}
-            </Text>
-          </View>
-        )}
       </View>
     </SafeAreaView>
   );
@@ -877,7 +938,7 @@ export default function GameScreen() {
     const firstInput = level.testCases && level.testCases.length > 0 ? level.testCases[0].input : undefined;
     const argCount = Array.isArray(firstInput) ? firstInput.length : firstInput !== undefined ? 1 : 0;
     const signatureArgs = Array.from({ length: argCount }, (_, index) => `arg${index + 1}`).join(', ');
-    
+
     return (
       <View className="px-6 pt-4 pb-6">
         {level.description && (
@@ -887,7 +948,7 @@ export default function GameScreen() {
             </Text>
           </View>
         )}
-        
+
         <Card className="p-0 overflow-hidden rounded-[40px] border-0" variant="elevated">
           {/* Tab Content */}
           <View className="min-h-[400px] bg-surface">
@@ -900,9 +961,9 @@ export default function GameScreen() {
                     <Badge label={level.language || 'javascript'} variant="primary" className="bg-primary/20 border-0 px-3 py-1 rounded-full" />
                   </View>
                 </View>
-                
+
                 <Text className="text-onSurface text-2xl font-black mb-4">{level.title}</Text>
-                
+
                 <View className="bg-surfaceVariant/30 rounded-2xl p-4 mb-6">
                   <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">Requirements</Text>
                   <Text className="text-onSurface text-base leading-6">
@@ -1001,7 +1062,7 @@ export default function GameScreen() {
 
   const renderCopywritingChallenge = () => {
     const hasCopy = generatedCopy && generatedCopy.trim().length > 0;
-    
+
     return (
       <View className="px-6 pt-4 pb-6">
         {level.description && (
@@ -1011,7 +1072,7 @@ export default function GameScreen() {
             </Text>
           </View>
         )}
-        
+
         <Card className="p-0 overflow-hidden rounded-[40px] border-0" variant="elevated">
           {/* Tab Content */}
           <View className="min-h-[400px] bg-surface">
@@ -1021,7 +1082,7 @@ export default function GameScreen() {
                   <Text className="text-primary text-lg mr-2">📝</Text>
                   <Text className="text-primary text-[10px] font-black uppercase tracking-widest">COPYWRITING CHALLENGE</Text>
                 </View>
-                
+
                 <Text className="text-onSurface text-2xl font-black mb-4">{level.title}</Text>
 
                 <View className="bg-primary/10 rounded-2xl p-4 mb-6">
@@ -1050,10 +1111,10 @@ export default function GameScreen() {
                 {level.wordLimit && (
                   <View className="mt-4 flex-row items-center">
                     <Text className="text-onSurfaceVariant text-xs mr-2">Word Limit:</Text>
-                    <Badge 
-                      label={`${level.wordLimit.min || 0}-${level.wordLimit.max || 500} words`} 
-                      variant="surface" 
-                      className="bg-surfaceVariant border-0" 
+                    <Badge
+                      label={`${level.wordLimit.min || 0}-${level.wordLimit.max || 500} words`}
+                      variant="surface"
+                      className="bg-surfaceVariant border-0"
                     />
                   </View>
                 )}
@@ -1288,7 +1349,7 @@ export default function GameScreen() {
   };
 
   const renderFeedbackSection = () => {
-    if (level.type !== 'copywriting') return null;
+    if (level.type !== 'copywriting' || !level.metrics || level.metrics.length === 0) return null;
 
     return (
       <View className="px-6 pb-8">

@@ -13,8 +13,11 @@ import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore, getOverallProgress } from '@/features/user/store';
 import { logger } from '@/lib/logger';
 import { SignOutButton } from '@/components/SignOutButton';
-import { Button, Card, Modal } from '@/components/ui';
+import { Button, Card, Modal, ProgressBar } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
+import { convexHttpClient } from '@/lib/convex-client';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api.js';
 
 // Local type definitions for UI components
 export interface LearningModule {
@@ -23,6 +26,8 @@ export interface LearningModule {
   title: string;
   level: string;
   topic: string;
+  currentLevelName?: string;
+  currentLevelOrder?: number;
   progress: number;
   icon: string;
   thumbnail?: any;
@@ -45,6 +50,15 @@ export interface DailyQuest {
 }
 
 // --- Sub-components ---
+
+// Helper to get greeting based on time of day
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'Good Morning';
+  if (hour >= 12 && hour < 17) return 'Good Afternoon';
+  if (hour >= 17 && hour < 22) return 'Good Evening';
+  return 'Good Night';
+};
 
 // Helper to map emoji icons to Ionicons names
 const getIconName = (icon: string): any => {
@@ -90,12 +104,21 @@ interface QuestCardProps {
 }
 
 const QuestCard = memo(function QuestCard({ quest }: QuestCardProps) {
+  const router = useRouter();
   const formatTimeRemaining = useCallback((hours: number) => {
     if (hours < 1) {
       return `${Math.floor(hours * 60)}m`;
     }
     return `${Math.floor(hours)}h`;
   }, []);
+
+  const handleStartQuest = useCallback(() => {
+    if (quest.id) {
+      router.push(`/game/quest/${quest.id}`);
+    } else {
+      Alert.alert('Coming Soon', 'This quest type is under development.');
+    }
+  }, [quest.id, router]);
 
   return (
     <View className="bg-info p-6 rounded-[32px] mb-10 overflow-hidden shadow-lg shadow-info/30">
@@ -121,7 +144,10 @@ const QuestCard = memo(function QuestCard({ quest }: QuestCardProps) {
           </View>
           <Text className="text-white font-black text-lg">+{quest.xpReward} XP</Text>
         </View>
-        <Pressable className="bg-white px-8 py-4 rounded-full shadow-sm">
+        <Pressable
+          onPress={handleStartQuest}
+          className="bg-white px-8 py-4 rounded-full shadow-sm active:opacity-80"
+        >
           <Text className="text-info font-black text-sm uppercase tracking-widest">Start Quest</Text>
         </Pressable>
       </View>
@@ -135,6 +161,8 @@ interface ModuleCardProps {
   category: string;
   level: string;
   topic: string;
+  currentLevelName?: string;
+  currentLevelOrder?: number;
   progress: number;
   icon: string;
   thumbnail?: any;
@@ -150,6 +178,8 @@ const ModuleCard = memo(function ModuleCard({
   category,
   level,
   topic,
+  currentLevelName,
+  currentLevelOrder,
   progress,
   icon,
   thumbnail,
@@ -193,24 +223,17 @@ const ModuleCard = memo(function ModuleCard({
       </View>
 
       <View className="p-6">
-        <Text className={`text-[10px] font-black uppercase mb-2 tracking-[3px] ${isLocked ? 'text-gray-500' : accentColor.replace('bg-', 'text-')}`}>
-          {category}
-        </Text>
         <Text className={`text-2xl font-black mb-4 ${isLocked ? 'text-onSurfaceVariant' : 'text-onSurface'}`}>{title}</Text>
 
         <View className="flex-row justify-between items-center mb-3">
-          <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest">{level}: {topic}</Text>
-          {!isLocked && (
-            <Text className={`text-xs font-black ${accentColor.replace('bg-', 'text-')}`}>{progress}%</Text>
-          )}
-        </View>
-
-        {/* Progress Bar - hidden for locked modules */}
-        {!isLocked && (
-          <View className="h-2 bg-surfaceVariant rounded-full mb-8 overflow-hidden">
-            <View className={`h-full ${accentColor} rounded-full`} style={{ width: `${progress}%` }} />
+          <View className="flex-1 mr-4">
+            {currentLevelName && (
+              <Text className="text-onSurface text-[11px] font-black uppercase tracking-widest">
+                Level {currentLevelOrder}: {currentLevelName}
+              </Text>
+            )}
           </View>
-        )}
+        </View>
 
         <Pressable
           onPress={handlePress}
@@ -241,9 +264,41 @@ export default function HomeScreen() {
   const router = useRouter();
   const usage = useUsage();
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
-  const { unlockedLevels } = useGameStore();
+  const { unlockedLevels, completedLevels } = useGameStore();
   const { level, xp, currentStreak, learningModules, currentQuest, loadFromBackend } = useUserProgressStore();
   const overallProgress = getOverallProgress(xp);
+
+  // Use useQuery for reactive level data
+  const allLevels = useQuery(api.queries.getLevels, { appId: 'prompt-pal' }) || [];
+
+  const getModuleLevelInfo = useCallback((moduleId: string) => {
+    // Map moduleId to level types used in levels_data.ts
+    const typeMapping: Record<string, string> = {
+      'coding-logic': 'code',
+      'copywriting': 'copywriting',
+      'image-generation': 'image'
+    };
+
+    const type = typeMapping[moduleId];
+    if (!type) return null;
+
+    const moduleLevels = allLevels
+      .filter(l => l.type === type)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    if (moduleLevels.length === 0) return null;
+
+    // Find the first level not completed
+    const currentLevel = moduleLevels.find(l => !completedLevels.includes(l.id)) || moduleLevels[moduleLevels.length - 1];
+
+    // Calculate 1-based order within module
+    const orderInModule = moduleLevels.indexOf(currentLevel) + 1;
+
+    return {
+      name: currentLevel.title,
+      order: orderInModule
+    };
+  }, [allLevels, completedLevels]);
 
   useEffect(() => {
     console.log('[DEBUG] HomeScreen useEffect triggered', { isLoaded, isSignedIn });
@@ -267,13 +322,30 @@ export default function HomeScreen() {
     // #endregion
   }, [learningModules]);
 
-  const renderModuleItem = useCallback(({ item }: { item: LearningModule }) => (
-    <ModuleCard {...item} />
-  ), []);
+  const renderModuleItem = useCallback(({ item }: { item: LearningModule }) => {
+    const levelInfo = getModuleLevelInfo(item.id);
 
-  const handleNotificationsPress = useCallback(() => {
-    Alert.alert('Notifications', 'No new notifications');
-  }, []);
+    // Calculate actual progress based on completed levels
+    const typeMapping: Record<string, string> = {
+      'coding-logic': 'code',
+      'copywriting': 'copywriting',
+      'image-generation': 'image'
+    };
+
+    const type = typeMapping[item.id];
+    const moduleLevels = allLevels?.filter(l => l.type === type) || [];
+    const completedLevelsInModule = moduleLevels.filter(l => completedLevels.includes(l.id)).length;
+    const actualProgress = moduleLevels.length > 0 ? Math.round((completedLevelsInModule / moduleLevels.length) * 100) : 0;
+
+    return (
+      <ModuleCard
+        {...item}
+        progress={actualProgress}
+        currentLevelName={levelInfo?.name}
+        currentLevelOrder={levelInfo?.order}
+      />
+    );
+  }, [getModuleLevelInfo, allLevels, completedLevels]);
 
   const handleSettingsPress = useCallback(() => {
     setSettingsModalVisible(true);
@@ -293,20 +365,13 @@ export default function HomeScreen() {
               )}
             </View>
             <View>
-              <Text className="text-onSurfaceVariant text-[8px] font-black uppercase tracking-[3px] mb-0.5">Good Morning</Text>
+              <Text className="text-onSurfaceVariant text-[8px] font-black uppercase tracking-[3px] mb-0.5">{getGreeting()}</Text>
               <Text className="text-onSurface text-xl font-black">
                 {user?.firstName || "Alex"} {user?.lastName || "Prompt"}
               </Text>
             </View>
           </View>
           <View className="flex-row">
-            <Pressable
-              className="w-10 h-10 rounded-full bg-surfaceVariant/50 items-center justify-center mr-2"
-              onPress={handleNotificationsPress}
-            >
-              <Ionicons name="notifications-outline" size={20} color="#6B7280" />
-              <View className="absolute top-2.5 right-3 w-2 h-2 bg-error rounded-full border border-background" />
-            </Pressable>
             <Pressable
               className="w-10 h-10 rounded-full bg-surfaceVariant/50 items-center justify-center"
               onPress={handleSettingsPress}
@@ -328,12 +393,10 @@ export default function HomeScreen() {
           <View className="flex-row justify-between items-center mb-2.5">
             <Text className="text-onSurface text-[10px] font-black uppercase tracking-[2px]">Overall Mastery</Text>
             <Text className="text-onSurfaceVariant text-xs font-black">
-              {overallProgress.current} / {overallProgress.total} XP
+              {overallProgress.current.toLocaleString()} / {overallProgress.total.toLocaleString()} XP
             </Text>
           </View>
-          <View className="h-2 bg-surfaceVariant rounded-full overflow-hidden">
-            <View className="h-full bg-info rounded-full" style={{ width: `${overallProgress.percentage}%` }} />
-          </View>
+          <ProgressBar progress={overallProgress.percentage / 100} />
         </View>
 
         {/* Daily Quest */}

@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Text, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSignUp, useSSO } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -42,7 +43,7 @@ export default function SignUpScreen() {
 
   // Validate sign-up form
   const validateSignUpForm = () => {
-    const newErrors: {email?: string; password?: string} = {}
+    const newErrors: { email?: string; password?: string } = {}
 
     if (!emailAddress.trim()) {
       newErrors.email = 'Email is required'
@@ -64,7 +65,7 @@ export default function SignUpScreen() {
 
   // Validate verification form
   const validateVerificationForm = () => {
-    const newErrors: {code?: string} = {}
+    const newErrors: { code?: string } = {}
 
     if (!code.trim()) {
       newErrors.code = 'Verification code is required'
@@ -255,12 +256,12 @@ export default function SignUpScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-            showsVerticalScrollIndicator={false}
-            className="px-6"
-          >
-            {/* Header */}
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          showsVerticalScrollIndicator={false}
+          className="px-6"
+        >
+          {/* Header */}
           <View className="items-center mb-10">
             <View className="flex-row items-center mb-3">
               <Text className="text-primary text-5xl font-black tracking-tighter">Prompt</Text>

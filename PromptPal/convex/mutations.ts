@@ -14,7 +14,7 @@ const INITIAL_USAGE_VALUES = {
 
 const getIsoDateString = (date: Date): string => date.toISOString().split("T")[0];
 
-const DAILY_QUEST_TYPES = ["image", "code", "copywriting"] as const;
+const DAILY_QUEST_TYPES = ["code", "copywriting"] as const;
 type DailyQuestType = typeof DAILY_QUEST_TYPES[number];
 type DailyQuestTemplate = {
   title: string;
@@ -24,11 +24,6 @@ type DailyQuestTemplate = {
 };
 
 const DAILY_QUEST_TEMPLATES: Record<DailyQuestType, DailyQuestTemplate[]> = {
-  image: [
-    { title: "Surrealist Dream", description: "Generate a surrealist image featuring melting objects in a desert.", difficulty: "easy", xpReward: 50 },
-    { title: "Cyberpunk Cityscape", description: "Create a vibrant neon-lit street in a futuristic Tokyo.", difficulty: "medium", xpReward: 100 },
-    { title: "Victorian Portrait", description: "Recreate a classic oil painting portrait of a nobleman.", difficulty: "hard", xpReward: 200 },
-  ],
   code: [
     { title: "Sort Algorithm", description: "Write a prompt for a function that sorts an array of objects by a specific key.", difficulty: "easy", xpReward: 50 },
     { title: "RegEx Master", description: "Generate a regular expression that validates complex password requirements.", difficulty: "medium", xpReward: 100 },
@@ -820,14 +815,20 @@ export const updateGameSession = mutation({
  */
 export const updateModuleProgress = mutation({
   args: {
-    userId: v.string(),
+    userId: v.optional(v.string()),
     moduleId: v.string(),
     progress: v.number(),
     completed: v.optional(v.boolean()),
     completedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { userId, moduleId, ...progressData } = args;
+    const { userId: providedUserId, moduleId, ...progressData } = args;
+    const identity = await ctx.auth.getUserIdentity();
+    const userId = providedUserId ?? identity?.subject;
+
+    if (!userId) {
+      throw new Error("User must be authenticated or userId must be provided");
+    }
 
     const existing = await ctx.db
       .query("userModuleProgress")
@@ -1195,6 +1196,15 @@ export const generateDailyQuestPool = mutation({
     const today = getIsoDateString(new Date(now));
     const expiresAt = now + MS_PER_DAY;
 
+    // Delete all image quests to ensure they are fully removed from the pool
+    const imageQuests = await ctx.db
+      .query("dailyQuests")
+      .withIndex("by_type", (q) => q.eq("questType", "image"))
+      .collect();
+
+    await Promise.all(imageQuests.map(q => ctx.db.delete(q._id)));
+
+    // Deactivate all other active quests
     const activeQuests = await ctx.db
       .query("dailyQuests")
       .withIndex("by_app", (q) => q.eq("appId", appId))
@@ -1210,9 +1220,19 @@ export const generateDailyQuestPool = mutation({
       )
     );
 
+    // Get all active levels to pick as quest targets
+    const activeLevels = await ctx.db
+      .query("levels")
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
     for (const type of DAILY_QUEST_TYPES) {
       const template = pickRandom(DAILY_QUEST_TEMPLATES[type]);
       const id = `daily-${today}-${type}`;
+
+      // Pick random level of this type
+      const relevantLevels = activeLevels.filter(l => l.type === type);
+      const randomLevel = relevantLevels.length > 0 ? pickRandom(relevantLevels) : null;
 
       const existing = await ctx.db
         .query("dailyQuests")
@@ -1226,11 +1246,13 @@ export const generateDailyQuestPool = mutation({
         description: template.description,
         xpReward: template.xpReward,
         questType: type,
+        levelId: randomLevel?.id,
         type,
         category: type.toUpperCase(),
         requirements: {
           difficulty: template.difficulty,
           topic: type,
+          levelId: randomLevel?.id,
         },
         difficulty: template.difficulty,
         isActive: true,
@@ -1350,6 +1372,7 @@ export const getOrAssignCurrentQuest = mutation({
 
     return {
       id: quest.id,
+      levelId: quest.levelId,
       title: quest.title,
       description: quest.description,
       xpReward: quest.xpReward,
@@ -1439,7 +1462,7 @@ export const sendFriendRequest = mutation({
   },
   handler: async (ctx, args) => {
     const { friendId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1513,7 +1536,7 @@ export const acceptFriendRequest = mutation({
   },
   handler: async (ctx, args) => {
     const { requestId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1555,7 +1578,7 @@ export const rejectFriendRequest = mutation({
   },
   handler: async (ctx, args) => {
     const { requestId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1596,7 +1619,7 @@ export const removeFriend = mutation({
   },
   handler: async (ctx, args) => {
     const { friendId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {

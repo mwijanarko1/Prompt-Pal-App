@@ -3,6 +3,9 @@ import { useAuth } from '@clerk/clerk-expo';
 import { logger } from './logger';
 import { registerSignOutCallback } from './session-manager';
 
+import { SyncManager } from './syncManager';
+import { refreshAuth } from './convex-client';
+
 /**
  * Component that monitors Clerk authentication session health.
  * Convex client handles authentication automatically via tokenCache.
@@ -14,6 +17,20 @@ function AuthTokenSyncInner() {
     if (isLoaded) {
       if (!isSignedIn) {
         logger.warn('AuthTokenSync', 'User not signed in');
+        SyncManager.setAuthenticated(false);
+      } else {
+        // User is signed in
+        logger.info('AuthTokenSync', 'User signed in, refreshing auth and syncing');
+
+        // Refresh Convex auth token first
+        refreshAuth().then(() => {
+          // Then enable SyncManager
+          SyncManager.setAuthenticated(true);
+        }).catch(err => {
+          logger.error('AuthTokenSync', 'Failed to refresh auth', { error: err });
+          // Still try to enabling sync, maybe token is still valid or will be refreshed internally
+          SyncManager.setAuthenticated(true);
+        });
       }
     }
   }, [isLoaded, isSignedIn]);

@@ -81,9 +81,10 @@ export class SyncManager {
   private static syncInProgress = false;
   private static syncIntervalId: ReturnType<typeof setInterval> | null = null;
   private static isOnline = true;
+  private static isAuthenticated = false;
   private static offlineQueue: SyncQueueItem[] = [];
   private static conflictResolution: ConflictResolution = {
-    strategy: 'local-wins',
+    strategy: 'merge',
     timestamp: Date.now(),
   };
 
@@ -217,6 +218,11 @@ export class SyncManager {
       return;
     }
 
+    if (!this.isAuthenticated) {
+      logger.debug('SyncManager', 'Not authenticated, skipping sync');
+      return;
+    }
+
     try {
       this.syncInProgress = true;
 
@@ -265,6 +271,10 @@ export class SyncManager {
     gameState: GameState,
     retryCount = 0
   ): Promise<void> {
+    if (!this.isAuthenticated) {
+      return;
+    }
+
     try {
       // Fetch server state for conflict resolution
       const serverState = await this.fetchServerProgress();
@@ -277,6 +287,9 @@ export class SyncManager {
         ...gameState,
         ...resolvedChanges,
       };
+
+      // Update local store with merged state (pulls in server progress)
+      useGameStore.getState().syncFromBackend(resolvedChanges);
 
       // Send complete state to server
       await this.sendProgressToServer(completeState);
@@ -423,12 +436,28 @@ export class SyncManager {
     const wasOffline = !this.isOnline;
     this.isOnline = online;
 
-    if (online && wasOffline) {
+    if (online && wasOffline && this.isAuthenticated) {
       logger.info('SyncManager', 'Back online, triggering sync');
       // Trigger immediate sync when coming back online
       this.syncUserProgress();
     } else if (!online && !wasOffline) {
       logger.info('SyncManager', 'Going offline, queueing pending syncs');
+    }
+  }
+
+  /**
+   * Updates authentication status and triggers sync if authenticated
+   * @param isAuthenticated - Whether the user is authenticated
+   */
+  static setAuthenticated(isAuthenticated: boolean): void {
+    const wasUnauthenticated = !this.isAuthenticated;
+    this.isAuthenticated = isAuthenticated;
+
+    if (isAuthenticated && wasUnauthenticated && this.isOnline) {
+      logger.info('SyncManager', 'User authenticated, triggering sync');
+      this.syncUserProgress();
+    } else if (!isAuthenticated && !wasUnauthenticated) {
+      logger.info('SyncManager', 'User signed out, stopping syncs');
     }
   }
 

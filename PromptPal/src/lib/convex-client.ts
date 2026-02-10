@@ -77,6 +77,11 @@ async function setupAuth(): Promise<void> {
   }
 }
 
+// Export the function to allow manual refreshment (e.g., on sign-in)
+export async function refreshAuth(): Promise<void> {
+  await setupAuth();
+}
+
 // Initialize authentication on client creation
 setupAuth().catch(error => {
   console.error('ConvexHttpClient: Failed to initialize auth:', error);
