@@ -80,6 +80,9 @@ export interface DailyQuest {
   timeRemaining: number; // hours
   completed: boolean;
   expiresAt: number; // timestamp
+  /** From Convex: 'image' | 'code' | 'copywriting' */
+  questType?: 'image' | 'code' | 'copywriting';
+  type?: string;
 }
 
 export interface UserProgress {

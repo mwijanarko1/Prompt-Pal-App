@@ -1356,6 +1356,7 @@ export const getOrAssignCurrentQuest = mutation({
       timeRemaining,
       completed: completion?.completed ?? false,
       expiresAt: quest.expiresAt ?? now + MS_PER_DAY,
+      questType: quest.questType ?? quest.type,
     };
   },
 });

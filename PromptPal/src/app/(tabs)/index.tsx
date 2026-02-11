@@ -12,6 +12,7 @@ import { useUsage, UsageStats } from '@/lib/usage';
 import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore, getOverallProgress } from '@/features/user/store';
 import { logger } from '@/lib/logger';
+import { logDailyQuestStart } from '@/lib/analytics';
 import { SignOutButton } from '@/components/SignOutButton';
 import { Button, Card, Modal } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +43,8 @@ export interface DailyQuest {
   timeRemaining: number;
   completed: boolean;
   expiresAt: number;
+  questType?: 'image' | 'code' | 'copywriting';
+  type?: string;
 }
 
 // --- Sub-components ---
@@ -87,15 +90,20 @@ const StatCard = memo(function StatCard({ label, value, icon, color }: StatCardP
 
 interface QuestCardProps {
   quest: DailyQuest;
+  onQuestStart?: (quest: DailyQuest) => void;
 }
 
-const QuestCard = memo(function QuestCard({ quest }: QuestCardProps) {
+const QuestCard = memo(function QuestCard({ quest, onQuestStart }: QuestCardProps) {
   const formatTimeRemaining = useCallback((hours: number) => {
     if (hours < 1) {
       return `${Math.floor(hours * 60)}m`;
     }
     return `${Math.floor(hours)}h`;
   }, []);
+
+  const handlePress = useCallback(() => {
+    onQuestStart?.(quest);
+  }, [quest, onQuestStart]);
 
   return (
     <View className="bg-info p-6 rounded-[32px] mb-10 overflow-hidden shadow-lg shadow-info/30">
@@ -121,7 +129,7 @@ const QuestCard = memo(function QuestCard({ quest }: QuestCardProps) {
           </View>
           <Text className="text-white font-black text-lg">+{quest.xpReward} XP</Text>
         </View>
-        <Pressable className="bg-white px-8 py-4 rounded-full shadow-sm">
+        <Pressable className="bg-white px-8 py-4 rounded-full shadow-sm" onPress={handlePress}>
           <Text className="text-info font-black text-sm uppercase tracking-widest">Start Quest</Text>
         </Pressable>
       </View>
@@ -165,6 +173,8 @@ const ModuleCard = memo(function ModuleCard({
     const href = `/game/levels/${id}`;
     console.log('[DEBUG] ModuleCard navigating to:', href);
     router.push(href);
+    router.push('/game/levels/coding-logic');
+    router.push('/game/levels/copywriting');
   }, [id, router, isLocked]);
 
   return (
@@ -279,6 +289,17 @@ export default function HomeScreen() {
     setSettingsModalVisible(true);
   }, []);
 
+  const handleQuestStart = useCallback((quest: DailyQuest) => {
+    const questType = quest.questType ?? (quest as { type?: string }).type ?? 'unknown';
+    logDailyQuestStart(quest.id, questType);
+    if (questType === 'code') {
+      router.push('/game/levels/coding-logic');
+    } else if (questType === 'copywriting') {
+      router.push('/game/levels/copywriting');
+    }
+    // Image quests: skip (not in MVP)
+  }, [router]);
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
@@ -339,7 +360,7 @@ export default function HomeScreen() {
         {/* Daily Quest */}
         {currentQuest && (
           <View className="px-6">
-            <QuestCard quest={currentQuest} />
+            <QuestCard quest={currentQuest} onQuestStart={handleQuestStart} />
           </View>
         )}
 
