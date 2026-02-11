@@ -12,10 +12,11 @@ const INITIAL_USAGE_VALUES = {
   copywritingLevels: 0,
 } as const;
 
-const getIsoDateString = (date: Date): string => date.toISOString().split("T")[0];
+const getIsoDateString = (date: Date): string =>
+  date.toISOString().split("T")[0];
 
 const DAILY_QUEST_TYPES = ["image", "code", "copywriting"] as const;
-type DailyQuestType = typeof DAILY_QUEST_TYPES[number];
+type DailyQuestType = (typeof DAILY_QUEST_TYPES)[number];
 type DailyQuestTemplate = {
   title: string;
   description: string;
@@ -25,30 +26,81 @@ type DailyQuestTemplate = {
 
 const DAILY_QUEST_TEMPLATES: Record<DailyQuestType, DailyQuestTemplate[]> = {
   image: [
-    { title: "Surrealist Dream", description: "Generate a surrealist image featuring melting objects in a desert.", difficulty: "easy", xpReward: 50 },
-    { title: "Cyberpunk Cityscape", description: "Create a vibrant neon-lit street in a futuristic Tokyo.", difficulty: "medium", xpReward: 100 },
-    { title: "Victorian Portrait", description: "Recreate a classic oil painting portrait of a nobleman.", difficulty: "hard", xpReward: 200 },
+    {
+      title: "Surrealist Dream",
+      description:
+        "Generate a surrealist image featuring melting objects in a desert.",
+      difficulty: "easy",
+      xpReward: 50,
+    },
+    {
+      title: "Cyberpunk Cityscape",
+      description: "Create a vibrant neon-lit street in a futuristic Tokyo.",
+      difficulty: "medium",
+      xpReward: 100,
+    },
+    {
+      title: "Victorian Portrait",
+      description: "Recreate a classic oil painting portrait of a nobleman.",
+      difficulty: "hard",
+      xpReward: 200,
+    },
   ],
   code: [
-    { title: "Sort Algorithm", description: "Write a prompt for a function that sorts an array of objects by a specific key.", difficulty: "easy", xpReward: 50 },
-    { title: "RegEx Master", description: "Generate a regular expression that validates complex password requirements.", difficulty: "medium", xpReward: 100 },
-    { title: "Data Transformer", description: "Create a function that flattens a nested JSON structure.", difficulty: "hard", xpReward: 200 },
+    {
+      title: "Sort Algorithm",
+      description:
+        "Write a prompt for a function that sorts an array of objects by a specific key.",
+      difficulty: "easy",
+      xpReward: 50,
+    },
+    {
+      title: "RegEx Master",
+      description:
+        "Generate a regular expression that validates complex password requirements.",
+      difficulty: "medium",
+      xpReward: 100,
+    },
+    {
+      title: "Data Transformer",
+      description: "Create a function that flattens a nested JSON structure.",
+      difficulty: "hard",
+      xpReward: 200,
+    },
   ],
   copywriting: [
-    { title: "SaaS Tagline", description: "Write 5 catchy taglines for a new AI-powered productivity tool.", difficulty: "easy", xpReward: 50 },
-    { title: "Event Invitation", description: "Draft a persuasive email invitation for a high-end tech conference.", difficulty: "medium", xpReward: 100 },
-    { title: "Product Benefits", description: "Translate technical specifications into emotional user benefits for a luxury watch.", difficulty: "hard", xpReward: 200 },
+    {
+      title: "SaaS Tagline",
+      description:
+        "Write 5 catchy taglines for a new AI-powered productivity tool.",
+      difficulty: "easy",
+      xpReward: 50,
+    },
+    {
+      title: "Event Invitation",
+      description:
+        "Draft a persuasive email invitation for a high-end tech conference.",
+      difficulty: "medium",
+      xpReward: 100,
+    },
+    {
+      title: "Product Benefits",
+      description:
+        "Translate technical specifications into emotional user benefits for a luxury watch.",
+      difficulty: "hard",
+      xpReward: 200,
+    },
   ],
 };
 
-const pickRandom = <T,>(items: readonly T[]): T => {
+const pickRandom = <T>(items: readonly T[]): T => {
   return items[Math.floor(Math.random() * items.length)];
 };
 
 const updateUserStreakForActivity = async (
   ctx: any,
   userId: string,
-  activityTimestamp = Date.now()
+  activityTimestamp = Date.now(),
 ): Promise<void> => {
   const today = getIsoDateString(new Date(activityTimestamp));
   const yesterday = new Date(activityTimestamp);
@@ -105,7 +157,15 @@ export const checkAndIncrementQuota = mutation({
   args: {
     userId: v.string(),
     appId: v.string(),
-    quotaType: v.union(v.literal("textCalls"), v.literal("imageCalls"), v.literal("audioSummaries"), v.literal("dailyQuests"), v.literal("imageLevels"), v.literal("codingLogicLevels"), v.literal("copywritingLevels")),
+    quotaType: v.union(
+      v.literal("textCalls"),
+      v.literal("imageCalls"),
+      v.literal("audioSummaries"),
+      v.literal("dailyQuests"),
+      v.literal("imageLevels"),
+      v.literal("codingLogicLevels"),
+      v.literal("copywritingLevels"),
+    ),
   },
   handler: async (ctx, args) => {
     const { userId, appId, quotaType } = args;
@@ -128,7 +188,9 @@ export const checkAndIncrementQuota = mutation({
 
     let plan = await ctx.db
       .query("appPlans")
-      .withIndex("by_user_app", (q) => q.eq("userId", userId).eq("appId", appId))
+      .withIndex("by_user_app", (q) =>
+        q.eq("userId", userId).eq("appId", appId),
+      )
       .first();
 
     if (!plan) {
@@ -211,7 +273,9 @@ export const updateUserPlan = mutation({
 
     const existing = await ctx.db
       .query("appPlans")
-      .withIndex("by_user_app", (q) => q.eq("userId", userId).eq("appId", appId))
+      .withIndex("by_user_app", (q) =>
+        q.eq("userId", userId).eq("appId", appId),
+      )
       .first();
 
     if (existing) {
@@ -293,19 +357,33 @@ export const saveUserLevelAttempt = mutation({
     imageUrl: v.optional(v.string()), // Generated image URL
     code: v.optional(v.string()), // Generated code
     copy: v.optional(v.string()), // Generated copy
-    testResults: v.optional(v.array(v.object({
-      id: v.optional(v.string()),
-      name: v.optional(v.string()),
-      passed: v.boolean(),
-      error: v.optional(v.string()),
-      output: v.optional(v.any()),
-      expectedOutput: v.optional(v.any()),
-      actualOutput: v.optional(v.any()),
-      executionTime: v.optional(v.number()),
-    }))),
+    testResults: v.optional(
+      v.array(
+        v.object({
+          id: v.optional(v.string()),
+          name: v.optional(v.string()),
+          passed: v.boolean(),
+          error: v.optional(v.string()),
+          output: v.optional(v.any()),
+          expectedOutput: v.optional(v.any()),
+          actualOutput: v.optional(v.any()),
+          executionTime: v.optional(v.number()),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
-    const { userId, levelId, score, feedback, keywordsMatched, imageUrl, code, copy, testResults } = args;
+    const {
+      userId,
+      levelId,
+      score,
+      feedback,
+      keywordsMatched,
+      imageUrl,
+      code,
+      copy,
+      testResults,
+    } = args;
 
     // Validate score range
     if (score < 0 || score > 100) {
@@ -327,14 +405,16 @@ export const saveUserLevelAttempt = mutation({
     }
 
     // Validate image URL domain (must be from convex.cloud)
-    if (imageUrl && !imageUrl.includes('convex.cloud')) {
+    if (imageUrl && !imageUrl.includes("convex.cloud")) {
       throw new Error("Image URL must be from convex.cloud domain");
     }
 
     // Get the next attempt number
     const lastAttempt = await ctx.db
       .query("userLevelAttempts")
-      .withIndex("by_user_level", (q) => q.eq("userId", userId).eq("levelId", levelId))
+      .withIndex("by_user_level", (q) =>
+        q.eq("userId", userId).eq("levelId", levelId),
+      )
       .order("desc")
       .first();
 
@@ -394,7 +474,9 @@ export const updateUserModuleProgress = mutation({
 
     const existing = await ctx.db
       .query("userModules")
-      .withIndex("by_user_module", (q) => q.eq("userId", userId).eq("moduleId", moduleId))
+      .withIndex("by_user_module", (q) =>
+        q.eq("userId", userId).eq("moduleId", moduleId),
+      )
       .first();
 
     const moduleData = {
@@ -425,12 +507,14 @@ export const updateUserQuests = mutation({
   args: {
     userId: v.string(),
     appId: v.string(),
-    quests: v.array(v.object({
-      questId: v.string(),
-      completed: v.boolean(),
-      completedAt: v.optional(v.number()),
-      expiresAt: v.number(),
-    })),
+    quests: v.array(
+      v.object({
+        questId: v.string(),
+        completed: v.boolean(),
+        completedAt: v.optional(v.number()),
+        expiresAt: v.number(),
+      }),
+    ),
   },
   handler: async (ctx, args) => {
     const { userId, appId, quests } = args;
@@ -438,10 +522,12 @@ export const updateUserQuests = mutation({
     // Delete existing quest states for this user/app (batch delete)
     const existingQuests = await ctx.db
       .query("userQuests")
-      .withIndex("by_user_app", (q) => q.eq("userId", userId).eq("appId", appId))
+      .withIndex("by_user_app", (q) =>
+        q.eq("userId", userId).eq("appId", appId),
+      )
       .collect();
 
-    await Promise.all(existingQuests.map(quest => ctx.db.delete(quest._id)));
+    await Promise.all(existingQuests.map((quest) => ctx.db.delete(quest._id)));
 
     // Insert new quest states
     for (const quest of quests) {
@@ -473,7 +559,15 @@ export const updateUserGameState = mutation({
     completedLevels: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const { appId, currentLevelId, lives, score, isPlaying, unlockedLevels, completedLevels } = args;
+    const {
+      appId,
+      currentLevelId,
+      lives,
+      score,
+      isPlaying,
+      unlockedLevels,
+      completedLevels,
+    } = args;
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) {
@@ -484,7 +578,9 @@ export const updateUserGameState = mutation({
 
     const existing = await ctx.db
       .query("gameProgress")
-      .withIndex("by_user_app", (q) => q.eq("userId", userId).eq("appId", appId))
+      .withIndex("by_user_app", (q) =>
+        q.eq("userId", userId).eq("appId", appId),
+      )
       .first();
 
     const gameStateData = {
@@ -516,7 +612,12 @@ export const logAIGeneration = mutation({
     userId: v.string(),
     appId: v.string(),
     requestId: v.string(),
-    type: v.union(v.literal("text"), v.literal("image"), v.literal("compare"), v.literal("evaluate")),
+    type: v.union(
+      v.literal("text"),
+      v.literal("image"),
+      v.literal("compare"),
+      v.literal("evaluate"),
+    ),
     model: v.string(),
     promptLength: v.optional(v.number()),
     responseLength: v.optional(v.number()),
@@ -526,7 +627,19 @@ export const logAIGeneration = mutation({
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { userId, appId, requestId, type, model, promptLength, responseLength, tokensUsed, durationMs, success, errorMessage } = args;
+    const {
+      userId,
+      appId,
+      requestId,
+      type,
+      model,
+      promptLength,
+      responseLength,
+      tokensUsed,
+      durationMs,
+      success,
+      errorMessage,
+    } = args;
 
     await ctx.db.insert("aiGenerations", {
       userId,
@@ -559,7 +672,15 @@ export const logAnalyticsEvent = mutation({
     ipAddress: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { userId, appId, eventType, eventData, sessionId, userAgent, ipAddress } = args;
+    const {
+      userId,
+      appId,
+      eventType,
+      eventData,
+      sessionId,
+      userAgent,
+      ipAddress,
+    } = args;
 
     await ctx.db.insert("userEvents", {
       userId,
@@ -588,7 +709,8 @@ export const logError = mutation({
     userAgent: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { userId, appId, errorType, message, stack, context, userAgent } = args;
+    const { userId, appId, errorType, message, stack, context, userAgent } =
+      args;
 
     await ctx.db.insert("errorLogs", {
       userId,
@@ -734,7 +856,9 @@ export const updateLevelProgress = mutation({
 
     const existing = await ctx.db
       .query("userProgress")
-      .withIndex("by_user_level", (q) => q.eq("userId", userId).eq("levelId", levelId))
+      .withIndex("by_user_level", (q) =>
+        q.eq("userId", userId).eq("levelId", levelId),
+      )
       .first();
 
     const progressData = {
@@ -831,7 +955,9 @@ export const updateModuleProgress = mutation({
 
     const existing = await ctx.db
       .query("userModuleProgress")
-      .withIndex("by_user_module", (q) => q.eq("userId", userId).eq("moduleId", moduleId))
+      .withIndex("by_user_module", (q) =>
+        q.eq("userId", userId).eq("moduleId", moduleId),
+      )
       .first();
 
     const data = {
@@ -874,7 +1000,9 @@ export const completeDailyQuest = mutation({
 
     const existing = await ctx.db
       .query("userQuestCompletions")
-      .withIndex("by_user_quest", (q) => q.eq("userId", resolvedUserId).eq("questId", questId))
+      .withIndex("by_user_quest", (q) =>
+        q.eq("userId", resolvedUserId).eq("questId", questId),
+      )
       .first();
 
     if (existing) {
@@ -913,7 +1041,9 @@ export const unlockAchievement = mutation({
 
     const existing = await ctx.db
       .query("userAchievements")
-      .withIndex("by_user_achievement", (q) => q.eq("userId", userId).eq("achievementId", achievementId))
+      .withIndex("by_user_achievement", (q) =>
+        q.eq("userId", userId).eq("achievementId", achievementId),
+      )
       .first();
 
     if (!existing) {
@@ -959,10 +1089,18 @@ export const createLevel = mutation({
   args: {
     id: v.string(),
     appId: v.string(),
-    type: v.union(v.literal("image"), v.literal("code"), v.literal("copywriting")),
+    type: v.union(
+      v.literal("image"),
+      v.literal("code"),
+      v.literal("copywriting"),
+    ),
     title: v.string(),
     description: v.optional(v.string()),
-    difficulty: v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced")),
+    difficulty: v.union(
+      v.literal("beginner"),
+      v.literal("intermediate"),
+      v.literal("advanced"),
+    ),
     passingScore: v.number(),
     unlocked: v.boolean(),
     isActive: v.boolean(),
@@ -976,22 +1114,30 @@ export const createLevel = mutation({
     requirementBrief: v.optional(v.string()),
     requirementImage: v.optional(v.string()),
     language: v.optional(v.string()),
-    testCases: v.optional(v.array(v.object({
-      input: v.any(),
-      expectedOutput: v.any(),
-      description: v.optional(v.string()),
-    }))),
+    testCases: v.optional(
+      v.array(
+        v.object({
+          input: v.any(),
+          expectedOutput: v.any(),
+          description: v.optional(v.string()),
+        }),
+      ),
+    ),
     // Copywriting level fields
     briefTitle: v.optional(v.string()),
     briefProduct: v.optional(v.string()),
     briefTarget: v.optional(v.string()),
     briefTone: v.optional(v.string()),
     briefGoal: v.optional(v.string()),
-    metrics: v.optional(v.array(v.object({
-      name: v.string(),
-      target: v.number(),
-      weight: v.number(),
-    }))),
+    metrics: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          target: v.number(),
+          weight: v.number(),
+        }),
+      ),
+    ),
     // Common fields
     hints: v.optional(v.array(v.string())),
     estimatedTime: v.optional(v.number()),
@@ -1020,10 +1166,18 @@ export const updateLevel = mutation({
   args: {
     id: v.string(),
     appId: v.string(),
-    type: v.optional(v.union(v.literal("image"), v.literal("code"), v.literal("copywriting"))),
+    type: v.optional(
+      v.union(v.literal("image"), v.literal("code"), v.literal("copywriting")),
+    ),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
-    difficulty: v.optional(v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced"))),
+    difficulty: v.optional(
+      v.union(
+        v.literal("beginner"),
+        v.literal("intermediate"),
+        v.literal("advanced"),
+      ),
+    ),
     passingScore: v.optional(v.number()),
     unlocked: v.optional(v.boolean()),
     isActive: v.optional(v.boolean()),
@@ -1037,22 +1191,30 @@ export const updateLevel = mutation({
     requirementBrief: v.optional(v.string()),
     requirementImage: v.optional(v.string()),
     language: v.optional(v.string()),
-    testCases: v.optional(v.array(v.object({
-      input: v.any(),
-      expectedOutput: v.any(),
-      description: v.optional(v.string()),
-    }))),
+    testCases: v.optional(
+      v.array(
+        v.object({
+          input: v.any(),
+          expectedOutput: v.any(),
+          description: v.optional(v.string()),
+        }),
+      ),
+    ),
     // Copywriting level fields
     briefTitle: v.optional(v.string()),
     briefProduct: v.optional(v.string()),
     briefTarget: v.optional(v.string()),
     briefTone: v.optional(v.string()),
     briefGoal: v.optional(v.string()),
-    metrics: v.optional(v.array(v.object({
-      name: v.string(),
-      target: v.number(),
-      weight: v.number(),
-    }))),
+    metrics: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          target: v.number(),
+          weight: v.number(),
+        }),
+      ),
+    ),
     // Common fields
     hints: v.optional(v.array(v.string())),
     estimatedTime: v.optional(v.number()),
@@ -1098,7 +1260,9 @@ export const createLearningModule = mutation({
     description: v.optional(v.string()),
     objectives: v.optional(v.array(v.string())),
     content: v.optional(v.any()),
-    type: v.optional(v.union(v.literal("module"), v.literal("course"), v.literal("track"))),
+    type: v.optional(
+      v.union(v.literal("module"), v.literal("course"), v.literal("track")),
+    ),
     format: v.optional(v.string()),
     estimatedTime: v.optional(v.number()),
     tags: v.optional(v.array(v.string())),
@@ -1125,12 +1289,21 @@ export const createLearningResource = mutation({
   args: {
     id: v.string(),
     appId: v.string(),
-    type: v.union(v.literal("guide"), v.literal("cheatsheet"), v.literal("lexicon"), v.literal("case-study")),
+    type: v.union(
+      v.literal("guide"),
+      v.literal("cheatsheet"),
+      v.literal("lexicon"),
+      v.literal("case-study"),
+    ),
     title: v.string(),
     description: v.string(),
     content: v.any(),
     category: v.string(),
-    difficulty: v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced")),
+    difficulty: v.union(
+      v.literal("beginner"),
+      v.literal("intermediate"),
+      v.literal("advanced"),
+    ),
     estimatedTime: v.optional(v.number()),
     tags: v.array(v.string()),
     icon: v.optional(v.string()),
@@ -1161,7 +1334,11 @@ export const createDailyQuest = mutation({
     title: v.string(),
     description: v.string(),
     xpReward: v.number(),
-    questType: v.union(v.literal("image"), v.literal("code"), v.literal("copywriting")),
+    questType: v.union(
+      v.literal("image"),
+      v.literal("code"),
+      v.literal("copywriting"),
+    ),
     type: v.string(),
     category: v.string(),
     requirements: v.any(),
@@ -1206,8 +1383,8 @@ export const generateDailyQuestPool = mutation({
         ctx.db.patch(quest._id, {
           isActive: false,
           updatedAt: now,
-        })
-      )
+        }),
+      ),
     );
 
     for (const type of DAILY_QUEST_TYPES) {
@@ -1272,7 +1449,10 @@ export const getOrAssignCurrentQuest = mutation({
     let assignment = await ctx.db
       .query("userDailyQuests")
       .withIndex("by_user_app_date", (q) =>
-        q.eq("userId", resolvedUserId).eq("appId", args.appId).eq("assignedDate", assignedDate)
+        q
+          .eq("userId", resolvedUserId)
+          .eq("appId", args.appId)
+          .eq("assignedDate", assignedDate),
       )
       .first();
 
@@ -1290,9 +1470,10 @@ export const getOrAssignCurrentQuest = mutation({
       return quest;
     };
 
-    let quest = assignment && assignment.expiresAt > now
-      ? await loadQuestIfValid(assignment.questId)
-      : null;
+    let quest =
+      assignment && assignment.expiresAt > now
+        ? await loadQuestIfValid(assignment.questId)
+        : null;
 
     if (!quest) {
       const activeQuests = await ctx.db
@@ -1325,7 +1506,7 @@ export const getOrAssignCurrentQuest = mutation({
         questId: quest.id,
         assignedDate,
         assignedAt: now,
-        expiresAt: quest.expiresAt ?? now + MS_PER_DAY,
+        expiresAt: now + MS_PER_DAY, // 24 hours from assignment, not generation
         updatedAt: now,
       };
 
@@ -1341,7 +1522,9 @@ export const getOrAssignCurrentQuest = mutation({
 
     const completion = await ctx.db
       .query("userQuestCompletions")
-      .withIndex("by_user_quest", (q) => q.eq("userId", resolvedUserId).eq("questId", quest.id))
+      .withIndex("by_user_quest", (q) =>
+        q.eq("userId", resolvedUserId).eq("questId", quest.id),
+      )
       .first();
 
     const timeRemaining = quest.expiresAt
@@ -1356,6 +1539,7 @@ export const getOrAssignCurrentQuest = mutation({
       timeRemaining,
       completed: completion?.completed ?? false,
       expiresAt: quest.expiresAt ?? now + MS_PER_DAY,
+      questType: quest.questType ?? quest.type,
     };
   },
 });
@@ -1369,7 +1553,12 @@ export const createAchievement = mutation({
     title: v.string(),
     description: v.string(),
     icon: v.string(),
-    rarity: v.union(v.literal("common"), v.literal("rare"), v.literal("epic"), v.literal("legendary")),
+    rarity: v.union(
+      v.literal("common"),
+      v.literal("rare"),
+      v.literal("epic"),
+      v.literal("legendary"),
+    ),
     conditionType: v.string(),
     conditionValue: v.number(),
     conditionMetadata: v.optional(v.any()),
@@ -1384,7 +1573,6 @@ export const createAchievement = mutation({
       updatedAt: Date.now(),
     });
   },
-
 });
 
 // ===== GENERATED IMAGES STORAGE =====
@@ -1439,7 +1627,7 @@ export const sendFriendRequest = mutation({
   },
   handler: async (ctx, args) => {
     const { friendId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1465,7 +1653,9 @@ export const sendFriendRequest = mutation({
     // Check if friendship already exists
     const existingFriendship = await ctx.db
       .query("userFriends")
-      .withIndex("by_user_friend", (q) => q.eq("userId", userId).eq("friendId", friendId))
+      .withIndex("by_user_friend", (q) =>
+        q.eq("userId", userId).eq("friendId", friendId),
+      )
       .first();
 
     if (existingFriendship) {
@@ -1475,7 +1665,9 @@ export const sendFriendRequest = mutation({
     // Check reverse direction (if friend already sent request to user)
     const reverseFriendship = await ctx.db
       .query("userFriends")
-      .withIndex("by_user_friend", (q) => q.eq("userId", friendId).eq("friendId", userId))
+      .withIndex("by_user_friend", (q) =>
+        q.eq("userId", friendId).eq("friendId", userId),
+      )
       .first();
 
     if (reverseFriendship) {
@@ -1486,7 +1678,11 @@ export const sendFriendRequest = mutation({
           acceptedAt: Date.now(),
           updatedAt: Date.now(),
         });
-        return { success: true, message: "Friend request accepted", autoAccepted: true };
+        return {
+          success: true,
+          message: "Friend request accepted",
+          autoAccepted: true,
+        };
       } else if (reverseFriendship.status === "accepted") {
         throw new Error("Already friends with this user");
       }
@@ -1513,7 +1709,7 @@ export const acceptFriendRequest = mutation({
   },
   handler: async (ctx, args) => {
     const { requestId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1555,7 +1751,7 @@ export const rejectFriendRequest = mutation({
   },
   handler: async (ctx, args) => {
     const { requestId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1596,7 +1792,7 @@ export const removeFriend = mutation({
   },
   handler: async (ctx, args) => {
     const { friendId } = args;
-    
+
     // Get current user ID from auth context
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -1607,12 +1803,16 @@ export const removeFriend = mutation({
     // Find friendship in either direction
     const friendship1 = await ctx.db
       .query("userFriends")
-      .withIndex("by_user_friend", (q) => q.eq("userId", userId).eq("friendId", friendId))
+      .withIndex("by_user_friend", (q) =>
+        q.eq("userId", userId).eq("friendId", friendId),
+      )
       .first();
 
     const friendship2 = await ctx.db
       .query("userFriends")
-      .withIndex("by_user_friend", (q) => q.eq("userId", friendId).eq("friendId", userId))
+      .withIndex("by_user_friend", (q) =>
+        q.eq("userId", friendId).eq("friendId", userId),
+      )
       .first();
 
     const friendship = friendship1 || friendship2;
