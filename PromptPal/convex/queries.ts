@@ -1546,3 +1546,55 @@ export const getMyFriends = query({
     return friends;
   },
 });
+
+// Get user's completed quests with details
+export const getUserCompletedQuests = query({
+  args: {
+    appId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { appId } = args;
+
+    // Get user ID from auth context
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    const userId = identity.subject;
+
+    // Get all completed quests for this user
+    const completions = await ctx.db
+      .query("userQuestCompletions")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("completed"), true))
+      .collect();
+
+    // Fetch quest details for each completion
+    const completedQuests = await Promise.all(
+      completions.map(async (completion) => {
+        const quest = await ctx.db
+          .query("dailyQuests")
+          .filter((q) => q.eq(q.field("id"), completion.questId))
+          .first();
+
+        if (!quest) return null;
+
+        return {
+          id: completion._id,
+          questId: completion.questId,
+          title: quest.title,
+          description: quest.description,
+          xpReward: quest.xpReward,
+          questType: quest.questType,
+          completedAt: completion.completedAt,
+          score: completion.score,
+        };
+      })
+    );
+
+    // Filter out null values and sort by completion date (most recent first)
+    return completedQuests
+      .filter((quest) => quest !== null)
+      .sort((a, b) => (b?.completedAt || 0) - (a?.completedAt || 0));
+  },
+});

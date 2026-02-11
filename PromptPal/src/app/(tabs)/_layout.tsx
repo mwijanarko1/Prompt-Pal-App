@@ -12,15 +12,19 @@ export default function TabLayout() {
 
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index" title="Home">
+      <NativeTabs.Trigger name="index">
         <Icon sf="house.fill" />
         <Label>Home</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="library" title="Library">
+      <NativeTabs.Trigger name="quests">
+        <Icon sf="trophy.fill" />
+        <Label>Quests</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="library">
         <Icon sf="book.fill" />
         <Label>Library</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile" title="Profile">
+      <NativeTabs.Trigger name="profile">
         <Icon sf="person.fill" />
         <Label>Profile</Label>
       </NativeTabs.Trigger>
