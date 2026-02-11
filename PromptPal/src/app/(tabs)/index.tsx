@@ -90,11 +90,39 @@ interface QuestCardProps {
 }
 
 const QuestCard = memo(function QuestCard({ quest }: QuestCardProps) {
-  const formatTimeRemaining = useCallback((hours: number) => {
-    if (hours < 1) {
-      return `${Math.floor(hours * 60)}m`;
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+
+  // Real-time timer effect
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, quest.expiresAt - now);
+      setTimeRemaining(remaining);
+    };
+
+    // Update immediately
+    updateTimer();
+
+    // Set up interval to update every second
+    const interval = setInterval(updateTimer, 1000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
+  }, [quest.expiresAt]);
+
+  const formatTimeRemaining = useCallback((milliseconds: number) => {
+    if (milliseconds <= 0) {
+      return 'Expired';
     }
-    return `${Math.floor(hours)}h`;
+
+    const totalMinutes = Math.floor(milliseconds / (1000 * 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours > 0) {
+      return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    }
+    return `${minutes}m`;
   }, []);
 
   return (
@@ -105,8 +133,10 @@ const QuestCard = memo(function QuestCard({ quest }: QuestCardProps) {
         </View>
         <View className="flex-row items-center">
           <Ionicons name="time-outline" size={16} color="black" />
-          <Text className="text-white text-xs font-black ml-1.5 uppercase tracking-tighter">
-            {formatTimeRemaining(quest.timeRemaining)} left
+          <Text className={`text-white text-xs font-black ml-1.5 uppercase tracking-tighter ${
+            timeRemaining <= 0 ? 'text-red-300' : ''
+          }`}>
+            {formatTimeRemaining(timeRemaining)} {timeRemaining > 0 ? 'left' : ''}
           </Text>
         </View>
       </View>
