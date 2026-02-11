@@ -121,9 +121,15 @@ const QuestCard = memo(function QuestCard({ quest }: QuestCardProps) {
           </View>
           <Text className="text-white font-black text-lg">+{quest.xpReward} XP</Text>
         </View>
-        <Pressable className="bg-white px-8 py-4 rounded-full shadow-sm">
-          <Text className="text-info font-black text-sm uppercase tracking-widest">Start Quest</Text>
-        </Pressable>
+        {quest.completed ? (
+          <View className="bg-white/20 px-8 py-4 rounded-full">
+            <Text className="text-white font-black text-sm uppercase tracking-widest">Completed</Text>
+          </View>
+        ) : (
+          <Pressable className="bg-white px-8 py-4 rounded-full shadow-sm">
+            <Text className="text-info font-black text-sm uppercase tracking-widest">Start Quest</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );

@@ -19,6 +19,7 @@ import { CopyAnalysisView } from '@/features/game/components/CopyAnalysisView';
 import type { CopyScoringResult } from '@/lib/scoring/copyScoring';
 // import { CodeScoringService } from '@/lib/scoring/codeScoring'; // Commented out - using AI evaluation instead
 import { CopyScoringService } from '@/lib/scoring/copyScoring';
+import { logDailyQuestComplete } from '@/lib/analytics';
 
 const { width, height: screenHeight } = Dimensions.get('window');
 
@@ -87,7 +88,7 @@ export default function GameScreen() {
   const inputAccessoryId = 'promptInputAccessory';
 
   const { lives, loseLife, startLevel, completeLevel } = useGameStore();
-  const { updateStreak } = useUserProgressStore();
+  const { currentQuest, completeQuest, updateStreak } = useUserProgressStore();
 
   useEffect(() => {
     const loadLevel = async () => {
@@ -249,6 +250,21 @@ export default function GameScreen() {
     };
   }, []);
 
+  // Quest completion: mark daily quest complete when a matching level is passed
+  const handleQuestCompletionIfMatching = useCallback(async () => {
+    if (!level || !currentQuest || currentQuest.completed) return;
+
+    const questType = currentQuest.questType ?? (currentQuest as { type?: string }).type;
+    if (!questType) return;
+
+    // Match quest type to level type (image/code/copywriting)
+    if (questType === level.type) {
+      await completeQuest();
+      logDailyQuestComplete(currentQuest.id, currentQuest.xpReward);
+      Alert.alert('Daily Quest Completed', `+${currentQuest.xpReward} XP earned`);
+    }
+  }, [level, currentQuest, completeQuest]);
+
   // Handle getting a hint
   const handleGetHint = useCallback(async () => {
     if (!level || isLoadingHint || hintCooldown > 0) return;
@@ -382,6 +398,7 @@ export default function GameScreen() {
           await updateStreak();
           setShowResult(true);
           await completeLevel(level.id);
+          await handleQuestCompletionIfMatching();
         } else {
           // User didn't pass - lose a life
           await loseLife();
@@ -582,6 +599,7 @@ export default function GameScreen() {
           await updateStreak();
           setShowResult(true);
           await completeLevel(level.id);
+          await handleQuestCompletionIfMatching();
         } else {
           await loseLife();
         }
@@ -749,6 +767,7 @@ export default function GameScreen() {
           await updateStreak();
           setShowResult(true);
           await completeLevel(level.id);
+          await handleQuestCompletionIfMatching();
         } else {
           await loseLife();
         }
