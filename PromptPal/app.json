@@ -15,8 +15,13 @@
       "**/*"
     ],
     "ios": {
+      "bundleIdentifier": "com.mikhailspeaks.promptpal",
       "supportsTablet": true,
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSUserNotificationUsageDescription": "PromptPal uses notifications to remind you of daily challenges and learning streaks.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "edgeToEdgeEnabled": true,
@@ -40,6 +45,12 @@
     "plugins": [
       "expo-router",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d8e6ec8a-a2b7-47b1-a904-f542af38e6fc"
+      }
+    }
   }
 }
