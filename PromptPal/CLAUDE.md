@@ -49,4 +49,6 @@ PromptPal helps users learn AI prompt engineering through interactive challenges
 
 ## Documentation
 
-For detailed architecture, module documentation, and navigation guides, see [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md).
+For detailed architecture, module documentation, and navigation guides, see [../docs/CODEBASE_MAP.md](../docs/CODEBASE_MAP.md).
+
+Last codebase map generated: 2026-02-17.

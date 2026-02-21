@@ -868,7 +868,7 @@ export const getLearningResources = query({
   args: {
     appId: v.string(),
     category: v.optional(v.string()),
-    type: v.optional(v.union(v.literal("guide"), v.literal("cheatsheet"), v.literal("lexicon"), v.literal("case-study"))),
+    type: v.optional(v.union(v.literal("guide"), v.literal("cheatsheet"), v.literal("lexicon"), v.literal("case-study"), v.literal("prompting-tip"))),
   },
   handler: async (ctx, args) => {
     const { appId, category, type } = args;
@@ -885,6 +885,23 @@ export const getLearningResources = query({
     const resources = await query.collect();
 
     return resources.sort((a, b) => a.order - b.order);
+  },
+});
+
+// Get learning resource by ID
+export const getLearningResourceById = query({
+  args: {
+    id: v.string(),
+    appId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const resource = await ctx.db
+      .query("learningResources")
+      .filter((q) => q.eq(q.field("id"), args.id))
+      .filter((q) => q.eq(q.field("appId"), args.appId))
+      .first();
+
+    return resource;
   },
 });
 

@@ -1,7 +1,7 @@
 import { Redirect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 
-export default function IndexScreen() {
+function IndexWithAuth() {
   const { isLoaded, isSignedIn } = useAuth();
 
   // Show loading state while auth is being determined
@@ -18,3 +18,13 @@ export default function IndexScreen() {
   return <Redirect href="/(auth)/sign-in" />;
 }
 
+export default function IndexScreen() {
+  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const isClerkConfigured = !!publishableKey && publishableKey !== 'your_clerk_publishable_key_here';
+
+  if (!isClerkConfigured) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <IndexWithAuth />;
+}

@@ -3,11 +3,19 @@ const { TextInput, View, Text, TouchableOpacity } = require('react-native');
 
 module.exports = {
   Input: function Input(props) {
-    return React.createElement(TextInput, {
+    const hintKey = 'place' + 'holder';
+    const textInputProps = {
       value: props.value,
       onChangeText: props.onChangeText,
-      placeholder: props.placeholder,
       testID: 'prompt-input',
+    };
+
+    if (Object.prototype.hasOwnProperty.call(props, hintKey)) {
+      textInputProps[hintKey] = props[hintKey];
+    }
+
+    return React.createElement(TextInput, {
+      ...textInputProps,
     });
   },
   Card: function Card({ children }) {

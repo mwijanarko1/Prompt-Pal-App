@@ -3,6 +3,8 @@ import { useUserProgressStore } from '@/features/user/store';
 import { logger } from '@/lib/logger';
 import { convexHttpClient } from '@/lib/convex-client';
 import { api } from "../../convex/_generated/api.js";
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 
 // Constants
 const SYNC_INTERVAL_MS = 300000; // 5 minutes (reduced from 30 seconds for event-driven sync)
@@ -15,37 +17,32 @@ const LAST_SYNC_KEY = 'promptpal_last_sync_timestamp';
 const secureStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         return window.localStorage.getItem(name);
-      } else {
-        // Use expo-secure-store on native platforms
-        const { SecureStore } = await import('expo-secure-store');
-        return await SecureStore.getItemAsync(name);
       }
+      return await SecureStore.getItemAsync(name);
     } catch {
       return null;
     }
   },
   setItem: async (name: string, value: string): Promise<void> => {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.localStorage.setItem(name, value);
-      } else {
-        const { SecureStore } = await import('expo-secure-store');
-        await SecureStore.setItemAsync(name, value);
+        return;
       }
+      await SecureStore.setItemAsync(name, value);
     } catch {
       // Handle error silently
     }
   },
   removeItem: async (name: string): Promise<void> => {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.localStorage.removeItem(name);
-      } else {
-        const { SecureStore } = await import('expo-secure-store');
-        await SecureStore.deleteItemAsync(name);
+        return;
       }
+      await SecureStore.deleteItemAsync(name);
     } catch {
       // Handle error silently
     }

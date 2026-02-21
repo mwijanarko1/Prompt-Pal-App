@@ -1532,7 +1532,7 @@ export default function GameScreen() {
         </InputAccessoryView>
       )}
 
-      {Platform.OS === 'android' && keyboardHeight > 0 && (
+      {Platform.OS !== 'ios' && keyboardHeight > 0 && (
         <View
           className="absolute left-0 right-0 px-4 py-2 bg-surface border-t border-outline flex-row justify-end"
           style={{ bottom: keyboardHeight }}

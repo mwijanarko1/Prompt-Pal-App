@@ -18,10 +18,8 @@ const REQUIRED_ENV_VARS = [
 export function validateEnvironment(): void {
   const missingVars: string[] = [];
 
-  console.log('[Environment] Validating environment variables...');
   for (const varName of REQUIRED_ENV_VARS) {
     const value = process.env[varName];
-    console.log(`[Environment] ${varName}: ${value ? 'SET' : 'MISSING'} (${value || 'undefined'})`);
     if (!value) {
       missingVars.push(varName);
     }
@@ -33,14 +31,12 @@ export function validateEnvironment(): void {
     
     // In development, log warning instead of throwing to allow app to run
     if (__DEV__) {
-      console.warn('[Environment] ⚠️', errorMessage);
+      console.warn('[Environment] ', errorMessage);
       console.warn('[Environment] App will continue in development mode, but some features may not work.');
     } else {
       // In production, throw error
       throw new Error(errorMessage);
     }
-  } else {
-    console.log('[Environment] ✅ All required variables are set');
   }
 }
 

@@ -115,6 +115,10 @@ Users earn XP, maintain daily streaks, complete quests, and compete on global le
    npm run web
    ```
 
+### Production Builds (TestFlight / App Store)
+
+Local `.env` files are not bundled into EAS builds. Configure environment variables via EAS Secrets before building. See [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for setup instructions.
+
 ---
 
 ## 📁 Project Structure

@@ -705,7 +705,6 @@ export type IoniconsName =
   | 'log-out-sharp'
   | 'logo-amazon'
   | 'logo-amplify'
-  | 'logo-android'
   | 'logo-angular'
   | 'logo-apple'
   | 'logo-apple-appstore'

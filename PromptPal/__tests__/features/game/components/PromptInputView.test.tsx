@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, TextInput } from 'react-native';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { PromptInputView } from '@/features/game/components/PromptInputView';
 import type { Level } from '@/lib/unified-api';
@@ -43,16 +43,18 @@ describe('PromptInputView (S2)', () => {
     NanoAssistant.getNextHintPenaltyDescription.mockReturnValue('Next hint: -5% score');
   });
 
+  const getPromptInput = () => screen.UNSAFE_getByType(TextInput);
+
   describe('S2: Standalone prompt input', () => {
-    it('renders prompt input with placeholder', () => {
-      render(<PromptInputView {...defaultProps} placeholder="Type your prompt" />);
-      expect(screen.getByPlaceholderText('Type your prompt')).toBeTruthy();
+    it('renders prompt input with hint text', () => {
+      render(<PromptInputView {...defaultProps} />);
+      expect(getPromptInput()).toBeTruthy();
     });
 
     it('calls onChangeText when user types (within limit)', () => {
       const onChangeText = jest.fn();
       render(<PromptInputView {...defaultProps} value="" onChangeText={onChangeText} />);
-      const input = screen.getByPlaceholderText('Enter your prompt here...');
+      const input = getPromptInput();
       fireEvent.changeText(input, 'hello');
       expect(onChangeText).toHaveBeenCalledWith('hello');
     });
@@ -165,7 +167,7 @@ describe('PromptInputView (S2)', () => {
     it('enforces max length (onChangeText not called when exceeding)', () => {
       const onChangeText = jest.fn();
       render(<PromptInputView {...defaultProps} value="" onChangeText={onChangeText} maxLength={5} />);
-      const input = screen.getByPlaceholderText('Enter your prompt here...');
+      const input = getPromptInput();
       fireEvent.changeText(input, '123456');
       expect(onChangeText).not.toHaveBeenCalledWith('123456');
       fireEvent.changeText(input, '12345');

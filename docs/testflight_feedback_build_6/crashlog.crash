@@ -1,0 +1,175 @@
+Incident Identifier: BE69D6BF-08E3-44B9-A78B-A569A8E3EEB9
+Distributor ID:      com.apple.TestFlight
+Hardware Model:      iPhone15,4
+Process:             PromptPal [56292]
+Path:                /private/var/containers/Bundle/Application/B03C1E88-5C05-4FCD-BDC9-5F32221A5A30/PromptPal.app/PromptPal
+Identifier:          com.mikhailspeaks.promptpal
+Version:             1.0.0 (6)
+AppStoreTools:       17C503a
+AppVariant:          1:iPhone15,4:26
+Beta:                YES
+Code Type:           ARM-64 (Native)
+Role:                Foreground
+Parent Process:      launchd [1]
+Coalition:           com.mikhailspeaks.promptpal [10166]
+
+Date/Time:           2026-02-16 12:09:27.3596 +0000
+Launch Time:         2026-02-16 12:09:26.3356 +0000
+OS Version:          iPhone OS 26.2.1 (23C71)
+Release Type:        User
+Baseband Version:    3.20.03
+Report Version:      104
+
+Exception Type:  EXC_CRASH (SIGABRT)
+Exception Codes: 0x0000000000000000, 0x0000000000000000
+Termination Reason: SIGNAL 6 Abort trap: 6
+Terminating Process: PromptPal [56292]
+
+Triggered by Thread:  6
+
+
+Thread 0 name:
+Thread 0:
+0   libsystem_kernel.dylib        	0x0000000233f45cd4 0x233f45000 + 3284
+1   libsystem_kernel.dylib        	0x0000000233f492f8 0x233f45000 + 17144
+2   libsystem_kernel.dylib        	0x0000000233f49214 0x233f45000 + 16916
+3   libsystem_kernel.dylib        	0x0000000233f4905c 0x233f45000 + 16476
+4   CoreFoundation                	0x0000000189589868 0x189543000 + 288872
+5   CoreFoundation                	0x0000000189560848 0x189543000 + 120904
+6   CoreFoundation                	0x000000018955fa6c 0x189543000 + 117356
+7   GraphicsServices              	0x000000022b190498 0x22b18f000 + 5272
+8   UIKitCore                     	0x000000018ef3adf8 0x18ee9d000 + 646648
+9   UIKitCore                     	0x000000018eee3e54 0x18ee9d000 + 290388
+10  PromptPal                     	0x000000010031d620 main + 64 (AppDelegate.swift:6)
+11  dyld                          	0x00000001009f4e28 0x1009f0000 + 20008
+
+Thread 1:
+
+Thread 2:
+
+Thread 3:
+
+Thread 4:
+
+Thread 5:
+
+Thread 6 name:
+Thread 6 Crashed:
+0   libsystem_kernel.dylib        	0x0000000233f500cc 0x233f45000 + 45260
+1   libsystem_pthread.dylib       	0x00000001e5e32810 0x1e5e2b000 + 30736
+2   libsystem_c.dylib             	0x0000000194e03f64 0x194d8c000 + 491364
+3   libc++abi.dylib               	0x000000018661f808 0x18660d000 + 75784
+4   libc++abi.dylib               	0x000000018660e46c 0x18660d000 + 5228
+5   libobjc.A.dylib               	0x000000018651ff88 0x1864ec000 + 212872
+6   libc++abi.dylib               	0x000000018661ebdc 0x18660d000 + 72668
+7   libc++abi.dylib               	0x00000001866225c8 0x18660d000 + 87496
+8   libobjc.A.dylib               	0x000000018652c558 0x1864ec000 + 263512
+9   React                         	0x0000000101a4751c invocation function for block in facebook::react::ObjCTurboModule::performVoidMethodInvocation(facebook::jsi::Runtime&, char const*, NSInvocation*, NSMutableArray*) + 192 (RCTTurboModule.mm:441)
+10  React                         	0x0000000101a4c4a8 facebook::react::ObjCTurboModule::performVoidMethodInvocation(facebook::jsi::Runtime&, char const*, NSInvocation*, NSMutableArray*)::$_1::operator()() const + 64 (RCTTurboModule.mm:460)
+11  React                         	0x0000000101a4c4a8 decltype(std::declval<facebook::react::ObjCTurboModule::performVoidMethodInvocation(facebook::jsi::Runtime&, char const*, NSInvocation*, NSMutableArray*)::$_1&>()()) std::__1::__invoke[abi:ne180100... + 64 (invoke.h:344)
+12  React                         	0x0000000101a4c4a8 void std::__1::__invoke_void_return_wrapper<void, true>::__call[abi:ne180100]<facebook::react::ObjCTurboModule::performVoidMethodInvocation(facebook::jsi::Runtime&, char const*, NSInvocation*, NSMu... + 64 (invoke.h:419)
+13  React                         	0x0000000101a4c4a8 std::__1::__function::__alloc_func<facebook::react::ObjCTurboModule::performVoidMethodInvocation(facebook::jsi::Runtime&, char const*, NSInvocation*, NSMutableArray*)::$_1, std::__1::allocator<face... + 64 (function.h:169)
+14  React                         	0x0000000101a4c4a8 std::__1::__function::__func<facebook::react::ObjCTurboModule::performVoidMethodInvocation(facebook::jsi::Runtime&, char const*, NSInvocation*, NSMutableArray*)::$_1, std::__1::allocator<facebook::... + 88 (function.h:311)
+15  libdispatch.dylib             	0x00000001c206badc 0x1c206a000 + 6876
+16  libdispatch.dylib             	0x00000001c20857fc 0x1c206a000 + 112636
+17  libdispatch.dylib             	0x00000001c2074468 0x1c206a000 + 42088
+18  libdispatch.dylib             	0x00000001c2074f44 0x1c206a000 + 44868
+19  libdispatch.dylib             	0x00000001c207f3ec 0x1c206a000 + 87020
+20  libdispatch.dylib             	0x00000001c207ece4 0x1c206a000 + 85220
+21  libsystem_pthread.dylib       	0x00000001e5e2c3b8 0x1e5e2b000 + 5048
+22  libsystem_pthread.dylib       	0x00000001e5e2b8c0 0x1e5e2b000 + 2240
+
+Thread 7 name:
+Thread 7:
+0   libsystem_kernel.dylib        	0x0000000233f45cd4 0x233f45000 + 3284
+1   libsystem_kernel.dylib        	0x0000000233f492f8 0x233f45000 + 17144
+2   libsystem_kernel.dylib        	0x0000000233f49214 0x233f45000 + 16916
+3   libsystem_kernel.dylib        	0x0000000233f4905c 0x233f45000 + 16476
+4   CoreFoundation                	0x0000000189589868 0x189543000 + 288872
+5   CoreFoundation                	0x0000000189560848 0x189543000 + 120904
+6   CoreFoundation                	0x000000018955fa6c 0x189543000 + 117356
+7   Foundation                    	0x0000000187556df8 0x186bb4000 + 10104312
+8   Foundation                    	0x0000000187556fd0 0x186bb4000 + 10104784
+9   UIKitCore                     	0x000000018ef10094 0x18ee9d000 + 471188
+10  Foundation                    	0x0000000186c1621c 0x186bb4000 + 401948
+11  libsystem_pthread.dylib       	0x00000001e5e2f44c 0x1e5e2b000 + 17484
+12  libsystem_pthread.dylib       	0x00000001e5e2b8cc 0x1e5e2b000 + 2252
+
+Thread 8:
+
+Thread 9 name:
+Thread 9:
+0   libsystem_kernel.dylib        	0x0000000233f45cd4 0x233f45000 + 3284
+1   libsystem_kernel.dylib        	0x0000000233f492f8 0x233f45000 + 17144
+2   libsystem_kernel.dylib        	0x0000000233f49214 0x233f45000 + 16916
+3   libsystem_kernel.dylib        	0x0000000233f4905c 0x233f45000 + 16476
+4   CoreFoundation                	0x0000000189589868 0x189543000 + 288872
+5   CoreFoundation                	0x0000000189560848 0x189543000 + 120904
+6   CoreFoundation                	0x000000018955fa6c 0x189543000 + 117356
+7   React                         	0x00000001019dcf14 +[RCTJSThreadManager runRunLoop] + 252 (RCTJSThreadManager.mm:102)
+8   Foundation                    	0x0000000186c1621c 0x186bb4000 + 401948
+9   libsystem_pthread.dylib       	0x00000001e5e2f44c 0x1e5e2b000 + 17484
+10  libsystem_pthread.dylib       	0x00000001e5e2b8cc 0x1e5e2b000 + 2252
+
+Thread 10 name:
+Thread 10:
+0   libsystem_kernel.dylib        	0x0000000233f4b5d4 0x233f45000 + 26068
+1   libsystem_pthread.dylib       	0x00000001e5e2db58 0x1e5e2b000 + 11096
+2   libc++.1.dylib                	0x00000001987cb704 0x1987a9000 + 141060
+3   hermes                        	0x000000010231b9c4 void std::__1::condition_variable::wait<hermes::vm::HadesGC::Executor::worker()::'lambda'()>(std::__1::unique_lock<std::__1::mutex>&, hermes::vm::HadesGC::Executor::worker()::'lambda'()) + 28 (condition_variable.h:146)
+4   hermes                        	0x000000010231b9c4 hermes::vm::HadesGC::Executor::worker() + 116 (HadesGC.cpp:1062)
+5   hermes                        	0x000000010231b92c hermes::vm::HadesGC::Executor::Executor()::'lambda'()::operator()() const + 4 (HadesGC.cpp:1033)
+6   hermes                        	0x000000010231b92c decltype(std::declval<hermes::vm::HadesGC::Executor::Executor()::'lambda'()>()()) std::__1::__invoke[abi:nn180100]<hermes::vm::HadesGC::Executor::Executor()::'lambda'()>(hermes::vm::HadesGC::Execut... + 4 (invoke.h:344)
+7   hermes                        	0x000000010231b92c void std::__1::__thread_execute[abi:nn180100]<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, hermes::vm::HadesGC::Executor::Executor()::'lambd... + 4 (thread.h:199)
+8   hermes                        	0x000000010231b92c void* std::__1::__thread_proxy[abi:nn180100]<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, hermes::vm::HadesGC::Executor::Exe... + 44 (thread.h:208)
+9   libsystem_pthread.dylib       	0x00000001e5e2f44c 0x1e5e2b000 + 17484
+10  libsystem_pthread.dylib       	0x00000001e5e2b8cc 0x1e5e2b000 + 2252
+
+Thread 11 name:
+Thread 11:
+0   libsystem_kernel.dylib        	0x0000000233f4b5d4 0x233f45000 + 26068
+1   libsystem_pthread.dylib       	0x00000001e5e2db58 0x1e5e2b000 + 11096
+2   libc++.1.dylib                	0x00000001987cb704 0x1987a9000 + 141060
+3   hermes                        	0x000000010231b9c4 void std::__1::condition_variable::wait<hermes::vm::HadesGC::Executor::worker()::'lambda'()>(std::__1::unique_lock<std::__1::mutex>&, hermes::vm::HadesGC::Executor::worker()::'lambda'()) + 28 (condition_variable.h:146)
+4   hermes                        	0x000000010231b9c4 hermes::vm::HadesGC::Executor::worker() + 116 (HadesGC.cpp:1062)
+5   hermes                        	0x000000010231b92c hermes::vm::HadesGC::Executor::Executor()::'lambda'()::operator()() const + 4 (HadesGC.cpp:1033)
+6   hermes                        	0x000000010231b92c decltype(std::declval<hermes::vm::HadesGC::Executor::Executor()::'lambda'()>()()) std::__1::__invoke[abi:nn180100]<hermes::vm::HadesGC::Executor::Executor()::'lambda'()>(hermes::vm::HadesGC::Execut... + 4 (invoke.h:344)
+7   hermes                        	0x000000010231b92c void std::__1::__thread_execute[abi:nn180100]<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, hermes::vm::HadesGC::Executor::Executor()::'lambd... + 4 (thread.h:199)
+8   hermes                        	0x000000010231b92c void* std::__1::__thread_proxy[abi:nn180100]<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, hermes::vm::HadesGC::Executor::Exe... + 44 (thread.h:208)
+9   libsystem_pthread.dylib       	0x00000001e5e2f44c 0x1e5e2b000 + 17484
+10  libsystem_pthread.dylib       	0x00000001e5e2b8cc 0x1e5e2b000 + 2252
+
+
+Thread 6 crashed with ARM Thread State (64-bit):
+    x0: 0x0000000000000000   x1: 0x0000000000000000   x2: 0x0000000000000000   x3: 0x0000000000000000
+    x4: 0x00000000001d3fba   x5: 0x000000000000001a   x6: 0x0000000000000064   x7: 0x0000000000000060
+    x8: 0x3461a196a89fc9dd   x9: 0x3461a197c77d79dd  x10: 0x0000000000000002  x11: 0x0000010000000000
+   x12: 0x00000000fffffffd  x13: 0x0000000000000000  x14: 0x0000000000000000  x15: 0x0000000000000000
+   x16: 0x0000000000000148  x17: 0x000000016fe2b000  x18: 0x0000000000000000  x19: 0x0000000000000006
+   x20: 0x0000000000003003  x21: 0x000000016fe2b0e0  x22: 0x434c4e47432b2b00  x23: 0x0000000107245d40
+   x24: 0x000000010bc88c90  x25: 0x0000000000000000  x26: 0x0000000000000000  x27: 0x0000000000000000
+   x28: 0x0000000000000114   fp: 0x000000016fe2a6b0   lr: 0x00000001e5e32810
+    sp: 0x000000016fe2a690   pc: 0x0000000233f500cc cpsr: 0x40001000
+   esr: 0x56000080 (Syscall)
+
+
+Binary Images:
+        0x100318000 -         0x1007ebfff PromptPal arm64  <7c99681c16cb37b18be97b6356485ef2> /var/containers/Bundle/Application/B03C1E88-5C05-4FCD-BDC9-5F32221A5A30/PromptPal.app/PromptPal
+        0x1009f0000 -         0x100a8ffff dyld arm64e  <dbbf981322cc39fc8d40581143766ff6> /usr/lib/dyld
+        0x100b54000 -         0x100b5ffff libobjc-trampolines.dylib arm64e  <ed3ce61e93863ea097ab5406bf5531a9> /private/preboot/Cryptexes/OS/usr/lib/libobjc-trampolines.dylib
+        0x100d70000 -         0x100df7fff ReactNativeDependencies arm64  <b35f1182b82e33728a74a4fe502c0906> /private/var/containers/Bundle/Application/B03C1E88-5C05-4FCD-BDC9-5F32221A5A30/PromptPal.app/Frameworks/ReactNativeDependencies.framework/ReactNativeDependencies
+        0x10173c000 -         0x101b77fff React arm64  <76fbcee9351730b39dc662c4e914e908> /private/var/containers/Bundle/Application/B03C1E88-5C05-4FCD-BDC9-5F32221A5A30/PromptPal.app/Frameworks/React.framework/React
+        0x10224c000 -         0x10244ffff hermes arm64  <80d5528f2c783b90b90f747e89a9f880> /private/var/containers/Bundle/Application/B03C1E88-5C05-4FCD-BDC9-5F32221A5A30/PromptPal.app/Frameworks/hermes.framework/hermes
+        0x1864ec000 -         0x18653db2f libobjc.A.dylib arm64e  <7203a71f3ce43f6093cfb3063caab174> /usr/lib/libobjc.A.dylib
+        0x18660d000 -         0x1866276c7 libc++abi.dylib arm64e  <8da47f0e613f35c6abc2bcc02bb3b573> /usr/lib/libc++abi.dylib
+        0x186bb4000 -         0x1879fa81f Foundation arm64e  <75d11b2911a6350787f7487aceb1476a> /System/Library/Frameworks/Foundation.framework/Foundation
+        0x189543000 -         0x189ac973f CoreFoundation arm64e  <bd79fbf583c835f5a0d54ca56e602111> /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+        0x18ee9d000 -         0x1912f9f3f UIKitCore arm64e  <2708bb8a4e1b36c18385ddfc612cdda5> /System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore
+        0x194d8c000 -         0x194e0c5af libsystem_c.dylib arm64e  <e2fb0b5bed9335a7a6264894601e382b> /usr/lib/system/libsystem_c.dylib
+        0x1987a9000 -         0x19883be23 libc++.1.dylib arm64e  <028579365a9d34ea95557d9d8dfb6def> /usr/lib/libc++.1.dylib
+        0x1c206a000 -         0x1c20b021f libdispatch.dylib arm64e  <654f736a691d3c6abd8169bc65b9b8ed> /usr/lib/system/libdispatch.dylib
+        0x1e5e2b000 -         0x1e5e3744f libsystem_pthread.dylib arm64e  <36408bf3c2b337c8abc20251f88e8724> /usr/lib/system/libsystem_pthread.dylib
+        0x22b18f000 -         0x22b1977ff GraphicsServices arm64e  <a0cf2b0ae26e32f6a585582766c557aa> /System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices
+        0x233f45000 -         0x233f7fd2b libsystem_kernel.dylib arm64e  <99b78925f0633b62ad223986a636020d> /usr/lib/system/libsystem_kernel.dylib
+
+EOF

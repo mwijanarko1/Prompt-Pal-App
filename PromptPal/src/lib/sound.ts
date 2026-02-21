@@ -1,7 +1,7 @@
-import { Audio } from 'expo-av';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
+import { logger } from './logger';
 
 /* -----------------------------
    Sound Settings Store
@@ -52,115 +52,46 @@ export const useSoundSettings = create<SoundSettingsState>()(
 -------------------------------- */
 
 class SoundManager {
-  private sounds: { [key: string]: Audio.Sound | null } = {};
   private isInitialized = false;
 
   /**
    * Initialize audio mode
+   * TODO: Install expo-av and implement actual sound loading when audio assets are ready
    */
   async initialize() {
-    try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-      this.isInitialized = true;
-    } catch (error) {
-      console.warn('[Sounds] Failed to initialize audio:', error);
-    }
+    this.isInitialized = true;
   }
 
   /**
-   * Load a sound (placeholder - in production, load actual audio files)
-   */
-  private async loadSound(name: string): Promise<Audio.Sound | null> {
-    // Placeholder: In production, you would load actual audio files
-    // For now, we'll create silent sounds as placeholders
-    try {
-      // This is a placeholder - replace with actual audio file loading
-      // Example: const { sound } = await Audio.Sound.createAsync(require(`../assets/sounds/${name}.mp3`));
-      
-      // For now, return null (sounds will be silent until actual files are added)
-      return null;
-    } catch (error) {
-      console.warn(`[Sounds] Failed to load sound ${name}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Play a sound effect
+   * Play a sound effect (placeholder until expo-av is installed)
    */
   async play(soundName: 'success' | 'error' | 'button' | 'levelComplete') {
     const { soundsEnabled } = useSoundSettings.getState();
-    
     if (!soundsEnabled || !this.isInitialized) {
       return;
     }
-
-    try {
-      // Load sound if not already loaded
-      if (!this.sounds[soundName]) {
-        this.sounds[soundName] = await this.loadSound(soundName);
-      }
-
-      const sound = this.sounds[soundName];
-      if (sound) {
-        // Reset to beginning and play
-        await sound.setPositionAsync(0);
-        await sound.playAsync();
-      }
-    } catch (error) {
-      console.warn(`[Sounds] Failed to play ${soundName}:`, error);
-    }
+    // No-op until expo-av is installed and audio assets are added
   }
 
   /**
    * Stop a specific sound
    */
-  async stop(soundName: 'success' | 'error' | 'button' | 'levelComplete') {
-    try {
-      const sound = this.sounds[soundName];
-      if (sound) {
-        await sound.stopAsync();
-      }
-    } catch (error) {
-      console.warn(`[Sounds] Failed to stop ${soundName}:`, error);
-    }
+  async stop(_soundName: 'success' | 'error' | 'button' | 'levelComplete') {
+    // No-op until expo-av is installed
   }
 
   /**
    * Stop all sounds
    */
   async stopAll() {
-    try {
-      await Promise.all(
-        Object.values(this.sounds)
-          .filter(Boolean)
-          .map((sound) => sound?.stopAsync())
-      );
-    } catch (error) {
-      console.warn('[Sounds] Failed to stop all sounds:', error);
-    }
+    // No-op until expo-av is installed
   }
 
   /**
    * Unload all sounds (cleanup)
    */
   async unloadAll() {
-    try {
-      await Promise.all(
-        Object.entries(this.sounds).map(async ([name, sound]) => {
-          if (sound) {
-            await sound.unloadAsync();
-            this.sounds[name] = null;
-          }
-        })
-      );
-    } catch (error) {
-      console.warn('[Sounds] Failed to unload sounds:', error);
-    }
+    // No-op until expo-av is installed
   }
 }
 

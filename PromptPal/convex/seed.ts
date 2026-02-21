@@ -2,6 +2,12 @@ import { action } from "./_generated/server";
 import { api } from "./_generated/api";
 import { allLevels } from "./levels_data";
 
+const logSeed = (...args: unknown[]): void => {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(...args);
+  }
+};
+
 export const seedApps = action({
   args: {},
   handler: async (ctx) => {
@@ -33,7 +39,7 @@ export const seedApps = action({
             copywritingLevels: 50,
           },
         });
-        console.log("Updated PromptPal limits");
+        logSeed("Updated PromptPal limits");
       }
     } else {
       // Create new PromptPal app
@@ -59,10 +65,10 @@ export const seedApps = action({
           copywritingLevels: 50,
         },
       });
-      console.log("Created PromptPal app");
+      logSeed("Created PromptPal app");
     }
 
-    console.log("Apps seeding completed");
+    logSeed("Apps seeding completed");
   },
 });
 
@@ -131,11 +137,11 @@ export const seedLearningModules = action({
           isActive: true,
           order: i + 1,
         });
-        console.log(`Created learning module: ${module.title}`);
+        logSeed(`Created learning module: ${module.title}`);
       }
     }
 
-    console.log("Learning modules seeding completed");
+    logSeed("Learning modules seeding completed");
   },
 });
 
@@ -148,56 +154,190 @@ export const seedLearningResources = action({
         id: "guide-lighting-basics",
         type: "guide" as const,
         title: "Lighting Basics for AI Art",
-        description: "Master the fundamental lighting terms that drive Gemini's image generation engine.",
+        description: "Use practical lighting language to control mood, depth, and realism in image prompts.",
         category: "IMAGE GENERATION",
         difficulty: "beginner" as const,
-        estimatedTime: 10,
-        tags: ["lighting", "basics", "image-gen"],
-        icon: "💡",
+        estimatedTime: 8,
+        tags: ["lighting", "composition", "image-gen"],
+        icon: "book",
         content: {
           sections: [
             {
               title: "Natural Lighting",
-              text: "Words like 'golden hour', 'overcast', and 'dappled sunlight' create realistic outdoor scenes."
+              body: "Use conditions like golden hour, overcast sky, and dappled sunlight to shape color temperature and contrast.",
+              tips: "Pair the light source with scene context: 'golden hour street market, long soft shadows'."
             },
             {
               title: "Studio Lighting",
-              text: "Use 'rim lighting', 'softbox', and 'backlit' for professional product-style shots."
+              body: "Keywords like softbox, rim light, and backlight create clean edges and highlight product details.",
+              tips: "Mention camera intent: 'softbox portrait with shallow depth of field'."
+            },
+            {
+              title: "Mood Through Contrast",
+              body: "Low-key lighting gives dramatic scenes. High-key lighting creates bright, commercial-friendly visuals.",
+              tips: "Add one mood word and one contrast term for consistency."
             }
           ]
         }
       },
       {
-        id: "lexicon-power-words",
+        id: "lexicon-image-styles",
         type: "lexicon" as const,
-        title: "Prompt Power Words",
-        description: "A dictionary of high-impact words to boost your prompt results.",
+        title: "Image Prompt Style Lexicon",
+        description: "A fast lookup of style and quality terms that consistently improve image outputs.",
         category: "IMAGE GENERATION",
         difficulty: "beginner" as const,
-        estimatedTime: 5,
-        tags: ["keywords", "lexicon"],
-        icon: "📖",
+        estimatedTime: 6,
+        tags: ["style", "quality", "lexicon"],
+        icon: "text",
         content: {
-          entries: [
-            { word: "Intricate", definition: "Adds fine detail to complex surfaces." },
-            { word: "Cinematic", definition: "Improves color grading and depth of field." }
+          terms: [
+            {
+              term: "Cinematic",
+              definition: "Applies film-like grading, composition, and depth.",
+              example: "cinematic wide shot, moody color grading, soft grain"
+            },
+            {
+              term: "Photorealistic",
+              definition: "Pushes materials, lighting, and detail toward realism.",
+              example: "photorealistic product shot, natural reflections, studio backdrop"
+            },
+            {
+              term: "Concept Art",
+              definition: "Leans toward exploratory design language and stylized detail.",
+              example: "sci-fi concept art, atmospheric perspective, dramatic silhouette"
+            }
           ]
         }
       },
       {
         id: "cheatsheet-js-loops",
         type: "cheatsheet" as const,
-        title: "JavaScript Loop Patterns",
-        description: "Quick reference for the most common JS iteration patterns used in challenges.",
+        title: "JavaScript Loop Patterns for Prompted Code",
+        description: "Reference snippets for choosing the right iteration pattern in coding challenges.",
         category: "CODING & LOGIC",
         difficulty: "beginner" as const,
-        estimatedTime: 3,
+        estimatedTime: 5,
         tags: ["javascript", "loops", "coding"],
-        icon: "🔁",
+        icon: "flash",
         content: {
-          patterns: [
-            { name: "Map", code: "const newArray = arr.map(item => ...)" },
-            { name: "Filter", code: "const results = arr.filter(item => ...)" }
+          snippets: [
+            {
+              title: "Transform with map",
+              code: "const pricesWithTax = prices.map((p) => Number((p * 1.08).toFixed(2)));",
+              description: "Use when every input item should produce one output item."
+            },
+            {
+              title: "Filter then map",
+              code: "const activeEmails = users.filter((u) => u.active).map((u) => u.email);",
+              description: "Split selection and transformation for readable prompts and code."
+            },
+            {
+              title: "Aggregate with reduce",
+              code: "const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);",
+              description: "Use when you need a single final value."
+            }
+          ]
+        }
+      },
+      {
+        id: "guide-debug-prompted-code",
+        type: "guide" as const,
+        title: "Debugging AI-Generated Code",
+        description: "A repeatable workflow to catch errors, tighten requirements, and iterate quickly.",
+        category: "CODING & LOGIC",
+        difficulty: "intermediate" as const,
+        estimatedTime: 9,
+        tags: ["debugging", "iteration", "testing"],
+        icon: "book",
+        content: {
+          sections: [
+            {
+              title: "Start with Failing Cases",
+              body: "Ask the model to produce 3-5 edge-case tests before writing implementation details.",
+              tips: "Use: 'List boundary tests first, then implement the function.'"
+            },
+            {
+              title: "Constrain the Output",
+              body: "Specify language version, runtime assumptions, and exact function signature to reduce ambiguity.",
+              tips: "Include expected complexity when performance matters."
+            },
+            {
+              title: "Refine in Small Deltas",
+              body: "Request one change per iteration and preserve known-good behavior with regression tests.",
+              tips: "Avoid full rewrites unless the approach is fundamentally wrong."
+            }
+          ]
+        }
+      },
+      {
+        id: "cheatsheet-copy-frameworks",
+        type: "cheatsheet" as const,
+        title: "Copywriting Framework Cheatsheet",
+        description: "Prompt templates for AIDA, PAS, and feature-to-benefit conversion.",
+        category: "COPYWRITING",
+        difficulty: "beginner" as const,
+        estimatedTime: 6,
+        tags: ["copywriting", "frameworks", "marketing"],
+        icon: "flash",
+        content: {
+          snippets: [
+            {
+              title: "AIDA Prompt",
+              code: "Write landing page copy using AIDA for [audience], highlighting [core offer], ending with CTA '[cta]'.",
+              description: "Reliable structure for ads and landing pages."
+            },
+            {
+              title: "PAS Prompt",
+              code: "Write a PAS email for [problem], intensify business impact, then position [product] as the solution.",
+              description: "Useful for pain-point led messaging."
+            },
+            {
+              title: "Feature -> Benefit Prompt",
+              code: "Convert these features into customer benefits for [persona], with one proof point per claim.",
+              description: "Prevents feature-heavy but weak copy."
+            }
+          ]
+        }
+      },
+      {
+        id: "case-study-email-ctr",
+        type: "case-study" as const,
+        title: "Case Study: Improve Email CTR",
+        description: "How better prompt constraints improved a campaign CTA click-through rate.",
+        category: "COPYWRITING",
+        difficulty: "intermediate" as const,
+        estimatedTime: 7,
+        tags: ["case-study", "email", "conversion"],
+        icon: "bulb",
+        content: {
+          challenge: "Open rates were healthy, but CTA clicks underperformed because copy was generic and value was unclear.",
+          solution: "The team used a stricter prompt template: audience pain points, tone constraints, one concrete proof point, and three CTA options ranked by urgency.",
+          result: "CTA click-through increased by 28% over two campaign cycles."
+        }
+      },
+      {
+        id: "prompting-tip-iteration-loop",
+        type: "prompting-tip" as const,
+        title: "Use an Iteration Loop",
+        description: "Get stronger outputs by explicitly asking the model to critique and improve its first draft.",
+        category: "GENERAL",
+        difficulty: "beginner" as const,
+        estimatedTime: 4,
+        tags: ["prompting", "iteration", "quality"],
+        icon: "chatbubble-ellipses",
+        content: {
+          sections: [
+            {
+              title: "Request Draft -> Critique -> Rewrite",
+              content: "Ask for an initial answer, a short self-critique against your constraints, and a revised final version.",
+              example: "Generate a first draft. Then list 3 weaknesses against my goal. Rewrite with those fixed."
+            },
+            {
+              title: "Keep Constraints Stable",
+              content: "If the model drifts, restate non-negotiables like format, audience, tone, and length before each rewrite.",
+              example: "Keep B2B tone, max 120 words, and include one quantified claim."
+            }
           ]
         }
       }
@@ -205,16 +345,27 @@ export const seedLearningResources = action({
 
     for (let i = 0; i < resources.length; i++) {
       const res = resources[i];
-      await ctx.runMutation(api.mutations.createLearningResource, {
+      const payload = {
         ...res,
         appId: "prompt-pal",
         isActive: true,
         order: i + 1,
+      };
+      const existing = await ctx.runQuery(api.queries.getLearningResourceById, {
+        id: res.id,
+        appId: "prompt-pal",
       });
-      console.log(`Created learning resource: ${res.title}`);
+
+      if (existing) {
+        await ctx.runMutation(api.mutations.updateLearningResource, payload);
+        logSeed(`Updated learning resource: ${res.title}`);
+      } else {
+        await ctx.runMutation(api.mutations.createLearningResource, payload);
+        logSeed(`Created learning resource: ${res.title}`);
+      }
     }
 
-    console.log("Learning resources seeding completed");
+    logSeed("Learning resources seeding completed");
   },
 });
 
@@ -230,7 +381,7 @@ export const seedLevels = action({
           appId: "prompt-pal",
           isActive: true,
         });
-        console.log(`Created level: ${level.title}`);
+        logSeed(`Created level: ${level.title}`);
       } else {
         // Update existing level with new data
         const { id, ...levelData } = level;
@@ -240,11 +391,11 @@ export const seedLevels = action({
           ...levelData,
           isActive: true,
         });
-        console.log(`Updated level: ${level.title}`);
+        logSeed(`Updated level: ${level.title}`);
       }
     }
 
-    console.log("Levels seeding completed - 30 levels created/updated");
+    logSeed("Levels seeding completed - 30 levels created/updated");
   },
 });
 
@@ -256,7 +407,7 @@ export const seedDailyQuests = action({
       appId: "prompt-pal",
     });
 
-    console.log("Daily quest pool seeded");
+    logSeed("Daily quest pool seeded");
   },
 });
 
@@ -327,11 +478,11 @@ export const seedAchievements = action({
         await ctx.runMutation(api.mutations.createAchievement, {
           ...achievement,
         });
-        console.log(`Created achievement: ${achievement.title}`);
+        logSeed(`Created achievement: ${achievement.title}`);
       }
     }
 
-    console.log("Achievements seeding completed");
+    logSeed("Achievements seeding completed");
   },
 });
 
@@ -339,7 +490,7 @@ export const seedAchievements = action({
 export const seedAll = action({
   args: {},
   handler: async (ctx) => {
-    console.log("Starting comprehensive database seeding...");
+    logSeed("Starting comprehensive database seeding...");
 
     await ctx.runAction(api.seed.seedApps, {});
     await ctx.runAction(api.seed.seedLearningModules, {});
@@ -348,6 +499,6 @@ export const seedAll = action({
     await ctx.runAction(api.seed.seedDailyQuests, {});
     await ctx.runAction(api.seed.seedAchievements, {});
 
-    console.log("All seeding completed successfully!");
+    logSeed("All seeding completed successfully!");
   },
 });

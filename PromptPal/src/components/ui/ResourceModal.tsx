@@ -1,29 +1,18 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import {
+  Modal as RNModal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Modal } from './Modal';
 import { Button } from './Button';
 import { Badge } from './Badge';
+import { Resource, getResourceIcon, formatResourceTypeLabel } from './ResourceUtils';
 
-// Resource type definition
-export interface Resource {
-  id: string;
-  appId: string;
-  type: 'guide' | 'cheatsheet' | 'lexicon' | 'case-study' | 'prompting-tip';
-  title: string;
-  description: string;
-  content: unknown;
-  category: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  estimatedTime: number | null;
-  tags: string[];
-  icon: string | null;
-  metadata: unknown | null;
-  order: number;
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
+export type { Resource } from './ResourceUtils';
 
 interface ResourceModalProps {
   isVisible: boolean;
@@ -31,190 +20,284 @@ interface ResourceModalProps {
   resource: Resource | null;
 }
 
-const { height } = Dimensions.get('window');
+type UnknownRecord = Record<string, unknown>;
 
-export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose, resource }) => {
-  if (!resource) return null;
+function asRecord(value: unknown): UnknownRecord {
+  return value && typeof value === 'object' ? (value as UnknownRecord) : {};
+}
 
-  const renderContent = () => {
-    const { type, content } = resource;
+function asString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
 
-    if (!content) return <Text className="text-onSurfaceVariant italic">No content available for this resource.</Text>;
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
 
-    const contentData = content as any; // Cast to any to access dynamic properties
+export function renderResourceContent(resource: Resource) {
+  const { type, content } = resource;
 
-    switch (type) {
-      case 'lexicon':
-        return (
-          <View className="space-y-4">
-            {Array.isArray(contentData.terms) && contentData.terms.map((item: any, index: number) => (
+  if (!content) return <Text className="text-onSurfaceVariant italic">No content available for this resource.</Text>;
+
+  const contentData = asRecord(content);
+
+  switch (type) {
+    case 'lexicon': {
+      const terms = asArray(contentData.terms).length > 0
+        ? asArray(contentData.terms)
+        : asArray(contentData.entries).map((entry) => {
+            const row = asRecord(entry);
+            return {
+              term: asString(row.term, asString(row.word)),
+              definition: asString(row.definition),
+              example: asString(row.example),
+            };
+          });
+
+      if (terms.length === 0) {
+        return <Text className="text-onSurfaceVariant italic">No terms available yet.</Text>;
+      }
+
+      return (
+        <View className="space-y-4">
+          {terms.map((item, index: number) => {
+            const row = asRecord(item);
+            const term = asString(row.term);
+            const definition = asString(row.definition);
+            const example = asString(row.example);
+
+            return (
               <View key={index} className="bg-surfaceVariant/20 p-4 rounded-2xl border border-outline/10">
-                <Text className="text-primary font-black text-lg mb-1">{item.term}</Text>
-                <Text className="text-onSurface text-sm leading-5">{item.definition}</Text>
-                {item.example && (
+                <Text className="text-primary font-black text-lg mb-1">{term || `Term ${index + 1}`}</Text>
+                <Text className="text-onSurface text-sm leading-5">{definition || 'Definition unavailable.'}</Text>
+                {example ? (
                   <View className="mt-3 bg-black/10 p-2 rounded-lg">
-                    <Text className="text-onSurfaceVariant text-xs italic">Example: {item.example}</Text>
+                    <Text className="text-onSurfaceVariant text-xs italic">Example: {example}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
-            ))}
-          </View>
-        );
+            );
+          })}
+        </View>
+      );
+    }
 
-      case 'cheatsheet':
-        return (
-          <View className="space-y-4">
-            {Array.isArray(contentData.snippets) && contentData.snippets.map((item: any, index: number) => (
+    case 'cheatsheet': {
+      const snippets = asArray(contentData.snippets).length > 0
+        ? asArray(contentData.snippets)
+        : asArray(contentData.patterns).map((pattern) => {
+            const row = asRecord(pattern);
+            return {
+              title: asString(row.title, asString(row.name)),
+              code: asString(row.code),
+              description: asString(row.description),
+            };
+          });
+
+      if (snippets.length === 0) {
+        return <Text className="text-onSurfaceVariant italic">No snippets available yet.</Text>;
+      }
+
+      return (
+        <View className="space-y-4">
+          {snippets.map((item, index: number) => {
+            const row = asRecord(item);
+            const title = asString(row.title, `Snippet ${index + 1}`);
+            const code = asString(row.code);
+            const description = asString(row.description);
+
+            return (
               <View key={index} className="space-y-2">
-                <Text className="text-onSurface font-bold text-base">{item.title}</Text>
+                <Text className="text-onSurface font-bold text-base">{title}</Text>
                 <View className="bg-[#1E1E2E] p-4 rounded-xl border border-white/5">
                   <Text className="text-[#A6ADC8] font-mono text-xs leading-5">
-                    {item.code}
+                    {code || '// Code example unavailable.'}
                   </Text>
                 </View>
-                <Text className="text-onSurfaceVariant text-xs">{item.description}</Text>
+                {description ? (
+                  <Text className="text-onSurfaceVariant text-xs">{description}</Text>
+                ) : null}
               </View>
-            ))}
-          </View>
-        );
+            );
+          })}
+        </View>
+      );
+    }
 
-      case 'guide':
-        return (
-          <View className="space-y-6">
-            {Array.isArray(contentData.sections) && contentData.sections.map((section: any, index: number) => (
-              <View key={index} className="space-y-2">
-                <Text className="text-onSurface font-black text-xl">{section.title}</Text>
+    case 'guide': {
+      const sections = asArray(contentData.sections);
+      if (sections.length === 0) {
+        return <Text className="text-onSurfaceVariant italic">No guide sections available yet.</Text>;
+      }
+
+      return (
+        <View className="space-y-5">
+          {sections.map((section, index: number) => {
+            const row = asRecord(section);
+            const title = asString(row.title, `Section ${index + 1}`);
+            const body = asString(row.body, asString(row.text));
+            const tips = asString(row.tips);
+
+            return (
+              <View key={index} className="space-y-3">
+                <Text className="text-onSurface font-black text-xl">{title}</Text>
                 <Text className="text-onSurfaceVariant text-sm leading-6">
-                  {section.body}
+                  {body || 'Content unavailable for this section.'}
                 </Text>
-                {section.tips && (
-                  <View className="bg-primary/10 p-4 rounded-2xl border border-primary/20 mt-2">
-                    <View className="flex-row items-center mb-1">
+                {tips ? (
+                  <View className="bg-primary/10 p-4 rounded-2xl border border-primary/20 mt-4 mb-4">
+                    <View className="flex-row items-center mb-2">
                       <Ionicons name="bulb" size={16} color="#FF6B00" />
                       <Text className="text-primary font-bold ml-2">Pro Tip</Text>
                     </View>
-                    <Text className="text-onSurface text-xs italic">{section.tips}</Text>
+                    <Text className="text-onSurface text-xs italic leading-5">{tips}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
-            ))}
+            );
+          })}
+        </View>
+      );
+    }
+
+    case 'case-study':
+      return (
+        <View className="space-y-6">
+          <View className="bg-surfaceVariant/30 p-5 rounded-[32px] border border-outline/10">
+            <Text className="text-primary font-black text-xs uppercase tracking-[2px] mb-2">The Challenge</Text>
+            <Text className="text-onSurface text-base leading-6">{asString(contentData.challenge, 'Challenge details unavailable.')}</Text>
           </View>
-        );
 
-      case 'case-study':
-        return (
-          <View className="space-y-6">
-            <View className="bg-surfaceVariant/30 p-5 rounded-[32px] border border-outline/10">
-              <Text className="text-primary font-black text-xs uppercase tracking-[2px] mb-2">The Challenge</Text>
-              <Text className="text-onSurface text-base leading-6">{contentData.challenge}</Text>
-            </View>
-
-            <View className="space-y-4">
-              <Text className="text-onSurface font-black text-xl">The Solution</Text>
-              <Text className="text-onSurfaceVariant text-sm leading-6">{contentData.solution}</Text>
-            </View>
-
-            <View className="bg-success/10 p-5 rounded-[32px] border border-success/20">
-              <Text className="text-success font-black text-xs uppercase tracking-[2px] mb-2">Key Result</Text>
-              <Text className="text-onSurface text-base leading-6 font-bold">{contentData.result}</Text>
-            </View>
+          <View className="space-y-4">
+            <Text className="text-onSurface font-black text-xl">The Solution</Text>
+            <Text className="text-onSurfaceVariant text-sm leading-6">{asString(contentData.solution, 'Solution details unavailable.')}</Text>
           </View>
-        );
 
-      case 'prompting-tip':
-        return (
-          <View className="space-y-6">
-            {Array.isArray(contentData.sections) && contentData.sections.map((section: any, index: number) => (
+          <View className="bg-success/10 p-5 rounded-[32px] border border-success/20">
+            <Text className="text-success font-black text-xs uppercase tracking-[2px] mb-2">Key Result</Text>
+            <Text className="text-onSurface text-base leading-6 font-bold">{asString(contentData.result, 'Result details unavailable.')}</Text>
+          </View>
+        </View>
+      );
+
+    case 'prompting-tip': {
+      const sections = asArray(contentData.sections);
+      if (sections.length === 0) {
+        return <Text className="text-onSurfaceVariant italic">No prompting tips available yet.</Text>;
+      }
+
+      return (
+        <View className="space-y-6">
+          {sections.map((section, index: number) => {
+            const row = asRecord(section);
+            const title = asString(row.title, `Tip ${index + 1}`);
+            const body = asString(row.content, asString(row.body, asString(row.text)));
+            const example = asString(row.example);
+
+            return (
               <View key={index} className="space-y-3">
                 <View className="flex-row items-center">
                   <Ionicons name="bulb" size={20} color="#FF6B00" />
-                  <Text className="text-onSurface font-black text-lg ml-2">{section.title}</Text>
+                  <Text className="text-onSurface font-black text-lg ml-2">{title}</Text>
                 </View>
                 <Text className="text-onSurfaceVariant text-sm leading-6 pl-7">
-                  {section.content}
+                  {body || 'Tip details unavailable.'}
                 </Text>
-                {section.example && (
+                {example ? (
                   <View className="bg-primary/5 p-4 rounded-2xl border border-primary/10 ml-7">
                     <Text className="text-primary font-bold text-xs uppercase tracking-widest mb-1">Example Prompt</Text>
-                    <Text className="text-onSurface text-sm italic leading-5">{section.example}</Text>
+                    <Text className="text-onSurface text-sm italic leading-5">{example}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
-            ))}
-          </View>
-        );
-
-      default:
-        return <Text className="text-onSurfaceVariant">{JSON.stringify(content, null, 2)}</Text>;
+            );
+          })}
+        </View>
+      );
     }
-  };
 
-  const getIconName = () => {
-    switch (resource.type) {
-      case 'guide': return 'book';
-      case 'cheatsheet': return 'flash';
-      case 'lexicon': return 'text';
-      case 'case-study': return 'bulb';
-      case 'prompting-tip': return 'chatbubble-ellipses';
-      default: return 'document-text';
-    }
-  };
+    default:
+      return <Text className="text-onSurfaceVariant">{JSON.stringify(content, null, 2)}</Text>;
+  }
+}
+
+export const ResourceModal: React.FC<ResourceModalProps> = ({ isVisible, onClose, resource }) => {
+  const { height } = useWindowDimensions();
+
+  if (!resource) return null;
 
   return (
-    <Modal visible={isVisible} onClose={onClose}>
-      <View className="max-h-[85%] bg-surface rounded-[40px] overflow-hidden">
-        {/* Header */}
-        <View className="px-6 pt-8 pb-4 border-b border-outline/5">
-          <View className="flex-row justify-between items-start mb-4">
-            <View className="flex-1 mr-4">
-              <Badge
-                label={resource.type.replace('-', ' ')}
-                variant="primary"
-                className="bg-primary/20 text-primary self-start mb-2"
-              />
-              <Text className="text-onSurface text-2xl font-black">{resource.title}</Text>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              className="w-10 h-10 bg-surfaceVariant/50 rounded-full items-center justify-center"
-            >
-              <Ionicons name="close" size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
+    <RNModal
+      visible={isVisible}
+      transparent
+      animationType="slide"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 justify-end bg-black/70">
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-          <View className="flex-row items-center">
-            <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-            <Text className="text-onSurfaceVariant text-xs ml-1 mr-4">{resource.estimatedTime || 5} min read</Text>
-            <Ionicons name={getIconName()} size={14} color="#9CA3AF" />
-            <Text className="text-onSurfaceVariant text-xs ml-1 uppercase tracking-tighter">
-              {resource.type}
-            </Text>
-          </View>
-        </View>
-
-        {/* Content */}
-        <ScrollView
-          className="flex-1 px-6 py-6"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+        <View
+          className="bg-surface rounded-t-[32px] overflow-hidden border border-outline/10"
+          style={{ maxHeight: height * 0.9 }}
         >
-          <Text className="text-onSurfaceVariant text-sm mb-8 leading-6 italic">
-            {resource.description}
-          </Text>
+          <View className="items-center pt-3 pb-1">
+            <View className="h-1.5 w-12 rounded-full bg-outline/40" />
+          </View>
 
-          {renderContent()}
-        </ScrollView>
+          <View className="px-6 pt-4 pb-4 border-b border-outline/5">
+            <View className="flex-row justify-between items-start mb-4">
+              <View className="flex-1 mr-4">
+                <Badge
+                  label={formatResourceTypeLabel(resource.type)}
+                  variant="primary"
+                  className="bg-primary/20 text-primary self-start mb-2"
+                />
+                <Text className="text-onSurface text-2xl font-black">{resource.title}</Text>
+              </View>
+              <Pressable
+                onPress={onClose}
+                className="w-10 h-10 bg-surfaceVariant/50 rounded-full items-center justify-center"
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </Pressable>
+            </View>
 
-        {/* Footer */}
-        <View className="px-6 py-6 border-t border-outline/5 bg-surface">
-          <Button
-            label="Got it"
-            onPress={onClose}
-            variant="primary"
-            className="w-full"
-          />
+            <View className="flex-row items-center">
+              <Ionicons name="time-outline" size={14} color="#9CA3AF" />
+              <Text className="text-onSurfaceVariant text-xs ml-1 mr-4">{resource.estimatedTime || 5} min read</Text>
+              <Ionicons name={getResourceIcon(resource.type)} size={14} color="#9CA3AF" />
+              <Text className="text-onSurfaceVariant text-xs ml-1 uppercase tracking-tighter">
+                {resource.type}
+              </Text>
+            </View>
+          </View>
+
+          <ScrollView
+            className="flex-1 px-6 py-6"
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
+            <Text className="text-onSurfaceVariant text-sm mb-8 leading-6 italic">
+              {resource.description}
+            </Text>
+
+            {renderResourceContent(resource)}
+          </ScrollView>
+
+          <View className="px-6 pt-4 pb-8 border-t border-outline/5 bg-surface">
+            <Button
+              onPress={onClose}
+              variant="primary"
+              className="w-full"
+            >
+              Got it
+            </Button>
+          </View>
         </View>
       </View>
-    </Modal>
+    </RNModal>
   );
 };

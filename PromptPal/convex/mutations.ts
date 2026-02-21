@@ -93,6 +93,146 @@ const updateUserStreakForActivity = async (
   }
 };
 
+const deleteDocumentsByIndex = async (
+  ctx: any,
+  tableName: string,
+  indexName: string,
+  indexBuilder: (q: any) => any
+): Promise<number> => {
+  const docs = await ctx.db
+    .query(tableName)
+    .withIndex(indexName, indexBuilder)
+    .collect();
+
+  for (const doc of docs) {
+    await ctx.db.delete(doc._id);
+  }
+
+  return docs.length;
+};
+
+/**
+ * Delete all backend data for the currently authenticated user.
+ * This supports Apple guideline §5.1.1 account deletion requirements.
+ */
+export const deleteCurrentUserData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userId = identity.subject;
+    const deleted: Record<string, number> = {};
+
+    deleted.userStatistics = await deleteDocumentsByIndex(ctx, "userStatistics", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userPreferences = await deleteDocumentsByIndex(ctx, "userPreferences", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userLevelAttempts = await deleteDocumentsByIndex(ctx, "userLevelAttempts", "by_user_created", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userProgress = await deleteDocumentsByIndex(ctx, "userProgress", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.gameSessions = await deleteDocumentsByIndex(ctx, "gameSessions", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.gameProgress = await deleteDocumentsByIndex(ctx, "gameProgress", "by_user_app", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userModuleProgress = await deleteDocumentsByIndex(ctx, "userModuleProgress", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userModules = await deleteDocumentsByIndex(ctx, "userModules", "by_user_app", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userQuestCompletions = await deleteDocumentsByIndex(ctx, "userQuestCompletions", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userDailyQuests = await deleteDocumentsByIndex(ctx, "userDailyQuests", "by_user_date", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userQuests = await deleteDocumentsByIndex(ctx, "userQuests", "by_user_app", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userAchievements = await deleteDocumentsByIndex(ctx, "userAchievements", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.aiGenerations = await deleteDocumentsByIndex(ctx, "aiGenerations", "by_user_created", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.userEvents = await deleteDocumentsByIndex(ctx, "userEvents", "by_user_app", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.errorLogs = await deleteDocumentsByIndex(ctx, "errorLogs", "by_user", (q) =>
+      q.eq("userId", userId)
+    );
+    deleted.appPlans = await deleteDocumentsByIndex(ctx, "appPlans", "by_user_app", (q) =>
+      q.eq("userId", userId)
+    );
+
+    const generatedImages = await ctx.db
+      .query("generatedImages")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
+      .collect();
+    for (const image of generatedImages) {
+      await ctx.storage.delete(image.fileId);
+      await ctx.db.delete(image._id);
+    }
+    deleted.generatedImages = generatedImages.length;
+
+    const relationshipsByUser = await ctx.db
+      .query("userFriends")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
+      .collect();
+    const relationshipsByFriend = await ctx.db
+      .query("userFriends")
+      .withIndex("by_friend", (q: any) => q.eq("friendId", userId))
+      .collect();
+
+    const relationshipIds = new Map<string, any>();
+    for (const relationship of [...relationshipsByUser, ...relationshipsByFriend]) {
+      relationshipIds.set(String(relationship._id), relationship._id);
+    }
+    for (const relationshipId of relationshipIds.values()) {
+      await ctx.db.delete(relationshipId);
+    }
+    deleted.userFriends = relationshipIds.size;
+
+    const performanceMetrics = await ctx.db.query("performanceMetrics").collect();
+    let deletedPerformanceMetrics = 0;
+    for (const metric of performanceMetrics) {
+      if (metric.userId === userId) {
+        await ctx.db.delete(metric._id);
+        deletedPerformanceMetrics += 1;
+      }
+    }
+    deleted.performanceMetrics = deletedPerformanceMetrics;
+
+    const userProfile = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", userId))
+      .first();
+    if (userProfile) {
+      await ctx.db.delete(userProfile._id);
+      deleted.users = 1;
+    } else {
+      deleted.users = 0;
+    }
+
+    return {
+      success: true,
+      userId,
+      deleted,
+      deletedTotal: Object.values(deleted).reduce((sum, value) => sum + value, 0),
+    };
+  },
+});
+
 /**
  * Get or create user plan with atomic quota check and increment
  */
@@ -1158,7 +1298,7 @@ export const createLearningResource = mutation({
   args: {
     id: v.string(),
     appId: v.string(),
-    type: v.union(v.literal("guide"), v.literal("cheatsheet"), v.literal("lexicon"), v.literal("case-study")),
+    type: v.union(v.literal("guide"), v.literal("cheatsheet"), v.literal("lexicon"), v.literal("case-study"), v.literal("prompting-tip")),
     title: v.string(),
     description: v.string(),
     content: v.any(),
@@ -1179,6 +1319,46 @@ export const createLearningResource = mutation({
       appId,
       ...resourceData,
       createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Update learning resource (admin function)
+ */
+export const updateLearningResource = mutation({
+  args: {
+    id: v.string(),
+    appId: v.string(),
+    type: v.union(v.literal("guide"), v.literal("cheatsheet"), v.literal("lexicon"), v.literal("case-study"), v.literal("prompting-tip")),
+    title: v.string(),
+    description: v.string(),
+    content: v.any(),
+    category: v.string(),
+    difficulty: v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced")),
+    estimatedTime: v.optional(v.number()),
+    tags: v.array(v.string()),
+    icon: v.optional(v.string()),
+    order: v.number(),
+    isActive: v.boolean(),
+    metadata: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const { id, appId, ...updateData } = args;
+
+    const existing = await ctx.db
+      .query("learningResources")
+      .filter((q) => q.eq(q.field("id"), id))
+      .filter((q) => q.eq(q.field("appId"), appId))
+      .first();
+
+    if (!existing) {
+      throw new Error(`Learning resource ${id} not found`);
+    }
+
+    return await ctx.db.patch(existing._id, {
+      ...updateData,
       updatedAt: Date.now(),
     });
   },

@@ -53,7 +53,7 @@ const getDefaultLearningModules = (): LearningModule[] => [
     icon: 'color-palette',
     thumbnail: getModuleThumbnail('Image Generation', 'Design', 'AI Art'),
     accentColor: 'bg-gray-500',
-    buttonText: 'Coming Soon',
+    buttonText: 'Locked',
     type: 'module',
     format: 'interactive',
     estimatedTime: 10,
@@ -169,8 +169,8 @@ const secureStorage = {
       } else {
         await SecureStore.setItemAsync(name, value);
       }
-    } catch (error) {
-      console.warn('SecureStore setItem failed:', error);
+    } catch {
+      // Persist failures are non-fatal; app state still remains in memory.
     }
   },
   removeItem: async (name: string): Promise<void> => {
@@ -205,8 +205,8 @@ export const useUserProgressStore = create<UserProgress>()(
             totalXp: newXP,
             currentLevel: newLevel,
           });
-        } catch (error) {
-          console.error('Failed to sync XP progress:', error);
+        } catch {
+          // Sync is retried by background flows.
         }
       },
 
@@ -261,8 +261,8 @@ export const useUserProgressStore = create<UserProgress>()(
             moduleId,
             progress,
           });
-        } catch (error) {
-          console.error('Failed to sync module progress:', error);
+        } catch {
+          // Sync is retried by background flows.
         }
       },
 
@@ -287,8 +287,8 @@ export const useUserProgressStore = create<UserProgress>()(
             await convexHttpClient.mutation(api.mutations.completeDailyQuest, {
               questId: quest.id,
             });
-          } catch (error) {
-            console.error('Failed to sync quest completion:', error);
+          } catch {
+            // Sync is retried by background flows.
           }
         }
       },
@@ -319,8 +319,8 @@ export const useUserProgressStore = create<UserProgress>()(
           }
 
           await convexHttpClient.mutation(api.mutations.updateUserStatistics, progressData);
-        } catch (error) {
-          console.error('Failed to sync with backend:', error);
+        } catch {
+          // Sync is retried by background flows.
         }
       },
 
@@ -402,7 +402,6 @@ export const useUserProgressStore = create<UserProgress>()(
             await get().syncWithBackend();
           }
         } catch (error: any) {
-          console.error('Failed to load data from backend:', error);
 
           // If authentication failed, try to refresh auth and retry once
           if (error?.message?.includes('User must be authenticated') || error?.response?.status === 401) {
@@ -473,8 +472,8 @@ export const useUserProgressStore = create<UserProgress>()(
               }
 
               return; // Success on retry
-            } catch (retryError) {
-              console.error('Retry failed:', retryError);
+            } catch {
+              // Keep local/default state if retry fails.
             }
           }
 

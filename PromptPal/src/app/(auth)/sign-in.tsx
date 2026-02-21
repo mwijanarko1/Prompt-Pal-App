@@ -1,6 +1,6 @@
 import { useSignIn, useSSO } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
-import { Text, View, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, KeyboardAvoidingView, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import React, { useState, useCallback, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
@@ -12,10 +12,9 @@ import { logger } from '@/lib/logger'
 // Browser warming hook for better OAuth UX
 const useWarmUpBrowser = () => {
   useEffect(() => {
-    if (Platform.OS !== 'android') return
-    WebBrowser.warmUpAsync()
+    void WebBrowser.warmUpAsync().catch(() => undefined)
     return () => {
-      WebBrowser.coolDownAsync()
+      void WebBrowser.coolDownAsync().catch(() => undefined)
     }
   }, [])
 }
@@ -123,7 +122,7 @@ export default function SignInScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         className="flex-1"
       >
         <ScrollView
@@ -168,8 +167,6 @@ export default function SignInScreen() {
                       setEmailAddress(text)
                       if (errors.email) setErrors({ ...errors, email: undefined })
                     }}
-                    placeholder="name@example.com"
-                    placeholderTextColor="#4B5563"
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
@@ -188,8 +185,6 @@ export default function SignInScreen() {
                       setPassword(text)
                       if (errors.password) setErrors({ ...errors, password: undefined })
                     }}
-                    placeholder="••••••••"
-                    placeholderTextColor="#4B5563"
                     secureTextEntry
                   />
                 </View>

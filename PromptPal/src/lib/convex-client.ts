@@ -2,27 +2,12 @@ import { ConvexHttpClient } from "convex/browser";
 import { getClerkInstance } from '@clerk/clerk-expo';
 import { logger } from "./logger";
 
-// Base64 decoding for React Native
-function atob(input: string): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  let str = input.replace(/=+$/, '');
-  let output = '';
-  
-  if (str.length % 4 === 1) {
-    throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
-  }
-  
-  for (let bc = 0, bs = 0, buffer, i = 0; buffer = str.charAt(i++); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
-    buffer = chars.indexOf(buffer);
-  }
-  
-  return output;
-}
-
 const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
 
 if (!convexUrl) {
-  throw new Error("EXPO_PUBLIC_CONVEX_URL environment variable is not set");
+  throw new Error(
+    "EXPO_PUBLIC_CONVEX_URL is required. For EAS builds: eas secret:create --scope project --name EXPO_PUBLIC_CONVEX_URL --value <url>"
+  );
 }
 
 const client = new ConvexHttpClient(convexUrl);
@@ -89,6 +74,7 @@ async function setupAuth(): Promise<void> {
   const token = await getFreshToken();
   if (token) {
     client.setAuth(token);
+    await scheduleTokenRefresh(token);
   } else {
     client.clearAuth();
   }
@@ -99,61 +85,23 @@ export async function refreshAuth(): Promise<void> {
   await setupAuth();
 }
 
-// Initialize authentication on client creation
-setupAuth().catch(error => {
-  console.error('ConvexHttpClient: Failed to initialize auth:', error);
-});
-
-// Parse JWT token to get expiration time
-function getTokenExpiry(token: string): number | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(atob(parts[1]));
-    return payload.exp ? payload.exp * 1000 : null; // Convert to milliseconds
-  } catch {
-    return null;
-  }
-}
-
-// Refresh token 5 minutes before expiry
+// Refresh token on a fixed cadence to avoid startup JWT decoding work.
+const TOKEN_REFRESH_INTERVAL_MS = 45 * 60 * 1000;
 async function scheduleTokenRefresh(token: string): Promise<void> {
-  const expiry = getTokenExpiry(token);
-  if (!expiry) {
-    // Fallback: refresh every 45 minutes if we can't parse expiry
-    setTimeout(() => {
-      refreshAuth().catch(error => {
-        logger.error('ConvexHttpClient', 'Scheduled refresh failed', error);
-      });
-    }, 45 * 60 * 1000);
+  if (!token) {
     return;
   }
-  
-  const refreshTime = expiry - 5 * 60 * 1000; // 5 minutes before expiry
-  const delay = Math.max(0, refreshTime - Date.now());
-  
-  logger.debug('ConvexHttpClient', 'Token refresh scheduled', { 
-    refreshInMinutes: Math.round(delay / 60000),
-    expiresAt: new Date(expiry).toISOString()
+
+  logger.debug('ConvexHttpClient', 'Token refresh scheduled', {
+    refreshInMinutes: Math.round(TOKEN_REFRESH_INTERVAL_MS / 60000),
   });
-  
+
   setTimeout(() => {
     refreshAuth().catch(error => {
       logger.error('ConvexHttpClient', 'Scheduled refresh failed', error);
     });
-  }, delay);
+  }, TOKEN_REFRESH_INTERVAL_MS);
 }
-
-// Schedule initial token refresh after setup
-setupAuth().then(async () => {
-  const token = await getFreshToken();
-  if (token) {
-    await scheduleTokenRefresh(token);
-  }
-}).catch(error => {
-  logger.error('ConvexHttpClient', 'Failed to initialize auth', error);
-});
 
 // Export the client (authentication will be set up automatically)
 export { client as convexHttpClient };
