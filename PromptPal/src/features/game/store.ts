@@ -53,6 +53,8 @@ export interface Level {
 
   // General
   description?: string;
+  points?: number; // XP reward for completing this level
+  order?: number; // Sort order within module
 }
 
 export interface GameState {
@@ -211,7 +213,40 @@ export const useGameStore = create<GameState>()(
         const completedLevels = get().completedLevels;
         if (!completedLevels.includes(levelId)) {
           const newCompletedLevels = [...completedLevels, levelId];
-          set({ completedLevels: newCompletedLevels });
+
+          // Auto-unlock the next level in the sequence
+          // Parse level ID to find next: e.g., "code-3-easy" -> prefix="code", num=3
+          const match = levelId.match(/^(image|code|copywriting)-(\d+)-/);
+          if (match) {
+            const [, prefix, numStr] = match;
+            const nextNum = parseInt(numStr, 10) + 1;
+            // Find next level ID by trying all difficulty suffixes
+            const possibleNextIds = [
+              `${prefix}-${nextNum}-easy`,
+              `${prefix}-${nextNum}-medium`,
+              `${prefix}-${nextNum}-hard`,
+            ];
+
+            const currentUnlocked = get().unlockedLevels;
+            const newlyUnlocked = possibleNextIds.filter(
+              id => !currentUnlocked.includes(id)
+            );
+
+            if (newlyUnlocked.length > 0) {
+              set({
+                completedLevels: newCompletedLevels,
+                unlockedLevels: [...currentUnlocked, ...newlyUnlocked],
+              });
+              logger.info('GameStore', 'Level completed & next unlocked', {
+                completed: levelId,
+                unlocked: newlyUnlocked,
+              });
+            } else {
+              set({ completedLevels: newCompletedLevels });
+            }
+          } else {
+            set({ completedLevels: newCompletedLevels });
+          }
 
           // Sync completed levels to backend
           try {
@@ -306,17 +341,22 @@ export const useGameStore = create<GameState>()(
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           console.warn("Game store rehydration error:", error);
-          return initialState;
+          return;
         }
-        // If state is undefined or corrupted, reset to initial state
-        if (!state || typeof state !== "object") {
-          console.warn("Game store corrupted, resetting to initial state");
-          return initialState;
+        if (state) {
+          // Ensure arrays are valid after rehydration
+          if (!Array.isArray(state.unlockedLevels)) {
+            state.unlockedLevels = ["image-1-easy"];
+          }
+          if (!Array.isArray(state.completedLevels)) {
+            state.completedLevels = [];
+          }
+          logger.info('GameStore', 'Rehydrated from storage', {
+            unlockedLevels: state.unlockedLevels.length,
+            completedLevels: state.completedLevels.length,
+          });
         }
-        return state;
       },
-      // Skip rehydration to prevent blocking render
-      skipHydration: true,
       // Add timeout for rehydration to prevent blocking
       partialize: (state) => ({
         unlockedLevels: state.unlockedLevels,

@@ -1,7 +1,12 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-expo';
+import { AppState, AppStateStatus } from 'react-native';
 import { logger } from './logger';
 import { registerSignOutCallback } from './session-manager';
+
+import { SyncManager } from './syncManager';
+import { refreshAuth } from './convex-client';
+import { initializeNetworkListener } from './network';
 
 /**
  * Component that monitors Clerk authentication session health.
@@ -11,11 +16,87 @@ function AuthTokenSyncInner() {
   const { isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
-    if (isLoaded) {
-      if (!isSignedIn) {
-        logger.warn('AuthTokenSync', 'User not signed in');
-      }
+    if (!isLoaded) {
+      return;
     }
+
+    let isCancelled = false;
+    let networkUnsubscribe: (() => void) | null = null;
+    let appStateSubscription: { remove: () => void } | null = null;
+
+    const stopSyncServices = () => {
+      try {
+        networkUnsubscribe?.();
+      } catch (error) {
+        logger.error('AuthTokenSync', 'Failed to stop network listener', { error });
+      }
+      networkUnsubscribe = null;
+
+      try {
+        appStateSubscription?.remove();
+      } catch (error) {
+        logger.error('AuthTokenSync', 'Failed to remove AppState listener', { error });
+      }
+      appStateSubscription = null;
+
+      SyncManager.stopPeriodicSync();
+    };
+
+    const startSyncServices = () => {
+      SyncManager.startPeriodicSync().catch((error) => {
+        logger.error('AuthTokenSync', 'Failed to start periodic sync', { error });
+      });
+
+      try {
+        networkUnsubscribe = initializeNetworkListener();
+      } catch (error) {
+        logger.error('AuthTokenSync', 'Failed to initialize network listener', { error });
+      }
+
+      try {
+        appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+          if (nextAppState === 'active') {
+            SyncManager.setOnlineStatus(true);
+            SyncManager.syncUserProgress();
+          } else if (nextAppState === 'background') {
+            SyncManager.syncUserProgress();
+          }
+        });
+      } catch (error) {
+        logger.error('AuthTokenSync', 'Failed to initialize AppState listener', { error });
+      }
+    };
+
+    if (!isSignedIn) {
+      logger.warn('AuthTokenSync', 'User not signed in');
+      SyncManager.setAuthenticated(false);
+      stopSyncServices();
+      return;
+    }
+
+    logger.info('AuthTokenSync', 'User signed in, refreshing auth and syncing');
+
+    const initializeAuthenticatedSync = async () => {
+      try {
+        await refreshAuth();
+      } catch (error) {
+        logger.error('AuthTokenSync', 'Failed to refresh auth', { error });
+      }
+
+      if (isCancelled) {
+        return;
+      }
+
+      SyncManager.setAuthenticated(true);
+      startSyncServices();
+    };
+
+    initializeAuthenticatedSync();
+
+    return () => {
+      isCancelled = true;
+      stopSyncServices();
+    };
   }, [isLoaded, isSignedIn]);
 
   return null;

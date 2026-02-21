@@ -1,16 +1,20 @@
-import React, { useCallback, memo, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Dimensions, ActivityIndicator } from 'react-native';
+import React, { useCallback, memo, useMemo, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { FlashList } from "@shopify/flash-list";
 import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useUser } from '@clerk/clerk-expo';
+import { useClerk, useUser } from '@clerk/clerk-expo';
 import { useQuery } from 'convex/react';
 import { useUsage } from '@/lib/usage';
+import { convexHttpClient } from '@/lib/convex-client';
 import { useUserProgressStore } from '@/features/user/store';
 import { api } from '../../../convex/_generated/api.js';
 import Svg, { Circle } from 'react-native-svg';
+import { StatCard } from '@/components/ui';
 
 const { width } = Dimensions.get('window');
 
@@ -34,9 +38,11 @@ const CircularProgress = memo(function CircularProgress({
   color = "#FF6B00",
   isDark = true
 }: CircularProgressProps) {
+  // Guard against invalid percentage
+  const safePercentage = isNaN(percentage) || !isFinite(percentage) ? 0 : Math.min(100, Math.max(0, percentage));
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const strokeDashoffset = circumference - (safePercentage / 100) * circumference;
   const bgStroke = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
   return (
@@ -106,38 +112,13 @@ const AchievementBadge = memo(function AchievementBadge({ icon, label, color, is
   );
 });
 
-interface StatCardProps {
-  label: string;
-  value: string;
-  trend: string;
-  color: string;
-  isSecondary?: boolean;
-}
-
-const StatCard = memo(function StatCard({ label, value, trend, color, isSecondary = false }: StatCardProps) {
-  return (
-    <View
-      className="flex-1 rounded-[30px] p-6 border border-white/5"
-      style={{ backgroundColor: isSecondary ? 'rgba(65, 81, 255, 0.05)' : 'rgba(255, 107, 0, 0.05)' }}
-    >
-      <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">{label}</Text>
-      <Text className="text-onSurface text-4xl font-black mb-3">{value}</Text>
-      <View className="flex-row items-center">
-        <Ionicons
-          name={isSecondary ? "star" : "trending-up"}
-          size={12}
-          color={color}
-        />
-        <Text className="text-xs font-bold ml-1" style={{ color }}>{trend}</Text>
-      </View>
-    </View>
-  );
-});
-
 export default function ProfileScreen() {
   const { user } = useUser();
+  const { signOut } = useClerk();
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const { level } = useUserProgressStore();
 
@@ -172,6 +153,49 @@ export default function ProfileScreen() {
     />
   ), []);
 
+  const deleteAccount = useCallback(async () => {
+    if (!user || isDeletingAccount) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await convexHttpClient.mutation((api as any).mutations.deleteCurrentUserData, {});
+      await user.delete();
+      try {
+        await signOut();
+      } catch {
+        // User deletion usually invalidates the session; explicit sign-out can fail safely.
+      }
+      router.replace('/');
+    } catch (error) {
+      console.error('Failed to delete account:', error);
+      Alert.alert(
+        'Delete Failed',
+        'We could not delete your account right now. Please try again in a moment.'
+      );
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }, [isDeletingAccount, router, signOut, user]);
+
+  const confirmDeleteAccount = useCallback(() => {
+    Alert.alert(
+      'Delete Account',
+      'This permanently deletes your PromptPal account and all associated app data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void deleteAccount();
+          },
+        },
+      ]
+    );
+  }, [deleteAccount]);
+
   if (isLoading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -182,21 +206,17 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Top Header */}
-      <View className="flex-row justify-between items-center px-6 pt-14 mb-6">
-        <Pressable className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant/50">
-          <Ionicons name="settings-sharp" size={24} color={isDark ? '#FFFFFF' : '#374151'} />
-        </Pressable>
+    <SafeAreaView className="flex-1 bg-background">
+      {/* Fixed Header */}
+      <View className="flex-row justify-center items-center px-6 pt-4 pb-4">
         <Text className="text-onSurface text-lg font-black uppercase tracking-[3px]">Profile</Text>
-        <Pressable className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant/50">
-          <Ionicons name="notifications" size={24} color={isDark ? '#FFFFFF' : '#374151'} />
-        </Pressable>
       </View>
 
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
       <View className="items-center px-6">
         {/* Avatar Section */}
         <View className="mb-6 relative">
@@ -262,7 +282,6 @@ export default function ProfileScreen() {
               data={achievements}
               renderItem={renderAchievementItem}
               keyExtractor={(item) => item.id}
-              estimatedItemSize={96}
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingRight: 20 }}
@@ -275,7 +294,7 @@ export default function ProfileScreen() {
         {/* Images Gallery Section - Hidden until image generation module is implemented */}
 
         {/* Statistics Section */}
-        <View className="w-full mb-32">
+        <View className="w-full mb-8">
           <Text className="text-onSurface text-2xl font-black mb-8 px-2">Statistics</Text>
           <View className="flex-row gap-4">
             <StatCard
@@ -283,6 +302,7 @@ export default function ProfileScreen() {
               value={totalPrompts.toLocaleString()}
               trend="Global Usage"
               color="#FF6B00"
+              variant="featured"
             />
             <StatCard
               label="Avg. Accuracy"
@@ -290,11 +310,28 @@ export default function ProfileScreen() {
               trend="Performance"
               color="#4151FF"
               isSecondary
+              variant="featured"
             />
           </View>
         </View>
+
+        <View className="w-full mb-8 border-t border-surfaceVariant/20 pt-8">
+          <Text className="text-onSurface text-2xl font-black mb-3 px-2">Account</Text>
+          <Text className="text-onSurfaceVariant text-[11px] font-bold uppercase tracking-widest px-2 mb-5 opacity-80">
+            Delete account permanently removes your profile, progress, and app history.
+          </Text>
+          <Pressable
+            onPress={confirmDeleteAccount}
+            disabled={isDeletingAccount}
+            className={`rounded-2xl px-5 py-4 border ${isDeletingAccount ? 'bg-red-900/30 border-red-700/40' : 'bg-red-600/20 border-red-500/60'}`}
+          >
+            <Text className="text-red-400 text-center text-sm font-black uppercase tracking-widest">
+              {isDeletingAccount ? 'Deleting Account...' : 'Delete Account'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-

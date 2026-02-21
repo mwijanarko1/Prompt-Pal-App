@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Text, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, KeyboardAvoidingView, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useSignUp, useSSO } from '@clerk/clerk-expo'
 import { Link, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -10,10 +11,9 @@ import * as WebBrowser from 'expo-web-browser'
 // Browser warming hook for better OAuth UX
 const useWarmUpBrowser = () => {
   React.useEffect(() => {
-    if (Platform.OS !== 'android') return
-    WebBrowser.warmUpAsync()
+    void WebBrowser.warmUpAsync().catch(() => undefined)
     return () => {
-      WebBrowser.coolDownAsync()
+      void WebBrowser.coolDownAsync().catch(() => undefined)
     }
   }, [])
 }
@@ -42,7 +42,7 @@ export default function SignUpScreen() {
 
   // Validate sign-up form
   const validateSignUpForm = () => {
-    const newErrors: {email?: string; password?: string} = {}
+    const newErrors: { email?: string; password?: string } = {}
 
     if (!emailAddress.trim()) {
       newErrors.email = 'Email is required'
@@ -64,7 +64,7 @@ export default function SignUpScreen() {
 
   // Validate verification form
   const validateVerificationForm = () => {
-    const newErrors: {code?: string} = {}
+    const newErrors: { code?: string } = {}
 
     if (!code.trim()) {
       newErrors.code = 'Verification code is required'
@@ -174,7 +174,7 @@ export default function SignUpScreen() {
     return (
       <SafeAreaView className="flex-1 bg-background">
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
           className="flex-1"
         >
           <ScrollView
@@ -215,8 +215,6 @@ export default function SignUpScreen() {
                       setCode(text.replace(/[^0-9]/g, '').slice(0, 6))
                       if (errors.code) setErrors({ ...errors, code: undefined })
                     }}
-                    placeholder="000000"
-                    placeholderTextColor="#4B5563"
                     keyboardType="numeric"
                     autoFocus
                   />
@@ -252,15 +250,15 @@ export default function SignUpScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         className="flex-1"
       >
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-            showsVerticalScrollIndicator={false}
-            className="px-6"
-          >
-            {/* Header */}
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          showsVerticalScrollIndicator={false}
+          className="px-6"
+        >
+          {/* Header */}
           <View className="items-center mb-10">
             <View className="flex-row items-center mb-3">
               <Text className="text-primary text-5xl font-black tracking-tighter">Prompt</Text>
@@ -297,8 +295,6 @@ export default function SignUpScreen() {
                       setEmailAddress(text)
                       if (errors.email) setErrors({ ...errors, email: undefined })
                     }}
-                    placeholder="name@example.com"
-                    placeholderTextColor="#4B5563"
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
@@ -317,8 +313,6 @@ export default function SignUpScreen() {
                       setPassword(text)
                       if (errors.password) setErrors({ ...errors, password: undefined })
                     }}
-                    placeholder="••••••••"
-                    placeholderTextColor="#4B5563"
                     secureTextEntry
                   />
                 </View>

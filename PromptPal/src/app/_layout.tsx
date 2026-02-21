@@ -1,102 +1,75 @@
-import { Slot } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-// TypeScript can miss export when package "react-native" field points to source; runtime is correct.
-// @ts-expect-error - GestureHandlerRootView is exported by react-native-gesture-handler (lib/typescript/index.d.ts)
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ClerkProviderWrapper, useAuth } from '@/lib/clerk';
-import { validateEnvironment } from '@/lib/env';
-import { SyncManager } from '@/lib/syncManager';
-import { AuthTokenSync, SessionMonitor } from '@/lib/auth-sync';
-import { logger } from '@/lib/logger';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { initializeNetworkListener } from '@/lib/network';
-import { useGameStateSync } from '@/hooks/useGameStateSync';
-import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import { ConvexReactClient } from 'convex/react';
-import "./global.css";
+import { View, Text, StyleSheet } from 'react-native';
 
-// Initialize Convex client
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
-  unsavedChangesWarning: false,
-});
+const SAFE_MODE = process.env.EXPO_PUBLIC_SAFE_MODE === '1';
+const BOOT_MODE = (process.env.EXPO_PUBLIC_BOOT_MODE || 'full').toLowerCase();
 
-/**
- * Convex provider wrapper that uses Clerk's useAuth hook
- */
-function ConvexProviderWrapper({ children }: { children: React.ReactNode }) {
+function SafeModeScreen() {
   return (
-    <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-      {children}
-    </ConvexProviderWithClerk>
-  );
-}
-
-/**
- * Component that syncs game state after authentication is available
- */
-function GameStateInitializer() {
-  useGameStateSync();
-  return null; // This component doesn't render anything
-}
-
-/**
- * Component that handles app initialization after Clerk provider is set up
- */
-function AppInitializer() {
-  // Validate environment variables on app startup (non-blocking in development)
-  useEffect(() => {
-    validateEnvironment();
-  }, []);
-
-  useEffect(() => {
-    // Start background sync when app loads
-    SyncManager.startPeriodicSync();
-
-    // Initialize network connectivity listener
-    const networkUnsubscribe = initializeNetworkListener();
-
-    // Sync on app focus and handle online/offline status
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active') {
-        SyncManager.setOnlineStatus(true);
-        SyncManager.syncUserProgress();
-      } else if (nextAppState === 'background') {
-        // App going to background, ensure final sync
-        SyncManager.syncUserProgress();
-      }
-    });
-
-    return () => {
-      networkUnsubscribe?.();
-      SyncManager.stopPeriodicSync();
-      subscription?.remove();
-    };
-  }, []);
-
-  return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <AuthTokenSync />
-        <SessionMonitor />
-        <GameStateInitializer />
-        <Slot />
-        <StatusBar style="light" />
-      </ErrorBoundary>
-    </SafeAreaProvider>
+    <View style={styles.container}>
+      <Text style={styles.title}>SAFE MODE</Text>
+      <Text style={styles.body}>
+        The app is running in safe mode to isolate a startup crash.
+      </Text>
+      <Text style={styles.body}>
+        If you can see this screen, the crash is in a subsystem that we can re-enable one by one.
+      </Text>
+    </View>
   );
 }
 
 export default function RootLayout() {
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ClerkProviderWrapper>
-        <ConvexProviderWrapper>
-          <AppInitializer />
-        </ConvexProviderWrapper>
-      </ClerkProviderWrapper>
-    </GestureHandlerRootView>
-  );
+  if (SAFE_MODE || BOOT_MODE === 'safe') {
+    return <SafeModeScreen />;
+  }
+
+  if (BOOT_MODE === 'gesture') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const GestureRoot = require('../lib/GestureRoot').default;
+    return <GestureRoot />;
+  }
+
+  if (BOOT_MODE === 'router') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const RouterRoot = require('../lib/RouterRoot').default;
+    return <RouterRoot />;
+  }
+
+  if (BOOT_MODE === 'clerk') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ClerkRoot = require('../lib/ClerkRoot').default;
+    return <ClerkRoot />;
+  }
+
+  if (BOOT_MODE === 'convex') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ConvexRoot = require('../lib/ConvexRoot').default;
+    return <ConvexRoot />;
+  }
+
+  // Lazy-load the normal root to avoid importing native modules in SAFE_MODE.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const NormalRoot = require('../lib/NormalRoot').default;
+  return <NormalRoot />;
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  body: {
+    color: '#C7C7C7',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+});

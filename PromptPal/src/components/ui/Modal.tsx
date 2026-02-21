@@ -1,4 +1,4 @@
-import { Modal as RNModal, View, TouchableOpacity, Text, Pressable } from 'react-native';
+import { Modal as RNModal, View, TouchableOpacity, Text, Pressable, Dimensions } from 'react-native';
 import { ReactNode } from 'react';
 
 interface ModalProps {
@@ -10,6 +10,8 @@ interface ModalProps {
 }
 
 export function Modal({ visible, onClose, children, title, size = 'md' }: ModalProps) {
+  const maxContentHeight = Math.round(Dimensions.get('window').height * 0.9);
+
   const sizeClasses = {
     sm: 'max-w-sm',
     md: 'max-w-md',
@@ -43,7 +45,7 @@ export function Modal({ visible, onClose, children, title, size = 'md' }: ModalP
               </TouchableOpacity>
             </View>
           )}
-          <View className="max-h-[90vh]">
+          <View style={{ maxHeight: maxContentHeight }}>
             {children}
           </View>
         </Pressable>

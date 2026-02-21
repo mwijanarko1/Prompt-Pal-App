@@ -14,13 +14,39 @@ interface RadarChartProps {
 }
 
 export function RadarChart({ metrics, size = 200, color = '#6366f1' }: RadarChartProps) {
+  // Guard against missing or empty metrics
+  if (!metrics || metrics.length < 3) {
+    return (
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Text className="text-onSurfaceVariant text-[10px] uppercase font-bold text-center px-4">
+          Analysis data pending...
+        </Text>
+      </View>
+    );
+  }
+
+  // Filter out any invalid metrics to prevent NaN in SVG paths
+  const validMetrics = metrics.filter(m => m && typeof m.value === 'number' && !isNaN(m.value) && m.label);
+
+  if (validMetrics.length < 3) {
+    return (
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Text className="text-onSurfaceVariant text-[10px] uppercase font-bold text-center px-4">
+          Insufficient data for breakdown
+        </Text>
+      </View>
+    );
+  }
+
   const center = size / 2;
   const radius = (size / 2) * 0.7; // Leave some space for labels
-  const angleStep = (Math.PI * 2) / metrics.length;
+  const angleStep = (Math.PI * 2) / validMetrics.length;
 
   // Calculate coordinates for a given value and index
   const getCoordinates = (value: number, index: number) => {
-    const r = (value / 100) * radius;
+    // Ensure value is a valid number
+    const safeValue = isNaN(value) ? 0 : value;
+    const r = (safeValue / 100) * radius;
     const angle = index * angleStep - Math.PI / 2;
     return {
       x: center + r * Math.cos(angle),
@@ -29,7 +55,7 @@ export function RadarChart({ metrics, size = 200, color = '#6366f1' }: RadarChar
   };
 
   // Generate the polygon points for the data
-  const points = metrics.map((m, i) => {
+  const points = validMetrics.map((m, i) => {
     const { x, y } = getCoordinates(m.value, i);
     return `${x},${y}`;
   }).join(' ');
@@ -44,7 +70,7 @@ export function RadarChart({ metrics, size = 200, color = '#6366f1' }: RadarChar
         {gridLevels.map((level) => (
           <Polygon
             key={level}
-            points={metrics.map((_, i) => {
+            points={validMetrics.map((_, i) => {
               const { x, y } = getCoordinates(level, i);
               return `${x},${y}`;
             }).join(' ')}
@@ -55,7 +81,7 @@ export function RadarChart({ metrics, size = 200, color = '#6366f1' }: RadarChar
         ))}
 
         {/* Axis Lines */}
-        {metrics.map((_, i) => {
+        {validMetrics.map((_, i) => {
           const { x, y } = getCoordinates(100, i);
           return (
             <Line
@@ -79,7 +105,7 @@ export function RadarChart({ metrics, size = 200, color = '#6366f1' }: RadarChar
         />
 
         {/* Data Points */}
-        {metrics.map((m, i) => {
+        {validMetrics.map((m, i) => {
           const { x, y } = getCoordinates(m.value, i);
           return (
             <Circle
@@ -94,11 +120,11 @@ export function RadarChart({ metrics, size = 200, color = '#6366f1' }: RadarChar
       </Svg>
 
       {/* Labels */}
-      {metrics.map((m, i) => {
+      {validMetrics.map((m, i) => {
         const angle = i * angleStep - Math.PI / 2;
         const x = center + (radius + 25) * Math.cos(angle);
         const y = center + (radius + 15) * Math.sin(angle);
-        
+
         return (
           <View
             key={i}
@@ -114,7 +140,7 @@ export function RadarChart({ metrics, size = 200, color = '#6366f1' }: RadarChar
               {m.label}
             </Text>
             <Text className="text-[10px] font-bold text-primary">
-              ({m.value})
+              ({Math.round(m.value)})
             </Text>
           </View>
         );

@@ -13,25 +13,22 @@ export class GeminiService {
   // Generate an image based on a text prompt
   async generateImage(prompt: string): Promise<string> {
     try {
-      console.log('[Gemini] 🎨 Generating image:', prompt.substring(0, 50));
       // Convex generateImage returns { imageUrl: string, remainingQuota: ... }
       const result = await convexHttpClient.action(api.ai.generateImage, {
         prompt,
         appId: "prompt-pal",
       });
-      console.log('[Gemini] ✅ Image generated successfully:', result.imageUrl);
       return result.imageUrl;
     } catch (error) {
-      console.error('[Gemini] ❌ Image generation failed:', error);
+      console.error('[Gemini] Image generation failed:', error);
       throw error;
     }
+  }
   }
 
   // Compare two images and return similarity score (0-100)
   async compareImages(targetUrl: string, resultUrl: string, taskId?: string): Promise<number> {
     try {
-      console.log('[Gemini] 🔍 Comparing images');
-
       // Use advanced evaluation
       const result = await convexHttpClient.action(api.ai.evaluateImage, {
         taskId: taskId || `task-${Date.now()}`,
@@ -40,9 +37,10 @@ export class GeminiService {
       });
       return result.evaluation?.score || 0;
     } catch (error) {
-      console.error('[Gemini] ❌ Comparison failed:', error);
+      console.error('[Gemini] Comparison failed:', error);
       throw error;
     }
+  }
   }
 
   // Get contextual hints for prompt improvement
@@ -58,8 +56,14 @@ export class GeminiService {
       if (result.result) {
         try {
           // Extract JSON array from text if needed
-          const jsonMatch = result.result.match(/\[.*\]/s);
-          const hints = JSON.parse(jsonMatch ? jsonMatch[0] : result.result);
+          let jsonText = result.result;
+          const jsonMatch = result.result.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+
+          jsonText = jsonText.trim();
+          const hints = JSON.parse(jsonText);
           return Array.isArray(hints) ? hints.slice(0, 3) : [];
         } catch {
           // Fallback if not valid JSON
@@ -76,5 +80,3 @@ export class GeminiService {
 
 // Export singleton instance
 export const geminiService = new GeminiService();
-
-console.log('[Gemini Service] Initialized using Convex backend');

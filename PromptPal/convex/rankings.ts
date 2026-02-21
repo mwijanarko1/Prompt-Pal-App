@@ -75,8 +75,6 @@ export const updateUserRanking = action({
 export const recalculateRankings = action({
   args: {},
   handler: async (ctx, args): Promise<number> => {
-    console.log("Starting ranking recalculation...");
-
     // Get all users with their stats
     const { leaderboard: allStats }: any = await ctx.runQuery(api.queries.getLeaderboard, { limit: 1000 });
 
@@ -116,7 +114,6 @@ export const recalculateRankings = action({
       });
     }
 
-    console.log(`Updated rankings for ${userPoints.length} users`);
     return userPoints.length;
   },
 });

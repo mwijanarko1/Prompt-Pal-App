@@ -3,6 +3,8 @@ import { useUserProgressStore } from '@/features/user/store';
 import { logger } from '@/lib/logger';
 import { convexHttpClient } from '@/lib/convex-client';
 import { api } from "../../convex/_generated/api.js";
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 
 // Constants
 const SYNC_INTERVAL_MS = 300000; // 5 minutes (reduced from 30 seconds for event-driven sync)
@@ -15,37 +17,32 @@ const LAST_SYNC_KEY = 'promptpal_last_sync_timestamp';
 const secureStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         return window.localStorage.getItem(name);
-      } else {
-        // Use expo-secure-store on native platforms
-        const { SecureStore } = await import('expo-secure-store');
-        return await SecureStore.getItemAsync(name);
       }
+      return await SecureStore.getItemAsync(name);
     } catch {
       return null;
     }
   },
   setItem: async (name: string, value: string): Promise<void> => {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.localStorage.setItem(name, value);
-      } else {
-        const { SecureStore } = await import('expo-secure-store');
-        await SecureStore.setItemAsync(name, value);
+        return;
       }
+      await SecureStore.setItemAsync(name, value);
     } catch {
       // Handle error silently
     }
   },
   removeItem: async (name: string): Promise<void> => {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.localStorage.removeItem(name);
-      } else {
-        const { SecureStore } = await import('expo-secure-store');
-        await SecureStore.deleteItemAsync(name);
+        return;
       }
+      await SecureStore.deleteItemAsync(name);
     } catch {
       // Handle error silently
     }
@@ -81,9 +78,10 @@ export class SyncManager {
   private static syncInProgress = false;
   private static syncIntervalId: ReturnType<typeof setInterval> | null = null;
   private static isOnline = true;
+  private static isAuthenticated = false;
   private static offlineQueue: SyncQueueItem[] = [];
   private static conflictResolution: ConflictResolution = {
-    strategy: 'local-wins',
+    strategy: 'merge',
     timestamp: Date.now(),
   };
 
@@ -217,6 +215,11 @@ export class SyncManager {
       return;
     }
 
+    if (!this.isAuthenticated) {
+      logger.debug('SyncManager', 'Not authenticated, skipping sync');
+      return;
+    }
+
     try {
       this.syncInProgress = true;
 
@@ -265,6 +268,10 @@ export class SyncManager {
     gameState: GameState,
     retryCount = 0
   ): Promise<void> {
+    if (!this.isAuthenticated) {
+      return;
+    }
+
     try {
       // Fetch server state for conflict resolution
       const serverState = await this.fetchServerProgress();
@@ -277,6 +284,9 @@ export class SyncManager {
         ...gameState,
         ...resolvedChanges,
       };
+
+      // Update local store with merged state (pulls in server progress)
+      useGameStore.getState().syncFromBackend(resolvedChanges);
 
       // Send complete state to server
       await this.sendProgressToServer(completeState);
@@ -423,12 +433,28 @@ export class SyncManager {
     const wasOffline = !this.isOnline;
     this.isOnline = online;
 
-    if (online && wasOffline) {
+    if (online && wasOffline && this.isAuthenticated) {
       logger.info('SyncManager', 'Back online, triggering sync');
       // Trigger immediate sync when coming back online
       this.syncUserProgress();
     } else if (!online && !wasOffline) {
       logger.info('SyncManager', 'Going offline, queueing pending syncs');
+    }
+  }
+
+  /**
+   * Updates authentication status and triggers sync if authenticated
+   * @param isAuthenticated - Whether the user is authenticated
+   */
+  static setAuthenticated(isAuthenticated: boolean): void {
+    const wasUnauthenticated = !this.isAuthenticated;
+    this.isAuthenticated = isAuthenticated;
+
+    if (isAuthenticated && wasUnauthenticated && this.isOnline) {
+      logger.info('SyncManager', 'User authenticated, triggering sync');
+      this.syncUserProgress();
+    } else if (!isAuthenticated && !wasUnauthenticated) {
+      logger.info('SyncManager', 'User signed out, stopping syncs');
     }
   }
 

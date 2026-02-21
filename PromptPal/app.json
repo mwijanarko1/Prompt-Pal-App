@@ -3,11 +3,14 @@
     "name": "PromptPal",
     "slug": "PromptPal",
     "version": "1.0.0",
+    "description": "Master AI prompt engineering through interactive challenges for coding, copywriting, and image generation.",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "promptpal",
+    "newArchEnabled": true,
+    "icon": "./assets/app-logo.png",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/app-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#121212"
     },
@@ -15,28 +18,66 @@
       "**/*"
     ],
     "ios": {
+      "bundleIdentifier": "com.mikhailspeaks.promptpal",
+      "buildNumber": "14",
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "bundleIdentifier": "com.promptpal.app"
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+              "NSPrivacyCollectedDataTypePurposeAnalytics"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePerformanceData",
+            "NSPrivacyCollectedDataTypeLinked": false,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAnalytics",
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          }
+        ],
+        "NSPrivacyAccessedAPITypes": []
+      },
+      "infoPlist": {
+        "NSUserNotificationUsageDescription": "PromptPal uses notifications to remind you of daily challenges and learning streaks.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro",
-      "build": {
-        "babel": {
-          "include": [
-            "nativewind"
-          ]
-        }
+      "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-logo.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
     "plugins": [
       "expo-router",
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d8e6ec8a-a2b7-47b1-a904-f542af38e6fc"
+      }
+    }
   }
 }

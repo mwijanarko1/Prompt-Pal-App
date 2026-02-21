@@ -5,7 +5,9 @@ import { logger } from "./logger";
 const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
 
 if (!convexUrl) {
-  throw new Error("EXPO_PUBLIC_CONVEX_URL environment variable is not set");
+  throw new Error(
+    "EXPO_PUBLIC_CONVEX_URL is required. For EAS builds: eas secret:create --scope project --name EXPO_PUBLIC_CONVEX_URL --value <url>"
+  );
 }
 
 const client = new ConvexHttpClient(convexUrl);
@@ -72,22 +74,34 @@ async function setupAuth(): Promise<void> {
   const token = await getFreshToken();
   if (token) {
     client.setAuth(token);
+    await scheduleTokenRefresh(token);
   } else {
     client.clearAuth();
   }
 }
 
-// Initialize authentication on client creation
-setupAuth().catch(error => {
-  console.error('ConvexHttpClient: Failed to initialize auth:', error);
-});
+// Export the function to allow manual refreshment (e.g., on sign-in)
+export async function refreshAuth(): Promise<void> {
+  await setupAuth();
+}
 
-// Set up authentication refresh (every 45 minutes)
-setInterval(() => {
-  setupAuth().catch(error => {
-    console.error('ConvexHttpClient: Failed to refresh auth:', error);
+// Refresh token on a fixed cadence to avoid startup JWT decoding work.
+const TOKEN_REFRESH_INTERVAL_MS = 45 * 60 * 1000;
+async function scheduleTokenRefresh(token: string): Promise<void> {
+  if (!token) {
+    return;
+  }
+
+  logger.debug('ConvexHttpClient', 'Token refresh scheduled', {
+    refreshInMinutes: Math.round(TOKEN_REFRESH_INTERVAL_MS / 60000),
   });
-}, 45 * 60 * 1000);
+
+  setTimeout(() => {
+    refreshAuth().catch(error => {
+      logger.error('ConvexHttpClient', 'Scheduled refresh failed', error);
+    });
+  }, TOKEN_REFRESH_INTERVAL_MS);
+}
 
 // Export the client (authentication will be set up automatically)
 export { client as convexHttpClient };

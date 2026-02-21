@@ -1,57 +1,82 @@
 export interface ExecutionOptions {
   code: string;
   functionName?: string;
-  inputs: any[];
+  inputs: unknown[];
   timeoutMs?: number;
 }
 
 export interface ExecutionResult {
   success: boolean;
-  output: any;
+  output: unknown;
   error?: string;
   executionTime: number;
 }
 
 export interface PreparedExecution {
   functionName: string;
-  run: (inputs: any[]) => Promise<ExecutionResult>;
+  run: (inputs: unknown[]) => Promise<ExecutionResult>;
 }
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const MAX_CACHE_ENTRIES = 50;
 
-const SAFE_GLOBALS = Object.freeze({
-  Math,
-  JSON,
-  Array,
-  Object,
-  String,
-  Number,
-  Boolean,
-  RegExp,
-  Date,
-  Map,
-  Set,
-  WeakMap,
-  WeakSet,
-  BigInt,
-  Symbol,
-  parseInt,
-  parseFloat,
-  isNaN,
-  isFinite,
-});
-
-const STUB_CONSOLE = Object.freeze({
-  log: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  debug: () => {},
-});
+// Create a completely prototype-less sandbox to prevent prototype pollution
+const createSafeSandbox = () => {
+  const sandbox = Object.create(null);
+  
+  // Add only safe, frozen built-ins
+  const safeGlobals = {
+    Math: Object.freeze({ ...Math }),
+    JSON: Object.freeze({ 
+      parse: JSON.parse,
+      stringify: JSON.stringify 
+    }),
+    Array: Object.freeze({
+      from: Array.from,
+      isArray: Array.isArray,
+      of: Array.of,
+      prototype: Object.freeze(Array.prototype)
+    }),
+    Object: Object.freeze({
+      assign: Object.assign,
+      entries: Object.entries,
+      freeze: Object.freeze,
+      keys: Object.keys,
+      values: Object.values,
+      create: Object.create,
+      hasOwn: Object.hasOwn,
+      defineProperty: Object.defineProperty,
+      getOwnPropertyNames: Object.getOwnPropertyNames,
+    }),
+    String: Object.freeze(String),
+    Number: Object.freeze(Number),
+    Boolean: Object.freeze(Boolean),
+    RegExp: Object.freeze(RegExp),
+    Date: Object.freeze(Date),
+    Map: Object.freeze(Map),
+    Set: Object.freeze(Set),
+    BigInt: Object.freeze(BigInt),
+    Symbol: Object.freeze(Symbol),
+    parseInt: Object.freeze(parseInt),
+    parseFloat: Object.freeze(parseFloat),
+    isNaN: Object.freeze(isNaN),
+    isFinite: Object.freeze(isFinite),
+    console: Object.freeze({
+      log: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+    }),
+  };
+  
+  Object.assign(sandbox, safeGlobals);
+  return Object.freeze(sandbox);
+};
 
 const EXECUTOR_CACHE = new Map<string, { runner: Function; lineOffset: number }>();
 
+// Enhanced disallowed patterns for stricter security
 const DISALLOWED_PATTERNS: { pattern: RegExp; message: string }[] = [
   { pattern: /\beval\s*\(/i, message: 'Usage of eval is not allowed.' },
   { pattern: /\bFunction\s*\(/, message: 'Dynamic Function construction is not allowed.' },
@@ -59,6 +84,12 @@ const DISALLOWED_PATTERNS: { pattern: RegExp; message: string }[] = [
   { pattern: /\bfetch\b|\bXMLHttpRequest\b|\bWebSocket\b/i, message: 'Network access is not allowed.' },
   { pattern: /\blocalStorage\b|\bsessionStorage\b/i, message: 'Storage access is not allowed.' },
   { pattern: /\bprocess\b|\brequire\b|\bimport\s+\w+/i, message: 'Module access is not allowed.' },
+  { pattern: /\bconstructor\b|\bprototype\b/i, message: 'Prototype access is not allowed.' },
+  { pattern: /\b__proto__\b/, message: 'Prototype pollution attempt detected.' },
+  { pattern: /\bthis\b/, message: 'this keyword is not allowed.' },
+  { pattern: /\[\s*constructor\s*\]/i, message: 'Constructor access is not allowed.' },
+  { pattern: /\.call\s*\(|\.apply\s*\(/i, message: 'Function call/apply is not allowed.' },
+  { pattern: /\bbind\s*\(/i, message: 'Function bind is not allowed.' },
 ];
 
 const FUNCTION_NAME_PATTERNS = [
@@ -69,7 +100,7 @@ const FUNCTION_NAME_PATTERNS = [
   /\bexport\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/,
 ];
 
-function normalizeInputs(inputs: any[]): any[] {
+function normalizeInputs(inputs: unknown[]): unknown[] {
   if (inputs == null) return [];
   return Array.isArray(inputs) ? inputs : [inputs];
 }
@@ -83,11 +114,35 @@ function validateFunctionName(functionName: string): void {
 }
 
 function validateSecurity(code: string): void {
+  // First pass: check for disallowed patterns
   for (const rule of DISALLOWED_PATTERNS) {
     if (rule.pattern.test(code)) {
       const error = new Error(rule.message);
       error.name = 'SecurityError';
       throw error;
+    }
+  }
+  
+  // Second pass: check for potential prototype pollution
+  const dangerousConstructs = [
+    /Object\.assign\s*\(/g,
+    /Object\.defineProperty\s*\(/g,
+    /Object\.setPrototypeOf\s*\(/g,
+  ];
+  
+  for (const pattern of dangerousConstructs) {
+    const matches = code.match(pattern);
+    if (matches && matches.length > 0) {
+      // Allow these if they're not modifying built-in prototypes
+      const lines = code.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (pattern.test(lines[i]) && 
+            (lines[i].includes('prototype') || lines[i].includes('__proto__'))) {
+          const error = new Error('Prototype modification is not allowed.');
+          error.name = 'SecurityError';
+          throw error;
+        }
+      }
     }
   }
 }
@@ -109,8 +164,7 @@ function buildRunner(code: string, functionName: string, timeoutMs: number): { r
 
   const preludeLines = [
     '"use strict";',
-    'const { Math, JSON, Array, Object, String, Number, Boolean, RegExp, Date, Map, Set, WeakMap, WeakSet, BigInt, Symbol, parseInt, parseFloat, isNaN, isFinite } = __sandbox;',
-    'const console = __sandbox.console;',
+    '// Prevent access to dangerous globals',
     'const globalThis = undefined;',
     'const global = undefined;',
     'const window = undefined;',
@@ -123,6 +177,8 @@ function buildRunner(code: string, functionName: string, timeoutMs: number): { r
     'const process = undefined;',
     'const require = undefined;',
     'const Function = undefined;',
+    'const eval = undefined;',
+    '// Timeout checking',
     'const __startTime = Date.now();',
     `const __timeoutMs = ${Math.max(1, timeoutMs)};`,
     'const __checkTimeout = () => {',
@@ -132,6 +188,8 @@ function buildRunner(code: string, functionName: string, timeoutMs: number): { r
     '    throw err;',
     '  }',
     '};',
+    '// Sandbox destructuring - only safe globals',
+    'const { Math, JSON, Array, Object, String, Number, Boolean, RegExp, Date, Map, Set, BigInt, Symbol, parseInt, parseFloat, isNaN, isFinite, console } = __sandbox;',
   ];
 
   const prefix = `${preludeLines.join('\n')}\n`;
@@ -146,8 +204,10 @@ function buildRunner(code: string, functionName: string, timeoutMs: number): { r
     '__checkTimeout();\n' +
     `return ${functionName}.apply(undefined, inputs);`;
 
-  const runner = new Function('__sandbox', 'inputs', source);
-  return { runner, lineOffset };
+  // Use a factory function that returns the runner
+  // This creates a closure without exposing dangerous constructors
+  const runnerFactory = new Function('__sandbox', 'inputs', source);
+  return { runner: runnerFactory, lineOffset };
 }
 
 function getCacheKey(code: string, functionName: string, timeoutMs: number): string {
@@ -233,6 +293,13 @@ export class CodeExecutor {
       throw error;
     }
 
+    // Additional validation: check code length
+    if (code.length > 50000) {
+      const error = new Error('Code exceeds maximum length of 50000 characters');
+      error.name = 'ValidationError';
+      throw error;
+    }
+
     validateSecurity(code);
 
     const resolvedName = functionName ?? CodeExecutor.extractFunctionName(code);
@@ -260,10 +327,10 @@ export class CodeExecutor {
 
     return {
       functionName: resolvedName,
-      run: async (inputs: any[]): Promise<ExecutionResult> => {
+      run: async (inputs: unknown[]): Promise<ExecutionResult> => {
         const startTime = Date.now();
         try {
-          const sandbox = Object.freeze({ ...SAFE_GLOBALS, console: STUB_CONSOLE });
+          const sandbox = createSafeSandbox();
           const result = cached!.runner(sandbox, normalizeInputs(inputs));
           const output = result instanceof Promise ? await result : result;
           return {
