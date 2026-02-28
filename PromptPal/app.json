@@ -7,7 +7,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "promptpal",
-    "newArchEnabled": true,
     "icon": "./assets/app-logo.png",
     "splash": {
       "image": "./assets/app-logo.png",
@@ -61,8 +60,6 @@
       }
     },
     "android": {
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-logo.png",
         "backgroundColor": "#FFFFFF"
@@ -71,7 +68,9 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-asset",
+      "expo-image"
     ],
     "extra": {
       "router": {},
