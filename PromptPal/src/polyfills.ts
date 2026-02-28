@@ -1,16 +1,9 @@
 // Polyfill for import.meta on web
-// This must be defined before any code that uses import.meta
-if (typeof window !== 'undefined') {
-  // Define import.meta as a global object
-  (window as any).import = (window as any).import || {};
-  (window as any).import.meta = (window as any).import.meta || {
-    env: { MODE: 'development' },
-    url: typeof window !== 'undefined' ? window.location.href : '',
+if (typeof window !== 'undefined' && typeof (globalThis as { importMeta?: { env: Record<string, string>; url: string } }).importMeta === 'undefined') {
+  (globalThis as { importMeta?: { env: Record<string, string>; url: string } }).importMeta = {
+    env: {},
+    url: '',
   };
-  
-  // Also set on globalThis for compatibility
-  (globalThis as any).import = (globalThis as any).import || {};
-  (globalThis as any).import.meta = (window as any).import.meta;
 }
 
 // Polyfill for process.env if needed
