@@ -1,14 +1,8 @@
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ClerkProviderWrapper, useAuth } from '@/lib/clerk';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { ConvexProvider, ConvexReactClient } from 'convex/react';
-import { validateEnvironment } from '@/lib/env';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { colorScheme } from 'nativewind';
 import '../app/global.css';
 
 const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
@@ -38,26 +32,18 @@ function ConvexProviderWrapper({ children }: { children: React.ReactNode }) {
 }
 
 export default function NormalRootLite() {
-  useEffect(() => {
-    validateEnvironment();
-    colorScheme.set('dark');
-  }, []);
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ClerkProviderWrapper>
-        <ConvexProviderWrapper>
-          <SafeAreaProvider>
-            <ErrorBoundary>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="(auth)" />
-              </Stack>
-              <StatusBar style="light" />
-            </ErrorBoundary>
-          </SafeAreaProvider>
-        </ConvexProviderWrapper>
-      </ClerkProviderWrapper>
-    </GestureHandlerRootView>
+    <ClerkProviderWrapper>
+      <ConvexProviderWrapper>
+        <SafeAreaProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="game" />
+            <Stack.Screen name="library/[resourceId]" />
+          </Stack>
+        </SafeAreaProvider>
+      </ConvexProviderWrapper>
+    </ClerkProviderWrapper>
   );
 }

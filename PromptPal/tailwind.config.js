@@ -6,38 +6,34 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Background colors
-        background: "hsl(var(--background))",
-        surface: "hsl(var(--surface))",
-        surfaceVariant: "hsl(var(--surface-variant))",
-        surfaceElevated: "hsl(var(--surface-elevated))",
+        // Literal values so NativeWind resolves colors on React Native (CSS vars from global.css don't apply there).
+        // Kept in sync with src/lib/theme.ts and src/app/global.css.
+        background: "#FFFFFF",
+        surface: "#F3F4F6",
+        surfaceVariant: "#E5E7EB",
+        surfaceElevated: "#FFFFFF",
 
-        // Primary colors (Orange theme - from "Prompt")
-        primary: "hsl(var(--primary))",
+        primary: "#FF6B00",
         primaryVariant: "#E66000",
-        onPrimary: "hsl(var(--on-primary))",
+        onPrimary: "#FFFFFF",
 
-        // Secondary colors (Blue theme - from "Pal")
-        secondary: "hsl(var(--secondary))",
+        secondary: "#4151FF",
         secondaryVariant: "#3644E6",
-        onSecondary: "hsl(var(--on-secondary))",
+        onSecondary: "#FFFFFF",
 
-        // Semantic colors
-        success: "hsl(var(--success))",
-        warning: "hsl(var(--warning))",
-        error: "hsl(var(--error))",
-        info: "hsl(var(--info))",
+        success: "#10B981",
+        warning: "#F59E0B",
+        error: "#EF4444",
+        info: "#3B82F6",
 
-        // Text colors
-        onBackground: "hsl(var(--on-background))",
-        onSurface: "hsl(var(--on-surface))",
-        onSurfaceVariant: "hsl(var(--on-surface-variant))",
-        textSecondary: "hsl(var(--on-surface-variant))",
-        textMuted: "hsl(var(--on-surface-variant) / 0.6)",
+        onBackground: "#111827",
+        onSurface: "#111827",
+        onSurfaceVariant: "#6B7280",
+        textSecondary: "#6B7280",
+        textMuted: "rgba(107, 114, 128, 0.6)",
 
-        // Border and outline
-        outline: "hsl(var(--outline))",
-        border: "hsl(var(--outline))",
+        outline: "#9CA3AF",
+        border: "#9CA3AF",
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

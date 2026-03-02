@@ -1,19 +1,21 @@
-import { View, Text, StyleSheet } from 'react-native';
+import './global.css';
+import { BootModeScreen } from '../lib/BootModeScreen';
 
 const SAFE_MODE = process.env.EXPO_PUBLIC_SAFE_MODE === '1';
 const BOOT_MODE = (process.env.EXPO_PUBLIC_BOOT_MODE || 'full').toLowerCase();
 
 function SafeModeScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>SAFE MODE</Text>
-      <Text style={styles.body}>
-        The app is running in safe mode to isolate a startup crash.
-      </Text>
-      <Text style={styles.body}>
-        If you can see this screen, the crash is in a subsystem that we can re-enable one by one.
-      </Text>
-    </View>
+    <BootModeScreen
+      mode="Safe Mode"
+      title="Startup Isolation Active"
+      body="PromptPal is running with startup protections enabled while we isolate a crash trigger."
+      details={[
+        'Core runtime loaded successfully.',
+        'Subsystems will be re-enabled incrementally.',
+        'No user data is modified in this mode.',
+      ]}
+    />
   );
 }
 
@@ -57,25 +59,3 @@ export default function RootLayout() {
   const NormalRoot = require('../lib/NormalRoot').default;
   return <NormalRoot />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#111111',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  body: {
-    color: '#C7C7C7',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-});

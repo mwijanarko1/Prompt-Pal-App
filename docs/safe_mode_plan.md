@@ -1,14 +1,54 @@
-# Safe Mode Isolation Plan & Learnings Log
+# Safe Mode Isolation Plan
 
-## Goal
-Identify the specific startup crash cause by reintroducing `src/app` route groups into isolated router mode in controlled increments.
+**Purpose:** Context for engineers on how we're solving the iOS startup/tab crash. Use this doc to understand the problem, the isolation strategy, what we've learned, and how to continue.
+
+---
+
+## The Problem
+
+- **Symptom:** App crashes on launch or when opening certain tabs. Crash is `EXC_CRASH (SIGABRT)` in `ObjCTurboModule::performVoidMethodInvocation` (TurboModule/native bridge path).
+- **When it happens:** With the **full** `src/app` dependency graph (Expo Router root at `src/app`). It does **not** happen when we boot from a reduced tree or use staged "probes" for individual tabs.
+- **What we're doing:** Isolating the crash by reintroducing `src/app` in controlled increments (router isolation → tab probes → full-lite boot → eventually full app) and validating every step on device.
+
+---
+
+## Approach (Isolation Strategy)
+
+1. **Router isolation** — Expo Router root pointed at `src/router-app` instead of `src/app`. We rebuilt tabs/auth there with minimal imports and staged "probes" (placeholder → auth → store → convex → full) per tab to find which dependency triggers the crash.
+2. **Provider discipline** — Router-isolation tree must be wrapped with the same providers as the real app (Clerk, Convex, etc.). Missing providers (e.g. Convex or Clerk) caused crashes when a tab used hooks from those SDKs.
+3. **Full app, reduced root** — Once isolation was stable, we switched the app root back to `src/app` but added a **full-lite** boot mode that uses a reduced root layout (`NormalRootLite`) and only known-stable tabs. Full `NormalRoot` (full `src/app` dependency graph) still crashes on launch; we're narrowing down what in that graph causes it.
+4. **Validation** — Every change is validated on a real device with a strict checklist. Local build + device test; we do not rely on "build succeeded" alone.
+
+---
+
+## Key Concepts & Files
+
+| Concept | Meaning |
+|--------|----------|
+| **Boot mode** (`EXPO_PUBLIC_BOOT_MODE`) | `router` = use `src/router-app` as Expo Router root. `full-lite` = use `src/app` with `NormalRootLite` (reduced wrappers, stable tabs only). `full` = use `src/app` with full `NormalRoot` (currently crashes on launch). |
+| **Router profile** | EAS build profile `router` in `eas.json`; sets `EXPO_ROUTER_APP_ROOT`, `EXPO_PUBLIC_BOOT_MODE`, and per-tab stage env vars. |
+| **Tab stage / probe** | Per-tab env vars (e.g. `EXPO_PUBLIC_HOME_ISO_STAGE`, `EXPO_PUBLIC_LIBRARY_ISO_STAGE`) control whether that tab loads placeholder, auth-only, store, convex, or full screen. Used to isolate which part of the tab triggers a crash. |
+| **NormalRoot vs NormalRootLite** | `src/lib/NormalRoot.tsx` = full app wrappers and dependency graph (crashes on launch with `src/app`). `NormalRootLite` = minimal wrappers + dark theme, same tabs as in isolation; used in `full-lite` to keep launch stable while we compare. |
+| **App root** | Set via `EXPO_ROUTER_APP_ROOT` (e.g. `src/router-app` or `src/app`). Entry layout is in that directory's `_layout.tsx`. |
+
+---
+
+## Root Causes We've Identified (So Far)
+
+- **React version mismatch** — React must be pinned to `19.1.0` to match the RN renderer; `19.2.4` caused white screen.
+- **Missing providers in isolation** — Using Clerk or Convex hooks in router-isolation without wrapping the tree in `ClerkProvider` / Convex provider caused crashes when opening the Library/Home tab.
+- **Clerk key mismatch** — EAS profile was using a different Clerk publishable key than the dashboard; OAuth failed until all profiles used the same key (e.g. `clerk.promptpal.cc`).
+- **Full `src/app` + full NormalRoot** — Something in the full `src/app` dependency graph or full `NormalRoot` triggers the TurboModule abort on launch. We have not yet isolated the exact module or import; `full-lite` avoids it by using a reduced root and stable tabs only.
+
+---
 
 ## Critical Constraints
 1. React must stay pinned to `19.1.0` (`react`, `react-dom`, `react-test-renderer`) to match RN renderer.
 2. New Architecture must remain enabled (`newArchEnabled: true`) because Reanimated 4 requires it.
 3. Runtime validation on device is mandatory; build success alone is not proof.
+4. Use **local** EAS build for this workflow. Remote EAS builds have failed (e.g. "Unknown error" in Install dependencies); validate with `npx eas build --platform ios --profile <profile> --local --output ./build-<NN>-router.ipa`.
 
-## Confirmed Learnings
+## Build History (Detailed Learnings)
 - Build 3-7: Startup crash persisted (`EXC_CRASH (SIGABRT)`, TurboModule path).
 - Build 12: White screen traced to React version mismatch (`19.2.4` vs renderer `19.1.0`).
 - Build 13: Gesture mode stabilized after React pinning.
@@ -60,28 +100,76 @@ Identify the specific startup crash cause by reintroducing `src/app` route group
 - Build 42 feedback: Launch crash reproduced on app open (`cfBundleVersion` 42) with same `ObjCTurboModule::performVoidMethodInvocation` abort signature.
 - Build 43: Added `full-lite` boot mode under `src/app` that keeps only known-stable tabs/auth stack and switched router profile to `EXPO_PUBLIC_BOOT_MODE=full-lite`; iOS buildNumber bumped to 43.
 - Build 43 feedback: Launch is stable in `full-lite`, but app theme/token colors are incorrect.
-- Build 44 (in progress): Updated `NormalRootLite` to mirror `NormalRoot` wrappers (Gesture/SafeArea/ErrorBoundary/StatusBar) and force NativeWind dark scheme at startup; iOS buildNumber bumped to 44.
+- Build 44: Updated `NormalRootLite` to mirror `NormalRoot` wrappers (Gesture/SafeArea/ErrorBoundary/StatusBar) and force NativeWind dark scheme at startup; iOS buildNumber bumped to 44.
+- Build 44 feedback: Launch crash on app open (`cfBundleVersion` 44), new signature `EXC_BAD_ACCESS (SIGSEGV)` with `expo-secure-store` active in stack while TurboModule exception conversion occurs.
+- Build 45 (in progress): Reverted `NormalRootLite` to Build 43 launch-stable structure and moved theme correction to static CSS token defaults (`global.css`) instead of runtime color-scheme mutation; iOS buildNumber bumped to 45.
+- Build 45 feedback: Launch stability restored, but theme/colors are still incorrect on device.
+- Build 46 feedback: Launch remains stable, but safe-mode/boot screens still looked like debug probes and did not match normal app visual language.
+- Build 47 feedback: Stable on device with improved safe-mode UI parity.
+- Build 48 feedback: Stable on device after reintroducing `library/[resourceId]` route registration.
+- Build 49 feedback: Stable on device (no launch or tab regressions observed).
+- Build 50 (in progress): Reintroduced next `NormalRoot` route chunk into `NormalRootLite` by registering `game` in the root stack; iOS buildNumber bumped to 50.
+- Build 50 feedback: Stable on device after adding `game` route registration under `full-lite`.
+- Build 50 feedback: Full normal mode crash reproduced on launch in TestFlight (`Version 1.0.0 (50)`), signature remains `EXC_CRASH (SIGABRT)` in `ObjCTurboModule::performVoidMethodInvocation`.
+- Build 51 feedback: Stable on device after rollback to `full-lite`.
+- Build 52 (in progress): Reintroduced next `NormalRoot` wrapper chunk into `NormalRootLite` by adding `SafeAreaProvider` around the app stack; iOS buildNumber bumped to 52.
 
 ## Current Status
-- Stable in isolation: Safe, Clerk, Gesture, Router-isolated root, Router-isolated Tabs, Router-isolated Auth.
-- Unstable area: Full `src/app` dependency graph.
+
+- **Stable:** Router isolation (`src/router-app`), all tab probes (Library, Home, Ranking, Profile), auth/OAuth, full-lite boot (`src/app` + `NormalRootLite`).
+- **Unstable:** Full `src/app` with full `NormalRoot` still crashes on launch (reconfirmed by Build 50).
+
+---
+
+## If You're Picking This Up
+
+1. **Current build:** 52. Router profile uses `EXPO_PUBLIC_BOOT_MODE=full-lite`; app root is `src/app`, entry uses `NormalRootLite`.
+2. **Next step:** Validate Build 52 on device (cold launch, sign-in, tabs, library detail, game route, relaunch/session persistence). If stable, continue with the next single wrapper chunk from `NormalRoot`.
+3. **Always:** Use **local** EAS build and device validation; see Verification Loop and Device validation checklist below.
+4. **Do not:** Change React version, disable New Architecture, or add large unreversible chunks.
+
+---
 
 ## Increment Plan
 1. Increment 1 (Tabs): Completed and verified in build 17.
 2. Increment 2 (Auth): Completed and verified in build 18.
 3. Increment 3 (Features): Completed. Full Library stage is stable and signed-in auth path is validated in router isolation (build 31).
-4. Increment 4 (Features): In progress. `full-lite` launch is stable in build 43; next target is restoring expected visual theme in build 44 before continuing root-path isolation.
+4. Increment 4 (Features): In progress. Build 52 adds `SafeAreaProvider` wrapper parity in `full-lite` while maintaining controlled rollout.
 
 ## Verification Loop (Per Increment)
 1. Add one chunk only.
-2. Run: `EXPO_PUBLIC_BOOT_MODE=router npx expo export --platform ios` (local sanity).
+2. Run local export sanity (set `EXPO_PUBLIC_BOOT_MODE` to match profile: `router`, `full-lite`, or `full`): `EXPO_PUBLIC_BOOT_MODE=<mode> npx expo export --platform ios`.
 3. Increment `PromptPal/app.json` iOS `buildNumber`.
-4. Build IPA/TestFlight.
-5. Launch on device.
+4. Build IPA locally: `cd PromptPal && npx eas build --platform ios --profile <profile> --local --output ./build-<NN>-router.ipa`.
+5. Install on device and run the **device validation checklist** (see below).
 - If success: proceed to next increment.
 - If crash: newest chunk is suspect; capture logs immediately.
 
+### Device validation checklist (per build)
+- Cold launch (signed out) → lands on sign-in.
+- Google sign-in succeeds.
+- Open target tab(s) and wait 30–60s; switch across all tabs repeatedly.
+- Kill app and reopen → session persists, no crash.
+- For full-app builds: open library resource and game route, tab-switch stress test 2–3 min.
+
 ## Guardrails
+
 - Do not upgrade React family versions.
 - Do not disable New Architecture.
 - Keep increments small and reversible.
+
+---
+
+## Quick reference — Commands
+
+**Export sanity (from repo root; set BOOT_MODE to match profile):**
+```bash
+cd PromptPal && EXPO_PUBLIC_BOOT_MODE=full-lite npx expo export --platform ios
+```
+
+**Local iOS build (router profile, output named by build number):**
+```bash
+cd PromptPal && npx eas build --platform ios --profile router --local --output ./build-44-router.ipa
+```
+
+**EAS profile and env:** `PromptPal/eas.json` — `router` profile sets `EXPO_ROUTER_APP_ROOT`, `EXPO_PUBLIC_BOOT_MODE`, and per-tab stage vars. Keep Clerk key and Convex URL in sync with the rest of the app.

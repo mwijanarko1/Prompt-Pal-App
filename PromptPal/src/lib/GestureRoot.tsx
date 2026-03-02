@@ -1,35 +1,19 @@
 import 'react-native-gesture-handler';
-import { View, Text, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BootModeScreen } from './BootModeScreen';
 
 export default function GestureRoot() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={styles.container}>
-        <Text style={styles.title}>GESTURE MODE</Text>
-        <Text style={styles.body}>GestureHandlerRootView enabled. No router, no app screens.</Text>
-      </View>
+      <BootModeScreen
+        mode="Gesture Mode"
+        title="Gesture Layer Verified"
+        body="GestureHandlerRootView is mounted and stable."
+        details={[
+          'Native gesture bridge is active.',
+          'Router and feature modules are intentionally not mounted.',
+        ]}
+      />
     </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0D1117',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  body: {
-    color: '#C7C7C7',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-});

@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "description": "Master AI prompt engineering through interactive challenges for coding, copywriting, and image generation.",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "scheme": "promptpal",
     "newArchEnabled": true,
     "icon": "./assets/app-logo.png",
@@ -19,7 +19,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.mikhailspeaks.promptpal",
-      "buildNumber": "44",
+      "buildNumber": "52",
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "privacyManifests": {

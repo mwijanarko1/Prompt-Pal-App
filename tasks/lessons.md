@@ -12,3 +12,7 @@
 - Keep Clerk OAuth redirect URLs deterministic (`EXPO_PUBLIC_CLERK_OAUTH_REDIRECT_URL`) and aligned with Clerk dashboard redirect URL allowlist to avoid `Missing external verification redirect URL for SSO flow`.
 - Always verify the EAS profile actually used for TestFlight/local build (`router`, `production`, etc.) has the intended Clerk publishable key; profile-level key drift can route auth to a different Clerk instance than the dashboard being configured.
 - Preserve Clerk token caching in production auth flows; removing `tokenCache` causes avoidable re-auth prompts across app relaunches/updates.
+
+## 2026-03-01
+- Do not bundle theme fixes with root-wrapper changes in the same build; keep visual and lifecycle/native changes isolated so regressions are attributable.
+- Prefer deterministic appearance configuration (`userInterfaceStyle`) and static token mapping (`global.css`) over runtime color-scheme mutation during startup in crash-sensitive builds.

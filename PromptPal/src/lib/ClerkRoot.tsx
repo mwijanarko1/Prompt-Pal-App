@@ -1,34 +1,18 @@
-import { View, Text, StyleSheet } from 'react-native';
 import { ClerkProviderWrapper } from '@/lib/clerk';
+import { BootModeScreen } from './BootModeScreen';
 
 export default function ClerkRoot() {
   return (
     <ClerkProviderWrapper>
-      <View style={styles.container}>
-        <Text style={styles.title}>CLERK MODE</Text>
-        <Text style={styles.body}>Clerk is enabled. No Convex or app screens.</Text>
-      </View>
+      <BootModeScreen
+        mode="Clerk Mode"
+        title="Auth Provider Loaded"
+        body="Clerk is mounted successfully in isolation."
+        details={[
+          'Authentication context is available.',
+          'Convex and feature routes are not mounted in this stage.',
+        ]}
+      />
     </ClerkProviderWrapper>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0D1117',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  body: {
-    color: '#C7C7C7',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-});

@@ -39,6 +39,16 @@ function TabsNavigator() {
         }}
       />
       <Tabs.Screen
+        name="ranking"
+        options={{
+          href: null, // Hidden for now; route still exists
+          title: 'Ranking',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "trophy" : "trophy-outline"} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',

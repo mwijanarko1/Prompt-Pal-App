@@ -274,7 +274,28 @@
 - [x] Align `NormalRootLite` wrappers with `NormalRoot` (Gesture/SafeArea/ErrorBoundary/StatusBar)
 - [x] Force NativeWind dark scheme in `full-lite` startup
 - [x] Sanity-check `full-lite` iOS export
-- [ ] Validate launch + theme/color correctness on device/TestFlight
+- [x] Validate launch + theme/color correctness on device/TestFlight
 
 ## Build 44 Review
-- [ ] Confirm `full-lite` is stable and visual theme matches expected app styling
+- [x] Confirm `full-lite` is unstable with wrapper/theme-runtime changes (launch crash, `cfBundleVersion` 44)
+
+## Build 45 Plan
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 45
+- [x] Revert `NormalRootLite` to Build 43 launch-stable structure
+- [x] Move theme fix to static token defaults (`global.css`) instead of runtime color-scheme mutation
+- [x] Sanity-check `full-lite` iOS export
+- [x] Validate launch + theme/color correctness on device/TestFlight
+
+## Build 45 Review
+- [x] Confirm `full-lite` is stable
+- [x] Confirm visual regression persists (theme/colors still incorrect)
+
+## Build 46 Plan
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 46
+- [x] Restore `global.css` token structure to original (`:root` light + `.dark:root` overrides)
+- [x] Force app appearance via config (`userInterfaceStyle: dark`) to make dark tokens deterministic
+- [x] Sanity-check `full-lite` iOS export
+- [ ] Validate launch + theme/color correctness on device/TestFlight
+
+## Build 46 Review
+- [ ] Confirm `full-lite` is stable and theme/colors match expected dark styling
