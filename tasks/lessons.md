@@ -23,3 +23,6 @@
 - Keep `app.json` iOS `buildNumber` aligned with the actual next build to be generated; if a build number was advanced prematurely, correct it before issuing the next command.
 - After SDK upgrades, ensure `package-lock.json` is regenerated with the same npm major as the EAS local build environment; otherwise `npm ci` can fail with lockfile mismatch/missing package entries.
 - Avoid calling `validateEnvironment()` in production startup effects inside `NormalRootLite`; thrown effect errors bypass UI boundaries and can hard-abort launch.
+- `expo-router/unstable-native-tabs` can break on SDK 55 in this app (`displayName` undefined in `maybeHijackSafeAreaProvider`); prefer stable `Tabs` for production until upstream/native-tabs compatibility is verified.
+- If environment validation is run during startup in production roots, wrap it in `try/catch` and log instead of throwing to avoid crash loops.
+- On cold launch into auth, avoid stack entrance animations like `slide_from_right`; initial redirects should render without horizontal motion or they visibly fight the splash/logo transition.

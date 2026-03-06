@@ -31,53 +31,12 @@
         "EXPO_PUBLIC_CLERK_OAUTH_REDIRECT_URL": "promptpal://sso-callback"
       }
     },
-    "gesture": {
-      "node": "20.19.4",
-      "bun": "1.3.10",
-      "distribution": "store",
-      "env": {
-        "EXPO_PUBLIC_BOOT_MODE": "gesture",
-        "EXPO_PUBLIC_CONVEX_URL": "https://flippant-ferret-306.convex.cloud",
-        "EXPO_PUBLIC_CONVEX_SITE_URL": "https://flippant-ferret-306.convex.site",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsucHJvbXB0cGFsLmNjJA",
-        "EXPO_PUBLIC_CLERK_OAUTH_REDIRECT_URL": "promptpal://sso-callback"
-      }
-    },
     "router": {
       "node": "20.19.4",
       "bun": "1.3.10",
       "distribution": "store",
       "env": {
-        "EXPO_PUBLIC_BOOT_MODE": "full-lite",
-        "EXPO_PUBLIC_LIBRARY_ISO_STAGE": "full",
-        "EXPO_PUBLIC_HOME_ISO_STAGE": "full",
-        "EXPO_PUBLIC_RANKING_ISO_STAGE": "full",
-        "EXPO_PUBLIC_PROFILE_ISO_STAGE": "full",
-        "EXPO_ROUTER_APP_ROOT": "src/app",
-        "EXPO_PUBLIC_CONVEX_URL": "https://flippant-ferret-306.convex.cloud",
-        "EXPO_PUBLIC_CONVEX_SITE_URL": "https://flippant-ferret-306.convex.site",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsucHJvbXB0cGFsLmNjJA",
-        "EXPO_PUBLIC_CLERK_OAUTH_REDIRECT_URL": "promptpal://sso-callback"
-      }
-    },
-    "clerk": {
-      "node": "20.19.4",
-      "bun": "1.3.10",
-      "distribution": "store",
-      "env": {
-        "EXPO_PUBLIC_BOOT_MODE": "clerk",
-        "EXPO_PUBLIC_CONVEX_URL": "https://flippant-ferret-306.convex.cloud",
-        "EXPO_PUBLIC_CONVEX_SITE_URL": "https://flippant-ferret-306.convex.site",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsucHJvbXB0cGFsLmNjJA",
-        "EXPO_PUBLIC_CLERK_OAUTH_REDIRECT_URL": "promptpal://sso-callback"
-      }
-    },
-    "convex": {
-      "node": "20.19.4",
-      "bun": "1.3.10",
-      "distribution": "store",
-      "env": {
-        "EXPO_PUBLIC_BOOT_MODE": "convex",
+        "EXPO_PUBLIC_BOOT_MODE": "full",
         "EXPO_PUBLIC_CONVEX_URL": "https://flippant-ferret-306.convex.cloud",
         "EXPO_PUBLIC_CONVEX_SITE_URL": "https://flippant-ferret-306.convex.site",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsucHJvbXB0cGFsLmNjJA",

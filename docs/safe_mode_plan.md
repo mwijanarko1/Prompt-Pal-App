@@ -117,19 +117,27 @@
 - Build 54 feedback: Stable on device after adding `StatusBar` (`light`) parity.
 - Build 55 feedback: Launch crash reproduced on TestFlight (`Version 1.0.0 (55)`, `EXC_CRASH (SIGABRT)` in React ObjC exception path) after adding `validateEnvironment()` effect in `NormalRootLite`.
 - Build 56 feedback: Stable on device after reverting `validateEnvironment()` effect from `NormalRootLite`.
-- Build 57 (in progress): Restored native iOS tabs surface by switching `(tabs)` layouts back to `expo-router/unstable-native-tabs` (liquid glass behavior) while keeping auth gate logic; iOS buildNumber bumped to 57.
+- Build 57 feedback: Runtime JS error on launch/render (`Cannot read property 'displayName' of undefined` in `maybeHijackSafeAreaProvider`) after switching to `expo-router/unstable-native-tabs` on SDK 55.
+- Build 58 feedback: Stable on device after reverting tabs from `unstable-native-tabs` to stable `Tabs`.
+- Build 59 feedback: Stable on device after reintroducing `GestureHandlerRootView` wrapper parity in `NormalRootLite`.
+- Build 60 feedback: Stable on device.
+- Build 61 feedback: Stable on device in full mode after guarding `validateEnvironment()` in full root startup.
+- Build 62 feedback: Stable on device after cleanup pass removing isolation scaffolding and disabling cold-start route animations.
 
 ## Current Status
 
-- **Stable:** Router isolation (`src/router-app`), all tab probes (Library, Home, Ranking, Profile), auth/OAuth, full-lite boot (`src/app` + `NormalRootLite`).
-- **Unstable:** Full `src/app` with full `NormalRoot` still crashes on launch (reconfirmed by Build 50).
+- **Stable:** Full `src/app` boot with `NormalRoot`, sign-in flow, tabs, library detail, game route, and relaunch/session persistence.
+- **Cleanup in progress:** Isolation-only boot branches are being removed, the router profile remains pinned to full mode, and the auth stack entrance animation is being disabled to avoid the cold-start right-slide transition.
+- **Historical isolation path:** `src/router-app` probes and `full-lite` boot succeeded and were used to isolate the launch crash, but are no longer the active runtime target.
+- **Cleanup sanity:** `EXPO_PUBLIC_BOOT_MODE=full npx expo export --platform ios` passes after removing the isolation scaffolding.
+- **Current launch polish candidate:** Build 63 swaps the splash artwork to `assets/launch.png` and removes cold-start route animations.
 
 ---
 
 ## If You're Picking This Up
 
-1. **Current build:** 57. Router profile uses `EXPO_PUBLIC_BOOT_MODE=full-lite`; app root is `src/app`, entry uses `NormalRootLite`.
-2. **Next step:** Validate Build 57 on device (cold launch, sign-in, native tab bar appearance/interaction, library detail, game route, relaunch/session persistence).
+1. **Current build:** 63 (cleanup candidate). Runtime remains on full `src/app` with `NormalRoot`; `router` EAS profile is just the stable local-build profile now.
+2. **Next step:** Validate cleanup build. Remove stale isolation-only scaffolding (`src/router-app`, full-lite/probe roots, obsolete boot-mode env knobs) and verify cold launch no longer animates the auth flow from the right.
 3. **Always:** Use **local** EAS build and device validation; see Verification Loop and Device validation checklist below.
 4. **Do not:** Change React version, disable New Architecture, or add large unreversible chunks.
 
@@ -139,11 +147,11 @@
 1. Increment 1 (Tabs): Completed and verified in build 17.
 2. Increment 2 (Auth): Completed and verified in build 18.
 3. Increment 3 (Features): Completed. Full Library stage is stable and signed-in auth path is validated in router isolation (build 31).
-4. Increment 4 (Features): In progress. Build 57 focuses on tab UI parity by restoring native tabs while preserving stable boot scaffolding.
+4. Increment 4 (Features): Completed. Build 61 validated full-mode startup after full-lite parity work.
 
 ## Verification Loop (Per Increment)
 1. Add one chunk only.
-2. Run local export sanity (set `EXPO_PUBLIC_BOOT_MODE` to match profile: `router`, `full-lite`, or `full`): `EXPO_PUBLIC_BOOT_MODE=<mode> npx expo export --platform ios`.
+2. Run local export sanity with the active full-mode profile: `EXPO_PUBLIC_BOOT_MODE=full npx expo export --platform ios`.
 3. Increment `PromptPal/app.json` iOS `buildNumber`.
 4. Build IPA locally: `cd PromptPal && npx eas build --platform ios --profile <profile> --local --output ./build-<NN>-router.ipa`.
 5. Install on device and run the **device validation checklist** (see below).
@@ -167,14 +175,14 @@
 
 ## Quick reference — Commands
 
-**Export sanity (from repo root; set BOOT_MODE to match profile):**
+**Export sanity (from repo root):**
 ```bash
-cd PromptPal && EXPO_PUBLIC_BOOT_MODE=full-lite npx expo export --platform ios
+cd PromptPal && EXPO_PUBLIC_BOOT_MODE=full npx expo export --platform ios
 ```
 
 **Local iOS build (router profile, output named by build number):**
 ```bash
-cd PromptPal && npx eas build --platform ios --profile router --local --output ./build-44-router.ipa
+cd PromptPal && npx eas build --platform ios --profile router --local --output ./build-63-router.ipa
 ```
 
-**EAS profile and env:** `PromptPal/eas.json` — `router` profile sets `EXPO_ROUTER_APP_ROOT`, `EXPO_PUBLIC_BOOT_MODE`, and per-tab stage vars. Keep Clerk key and Convex URL in sync with the rest of the app.
+**EAS profile and env:** `PromptPal/eas.json` — `router` profile is the stable full-mode local build profile. Keep Clerk key and Convex URL in sync with the rest of the app.

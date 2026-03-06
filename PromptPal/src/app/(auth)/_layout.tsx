@@ -35,7 +35,7 @@ function AuthRoutesLayoutInner() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right'
+        animation: 'none'
       }}
     >
       <Stack.Screen name="sign-in" />
@@ -58,7 +58,7 @@ export default function AuthRoutesLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'slide_from_right'
+          animation: 'none'
         }}
       />
     );

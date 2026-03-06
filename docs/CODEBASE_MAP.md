@@ -67,7 +67,7 @@ graph TB
 **Key files**:
 | File | Purpose |
 |------|---------|
-| `PromptPal/src/app/_layout.tsx` | Root layout and SAFE_MODE boot routing |
+| `PromptPal/src/app/_layout.tsx` | Root layout with emergency safe screen fallback and lazy-loaded full app root |
 | `PromptPal/src/app/(tabs)/` | Tabbed main UI |
 | `PromptPal/src/app/(auth)/` | Auth routes |
 | `PromptPal/src/app/game/` | Game flow routes |
@@ -107,8 +107,8 @@ graph TB
 | `PromptPal/src/lib/env.ts` | Environment validation |
 | `PromptPal/src/lib/network.ts` | Networking helpers |
 | `PromptPal/src/lib/syncManager.ts` | Sync and background tasks |
-| `PromptPal/src/lib/NormalRoot.tsx` | Full app root composition |
-| `PromptPal/src/lib/GestureRoot.tsx` | GestureHandlerRootView boot mode |
+| `PromptPal/src/lib/NormalRoot.tsx` | Full app root composition (Gesture + Clerk + Convex + SafeArea + ErrorBoundary) |
+| `PromptPal/src/lib/BootModeScreen.tsx` | Branded emergency/safe-mode screen shell |
 
 ### Backend (`PromptPal/convex`)
 
@@ -126,14 +126,13 @@ graph TB
 
 - **App entry**: `PromptPal/package.json` (`main` field)
 - **Router entry**: `PromptPal/src/app/_layout.tsx`
-- **SAFE_MODE**: `PromptPal/src/app/_layout.tsx` (controlled by `EXPO_PUBLIC_SAFE_MODE` / `EXPO_PUBLIC_BOOT_MODE`)
+- **SAFE_MODE**: `PromptPal/src/app/_layout.tsx` (controlled by `EXPO_PUBLIC_SAFE_MODE`)
 
 ## Environment Dependencies
 
 - `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `EXPO_PUBLIC_CONVEX_URL`
 - `EXPO_PUBLIC_SAFE_MODE`
-- `EXPO_PUBLIC_BOOT_MODE`
 
 ## Notes
 

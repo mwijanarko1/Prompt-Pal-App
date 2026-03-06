@@ -49,13 +49,23 @@ function ConvexProviderWrapper({ children }: { children: React.ReactNode }) {
 function AppInitializer() {
   // Validate environment variables on app startup (non-blocking in development)
   useEffect(() => {
-    validateEnvironment();
+    try {
+      validateEnvironment();
+    } catch (error) {
+      // Avoid hard-aborting startup from environment validation in release builds.
+      console.error('[Environment]', error);
+    }
   }, []);
 
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'none',
+          }}
+        >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="game" />

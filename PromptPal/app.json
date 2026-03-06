@@ -9,16 +9,16 @@
     "scheme": "promptpal",
     "icon": "./assets/app-logo.png",
     "splash": {
-      "image": "./assets/app-logo.png",
+      "image": "./assets/launch.png",
       "resizeMode": "contain",
-      "backgroundColor": "#121212"
+      "backgroundColor": "#FFFFFF"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "bundleIdentifier": "com.mikhailspeaks.promptpal",
-      "buildNumber": "57",
+      "buildNumber": "64",
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "privacyManifests": {

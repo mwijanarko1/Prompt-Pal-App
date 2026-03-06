@@ -219,6 +219,24 @@
 ## Build 38 Review
 - [x] Confirm `getUserUsage` path is stable in isolation (`usage` probe ready, no crash)
 
+## Build 62 Cleanup Plan
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 62
+- [x] Remove isolation-only boot branches from `src/app/_layout.tsx`
+- [x] Remove cold-start auth stack slide animation from `src/app/(auth)/_layout.tsx`
+- [x] Simplify Expo config/build profile setup so `router` is just the stable full-mode local build profile
+- [x] Remove obsolete isolation files (`src/router-app`, probe roots, `NormalRootLite`, router boot route)
+- [ ] Run export sanity and validate cleanup build on device
+
+## Build 62 Cleanup Review
+- [x] Confirm local full-mode export still resolves after removing isolation scaffolding
+- [ ] Confirm cold launch no longer slides auth screen in from the right on device
+
+## Build 63 Launch Polish Plan
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 63
+- [x] Point splash config to `assets/launch.png`
+- [x] Remove route-transition animation on cold launch paths
+- [ ] Validate new launch artwork and no-slide startup behavior on device
+
 ## Build 39 Plan
 - [x] Increment `PromptPal/app.json` iOS `buildNumber` to 39
 - [x] Move router profile `EXPO_PUBLIC_HOME_ISO_STAGE` from `usage` to `full`
@@ -257,6 +275,11 @@
 
 ## Build 42 Review
 - [x] Confirm full app path is unstable without router isolation scaffolding (launch crash, `cfBundleVersion` 42)
+
+## Build 61 Review
+- [x] Confirm full app path is stable again in `EXPO_PUBLIC_BOOT_MODE=full`
+- [x] Confirm guarded `validateEnvironment()` no longer aborts launch in production startup
+- [x] Confirm isolation can be closed and only cleanup remains
 
 ## Build 43 Plan
 - [x] Increment `PromptPal/app.json` iOS `buildNumber` to 43
