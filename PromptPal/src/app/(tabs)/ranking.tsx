@@ -365,7 +365,7 @@ export default function RankingScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
+      <SafeAreaView className="flex-1 bg-background items-center justify-center" edges={['top']}>
         <ActivityIndicator size="large" color="#FF6B00" />
         <Text className="text-onSurface mt-4">Loading leaderboard...</Text>
       </SafeAreaView>
@@ -374,7 +374,7 @@ export default function RankingScreen() {
 
   if (error) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center px-6">
+      <SafeAreaView className="flex-1 bg-background items-center justify-center px-6" edges={['top']}>
         <Ionicons name="alert-circle" size={64} color="#F44336" />
         <Text className="text-onSurface text-xl font-black mt-4 mb-2">Oops!</Text>
         <Text className="text-onSurfaceVariant text-center mb-6">{error}</Text>
@@ -389,7 +389,7 @@ export default function RankingScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="px-6 pt-2 pb-4 flex-row justify-between items-center">
         <View className="flex-1" />

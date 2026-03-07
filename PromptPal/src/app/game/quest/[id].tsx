@@ -17,8 +17,6 @@ import { CodeExecutionView } from '@/features/game/components/CodeExecutionView'
 import type { CodeExecutionResult } from '@/features/game/components/CodeExecutionView';
 import { CopyAnalysisView } from '@/features/game/components/CopyAnalysisView';
 import type { CopyScoringResult } from '@/lib/scoring/copyScoring';
-// import { CodeScoringService } from '@/lib/scoring/codeScoring'; // Commented out - using AI evaluation instead
-import { CopyScoringService } from '@/lib/scoring/copyScoring';
 
 const { width, height: screenHeight } = Dimensions.get('window');
 
@@ -49,11 +47,16 @@ const getModuleIdFromLevelType = (levelType: string): string => {
     }
 };
 
+const extractCodeFromResponse = (text: string): string => {
+    const match = text.match(/```(?:[a-z]+)?\s*([\s\S]*?)\s*```/i);
+    return (match?.[1] || text).trim();
+};
+
 export default function QuestScreen() {
     const { id } = useLocalSearchParams(); // This is the Quest ID
     const router = useRouter();
     const { user } = useUser();
-    const { generateText, generateImage, evaluateImage } = useConvexAI();
+    const { generateText, generateImage, evaluateImage, evaluateCodeSubmission, evaluateCopySubmission } = useConvexAI();
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -79,6 +82,15 @@ export default function QuestScreen() {
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const visibleHints = useMemo(() => level?.hints ?? [], [level?.hints]);
+    const codeVisibleBrief = useMemo(
+        () => [level?.moduleTitle, level?.description].filter(Boolean).join('\n\n'),
+        [level?.description, level?.moduleTitle]
+    );
+    const copyVisibleBrief = useMemo(
+        () => [level?.briefTitle, level?.description].filter(Boolean).join('\n\n'),
+        [level?.briefTitle, level?.description]
+    );
 
     // Hint system state
     const [hints, setHints] = useState<string[]>([]);
@@ -310,7 +322,6 @@ export default function QuestScreen() {
         setIsGenerating(true);
         try {
             if (level.type === 'image') {
-                // Step 1: Generate image
                 const generateResult = await generateImage(prompt);
                 const generatedImageUrl = generateResult.imageUrl;
 
@@ -321,7 +332,6 @@ export default function QuestScreen() {
                 setGeneratedImage(generatedImageUrl);
                 setActiveTab('attempt');
 
-                // Step 2: Evaluate the generated image
                 if (!level.targetImageUrlForEvaluation) {
                     throw new Error('No target image URL available for evaluation');
                 }
@@ -337,8 +347,6 @@ export default function QuestScreen() {
 
                 const evaluation = evaluationResult.evaluation;
                 const score = evaluation.score;
-
-                // Apply hint penalty to score
                 const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
                 const finalScore = penaltyDetails.finalScore;
 
@@ -346,7 +354,6 @@ export default function QuestScreen() {
                 setFeedback(evaluation.feedback || []);
                 setMatchedKeywords(evaluation.keywordsMatched || []);
 
-                // Save attempt to backend for history
                 try {
                     if (user?.id) {
                         await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
@@ -358,7 +365,6 @@ export default function QuestScreen() {
                             imageUrl: generatedImageUrl,
                         });
 
-                        // Refresh attempt history to include the new attempt
                         const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
                             userId: user.id,
                             levelId: level.id,
@@ -366,7 +372,6 @@ export default function QuestScreen() {
                         setAttemptHistory(attempts || []);
                     }
                 } catch (saveError) {
-                    // Don't fail the evaluation if saving attempt fails
                     logger.warn('GameScreen', 'Failed to save attempt', { error: saveError });
                 }
 
@@ -380,207 +385,79 @@ export default function QuestScreen() {
                     }
 
                     await updateStreak();
-                    // Mark level as completed in game store
                     await completeLevel(level.id);
-                    // Award XP for completing the quest
                     await addXP(quest?.xpReward || 50);
                     setShowResult(true);
                 } else {
-                    // User didn't pass - lose a life
                     await loseLife();
-
-                    // Evaluation results are already displayed inline below the button
                 }
             } else if (level.type === 'code') {
-                // Generate code and evaluate it using AI in a single call
                 setGeneratedCode(null);
                 setCodeExecutionResult(null);
 
-                // Build comprehensive system prompt with instructions and test cases
-                const testCasesText = (level.testCases || [])
-                    .map((testCase, index) =>
-                        `Test ${index + 1}: ${testCase.name}\n` +
-                        `Input: ${JSON.stringify(testCase.input)}\n` +
-                        `Expected Output: ${JSON.stringify(testCase.expectedOutput)}${testCase.description ? `\nDescription: ${testCase.description}` : ''}`
-                    )
-                    .join('\n\n');
-
                 const codeSystemPrompt = [
-                    'You are a coding assistant that generates code based on user prompts and evaluates it against objective criteria.',
+                    'You are a JavaScript coding assistant.',
                     '',
-                    'TASK:',
-                    '1. First, generate JavaScript code based on the user\'s prompt above',
-                    '2. Then, evaluate that generated code against the following instructions and test cases',
+                    'VISIBLE CHALLENGE:',
+                    codeVisibleBrief || level.description || 'Solve the coding challenge described by the player.',
                     '',
-                    'GENERATION INSTRUCTIONS:',
-                    `Write a ${level.language || 'JavaScript'} function that attempts to fulfill the user prompt.`,
-                    'Focus on what the user is asking for, but ensure it\'s a valid, executable function.',
+                    visibleHints.length > 0 ? `VISIBLE GUIDANCE:\n- ${visibleHints.join('\n- ')}` : '',
                     '',
-                    'EVALUATION CRITERIA:',
-                    `The function MUST be named "${level.functionName || 'solution'}" and meet these requirements:`,
-                    level.requirementBrief || 'Solve the given problem.',
-                    '',
-                    'TEST CASES TO EVALUATE AGAINST:',
-                    testCasesText,
-                    '',
-                    'RESPONSE FORMAT:',
-                    'Return your response as a JSON object with this exact structure:',
-                    '{',
-                    '  "code": "the complete function code as a string",',
-                    '  "evaluation": {',
-                    '    "score": 0-100,',
-                    '    "passed": true/false,',
-                    '    "testResults": [',
-                    '      {',
-                    '        "id": "test-case-id",',
-                    '        "name": "test case name",',
-                    '        "passed": true/false,',
-                    '        "error": "error message if failed",',
-                    '        "expectedOutput": "expected value",',
-                    '        "actualOutput": "actual value"',
-                    '      }',
-                    '      // ... more test results',
-                    '    ],',
-                    '    "feedback": ["feedback message 1", "feedback message 2"]',
-                    '  }',
-                    '}',
-                    '',
-                    'IMPORTANT:',
-                    '- Generate code that responds to the user prompt, then evaluate it against the test cases',
-                    '- Code must be valid JavaScript that can run in a browser',
-                    '- Function should attempt to do what the user asked, but will be graded on meeting the objective requirements',
-                    '- Return the result, do not console.log',
-                    '- Score should reflect how well the code meets the test case requirements (0-100)',
-                    '- passed should be true if score >= 70',
-                    '- Test results should show how the generated code performs against each test case',
-                    '- Feedback should be helpful and specific about what needs to be improved',
-                    '- IMPORTANT: If the code contains backslashes (like in regex), you MUST escape them correctly for JSON (use \\\\ for a single backslash in the code string).'
+                    'Use the player prompt as the implementation direction.',
+                    'Return only executable JavaScript code.',
+                    'Do not include markdown or explanations.',
                 ].join('\n');
 
                 const generateResult = await generateText(prompt, codeSystemPrompt);
-                const responseText = generateResult.result || '';
-
-                if (!responseText) {
-                    throw new Error('Failed to generate and evaluate code: no response returned');
-                }
-
-                // Parse the AI response
-                interface AIResponse {
-                    code: string;
-                    evaluation: {
-                        score: number;
-                        passed: boolean;
-                        testResults: Array<{
-                            id?: string;
-                            name?: string;
-                            passed?: boolean;
-                            error?: string;
-                            expectedOutput?: any;
-                            actualOutput?: any;
-                        }>;
-                        feedback: string[];
-                    };
-                }
-
-                // Helper function to extract and parse JSON from AI response
-                const extractAndParseJSON = (text: string): AIResponse => {
-                    let jsonText = text;
-
-                    // 1. Try to find JSON block in markdown backticks
-                    const backtickMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-                    if (backtickMatch && backtickMatch[1]) {
-                        jsonText = backtickMatch[1];
-                    } else {
-                        // 2. Try to find the first { and last }
-                        const braceMatch = text.match(/\{[\s\S]*\}/);
-                        if (braceMatch) {
-                            jsonText = braceMatch[0];
-                        }
-                    }
-
-                    // 3. Clean up the string - remove any potential non-JSON characters at start/end
-                    jsonText = jsonText.trim();
-
-                    try {
-                        return JSON.parse(jsonText);
-                    } catch (firstError) {
-                        // 4. Common issue: AI outputs single backslashes in code strings (e.g. \s in regex)
-                        // which results in invalid JSON. We try to escape them.
-                        try {
-                            const fixedJsonText = jsonText.replace(/\\([^"\\\/bfnrtu])/g, '\\\\$1');
-                            return JSON.parse(fixedJsonText);
-                        } catch (secondError) {
-                            logger.error('QuestScreen', 'Failed to parse AI response as JSON', {
-                                responseText: text,
-                                jsonText,
-                                firstError: firstError instanceof Error ? firstError.message : String(firstError),
-                                secondError: secondError instanceof Error ? secondError.message : String(secondError)
-                            });
-                            throw new Error('AI response was not in the expected JSON format');
-                        }
-                    }
-                };
-
-                const parsedResponse = extractAndParseJSON(responseText);
-
-                const { code: generatedCodeText, evaluation } = parsedResponse;
+                const generatedCodeText = extractCodeFromResponse(generateResult.result || '');
 
                 if (!generatedCodeText) {
-                    throw new Error('No code was generated by the AI');
-                }
-
-                if (!evaluation) {
-                    throw new Error('No evaluation was provided by the AI');
+                    throw new Error('Failed to generate code: no code returned');
                 }
 
                 setGeneratedCode(generatedCodeText);
                 setActiveCodeTab('attempt');
 
-                // Use AI evaluation results
-                const aiScore = evaluation.score || 0;
-                const aiPassed = evaluation.passed || false;
-                const aiTestResults = evaluation.testResults || [];
-                const aiFeedback = evaluation.feedback || [];
+                const evaluation = await evaluateCodeSubmission({
+                    levelId: level.id,
+                    code: generatedCodeText,
+                    userPrompt: prompt,
+                    visibleBrief: codeVisibleBrief,
+                    visibleHints,
+                });
 
-                // Apply hint penalty to score
-                const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, aiScore, level.passingScore, level.difficulty);
+                const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, evaluation.score, level.passingScore, level.difficulty);
                 const finalScore = penaltyDetails.finalScore;
-
-                // Determine if user passed based on final score and passing threshold
                 const userPassed = finalScore >= level.passingScore;
 
                 setLastScore(finalScore);
-                setFeedback(aiFeedback);
+                setFeedback(evaluation.feedback || []);
                 setCodeExecutionResult({
                     code: generatedCodeText,
-                    testResults: aiTestResults.map((result: any, index: number) => ({
+                    testResults: (evaluation.testResults || []).map((result: any, index: number) => ({
                         id: result.id || `test-${index + 1}`,
-                        name: result.name || `Test ${index + 1}`,
+                        name: result.name || `Hidden Test ${index + 1}`,
                         passed: result.passed || false,
                         error: result.error,
                         expectedOutput: result.expectedOutput,
                         actualOutput: result.actualOutput,
-                        executionTime: 0, // AI evaluation doesn't provide timing
+                        executionTime: result.executionTime || 0,
                     })) as CodeTestResult[],
-                    output: aiFeedback.join('\n'),
+                    output: (evaluation.feedback || []).join('\n'),
                     success: userPassed,
-                    error: aiTestResults.find((r: any) => !r.passed)?.error,
+                    error: evaluation.testResults?.find((r: any) => !r.passed)?.error,
                     score: finalScore,
                     passingScore: level.passingScore,
                 });
 
-                // Save attempt to backend for history
                 try {
                     if (user?.id) {
-                        // Use test result names as keywords for now
-                        const passedTestNames = aiTestResults
+                        const passedTestNames = (evaluation.testResults || [])
                             .filter((r: any) => r.passed && r.name)
                             .map((r: any) => r.name)
                             .filter((name: any): name is string => name !== undefined);
 
-                        // Sanitize test results: Convex v.optional(v.string()) rejects null,
-                        // so convert null fields to undefined before saving
-                        const sanitizedTestResults = aiTestResults.map((r: any) => ({
+                        const sanitizedTestResults = (evaluation.testResults || []).map((r: any) => ({
                             ...r,
                             id: r.id ?? undefined,
                             name: r.name ?? undefined,
@@ -595,13 +472,12 @@ export default function QuestScreen() {
                             userId: user.id,
                             levelId: level.id,
                             score: finalScore,
-                            feedback: aiFeedback,
+                            feedback: evaluation.feedback || [],
                             keywordsMatched: passedTestNames.length > 0 ? passedTestNames : [],
                             code: generatedCodeText,
                             testResults: sanitizedTestResults,
                         });
 
-                        // Refresh attempt history to include the new attempt
                         const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
                             userId: user.id,
                             levelId: level.id,
@@ -622,102 +498,26 @@ export default function QuestScreen() {
                     }
 
                     await updateStreak();
-                    // Mark level as completed in game store
                     await completeLevel(level.id);
-                    // Award XP for completing the quest
                     await addXP(quest?.xpReward || 50);
                     setShowResult(true);
                 } else {
                     await loseLife();
                 }
-
-                // COMMENTED OUT: Local sandbox execution and scoring
-                // We will revisit this later - for now, AI handles both generation and evaluation
-
-                /*
-                // Step 2: Evaluate the generated code (LOCAL SANDBOX - COMMENTED OUT)
-                const codeScoringResult = await CodeScoringService.scoreCode({
-                  code: generatedCodeText,
-                  language: level.language || 'javascript',
-                  testCases: level.testCases || [],
-                  functionName: level.functionName,
-                  passingScore: level.passingScore,
-                });
-        
-                const score = codeScoringResult.score;
-        
-                // Apply hint penalty to score
-                const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
-                const finalScore = penaltyDetails.finalScore;
-        
-                setLastScore(finalScore);
-                setFeedback(codeScoringResult.feedback || []);
-                setCodeExecutionResult({
-                  code: generatedCodeText,
-                  testResults: codeScoringResult.testResults,
-                  output: codeScoringResult.feedback?.join('\n') || '',
-                  success: finalScore >= level.passingScore,
-                  error: codeScoringResult.testResults.find(r => !r.passed)?.error,
-                  score: finalScore,
-                  passingScore: level.passingScore,
-                });
-        
-                // Save attempt to backend for history
-                try {
-                  if (user?.id) {
-                    // Filter out undefined values from keywordsMatched
-                    const passedTestNames = codeScoringResult.testResults
-                      .filter(r => r.passed && r.name)
-                      .map(r => r.name)
-                      .filter((name): name is string => name !== undefined);
-        
-                    await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
-                      userId: user.id,
-                      levelId: level.id,
-                      score: finalScore,
-                      feedback: codeScoringResult.feedback || [],
-                      keywordsMatched: passedTestNames.length > 0 ? passedTestNames : [],
-                      code: generatedCodeText,
-                      testResults: codeScoringResult.testResults,
-                    });
-        
-                    // Refresh attempt history to include the new attempt
-                    const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
-                      userId: user.id,
-                      levelId: level.id,
-                    });
-                    setAttemptHistory(attempts || []);
-                  }
-                } catch (saveError) {
-                  logger.warn('GameScreen', 'Failed to save attempt', { error: saveError });
-                }
-        
-                if (finalScore >= level.passingScore) {
-                  if (user?.id) {
-                    const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
-                    await convexHttpClient.mutation(api.mutations.updateLevelProgress, {
-                      userId: user.id,
-                      appId: "prompt-pal",
-                      levelId: level.id,
-                      isCompleted: true,
-                      bestScore: finalScore,
-                      attempts: nextAttemptsCount,
-                      completedAt: Date.now(),
-                    });
-                  }
-        
-                  await updateStreak();
-                  setShowResult(true);
-                  await completeLevel(level.id);
-                } else {
-                  await loseLife();
-                }
-                */
             } else if (level.type === 'copywriting') {
-                // Step 1: Generate copy using AI
-                const copyGenerationPrompt = `Write marketing copy based on this instruction: ${prompt}\n\nProduct: ${level.briefProduct || 'Product'}\nTarget Audience: ${level.briefTarget || 'General audience'}\nTone: ${level.briefTone || 'Professional'}\nGoal: ${level.briefGoal || 'Persuade the audience'}\n\nReturn only the copy text, no explanations.`;
+                const copyGenerationPrompt = [
+                    'You are a conversion-focused copywriter.',
+                    '',
+                    'VISIBLE BRIEF:',
+                    copyVisibleBrief || level.description || 'Write the requested marketing asset.',
+                    '',
+                    visibleHints.length > 0 ? `VISIBLE GUIDANCE:\n- ${visibleHints.join('\n- ')}` : '',
+                    '',
+                    'Use the player prompt as the strategic direction for the final copy.',
+                    'Return only the final copy text, with no markdown or explanation.',
+                ].join('\n');
 
-                const generateResult = await generateText(copyGenerationPrompt, 'copywriting-generation');
+                const generateResult = await generateText(prompt, copyGenerationPrompt);
                 const generatedCopyText = generateResult.result || '';
 
                 if (!generatedCopyText) {
@@ -727,29 +527,21 @@ export default function QuestScreen() {
                 setGeneratedCopy(generatedCopyText);
                 setActiveCopyTab('attempt');
 
-                // Step 2: Evaluate the generated copy
-                const copyScoringResult = await CopyScoringService.scoreCopy({
+                const copyScoringResult = await evaluateCopySubmission({
+                    levelId: level.id,
                     text: generatedCopyText,
-                    briefProduct: level.briefProduct,
-                    briefTarget: level.briefTarget,
-                    briefTone: level.briefTone,
-                    briefGoal: level.briefGoal,
-                    wordLimit: level.wordLimit,
-                    requiredElements: level.requiredElements,
-                    passingScore: level.passingScore,
+                    userPrompt: prompt,
+                    visibleBrief: copyVisibleBrief,
+                    visibleHints,
                 });
 
-                const score = copyScoringResult.score;
-
-                // Apply hint penalty to score
-                const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, score, level.passingScore, level.difficulty);
+                const penaltyDetails = NanoAssistant.getPenaltyDetails(level.id, copyScoringResult.score, level.passingScore, level.difficulty);
                 const finalScore = penaltyDetails.finalScore;
 
                 setLastScore(finalScore);
                 setFeedback(copyScoringResult.feedback || []);
                 setCopyScoringResult(copyScoringResult);
 
-                // Save attempt to backend for history
                 try {
                     if (user?.id) {
                         const highMetrics = copyScoringResult.metrics
@@ -766,7 +558,6 @@ export default function QuestScreen() {
                             copy: generatedCopyText,
                         });
 
-                        // Refresh attempt history to include the new attempt
                         const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
                             userId: user.id,
                             levelId: level.id,
@@ -787,9 +578,7 @@ export default function QuestScreen() {
                     }
 
                     await updateStreak();
-                    // Mark level as completed in game store
                     await completeLevel(level.id);
-                    // Award XP for completing the quest
                     await addXP(quest?.xpReward || 50);
                     setShowResult(true);
                 } else {
@@ -799,7 +588,6 @@ export default function QuestScreen() {
         } catch (error: any) {
             logger.error('GameScreen', error, { operation: 'handleGenerate' });
 
-            // Handle specific error types
             if (error.response?.status === 429) {
                 Alert.alert('Rate Limited', 'Too many requests. Please wait before trying again.');
             } else if (error.response?.status === 403) {
@@ -898,9 +686,6 @@ export default function QuestScreen() {
 
     const renderCodeChallenge = () => {
         const hasCode = generatedCode && generatedCode.trim().length > 0;
-        const firstInput = level.testCases && level.testCases.length > 0 ? level.testCases[0].input : undefined;
-        const argCount = Array.isArray(firstInput) ? firstInput.length : firstInput !== undefined ? 1 : 0;
-        const signatureArgs = Array.from({ length: argCount }, (_, index) => `arg${index + 1}`).join(', ');
 
         return (
             <View className="px-6 pt-4 pb-6">
@@ -928,64 +713,32 @@ export default function QuestScreen() {
                                 <Text className="text-onSurface text-2xl font-black mb-4">{level.title}</Text>
 
                                 <View className="bg-surfaceVariant/30 rounded-2xl p-4 mb-6">
-                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">Requirements</Text>
+                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">Mission</Text>
                                     <Text className="text-onSurface text-base leading-6">
-                                        {level.requirementBrief || 'Write a function that meets the specified requirements.'}
+                                        {level.description || 'Write a prompt that guides the model to solve this challenge.'}
                                     </Text>
                                 </View>
 
-                                {level.functionName && (
+                                {level.moduleTitle && (
                                     <View className="bg-primary/10 rounded-2xl p-4 mb-6">
-                                        <Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-2">Function Name</Text>
-                                        <Text className="text-onSurface text-lg font-mono font-bold">{level.functionName}</Text>
-                                    </View>
-                                )}
-
-                                {level.functionName && (
-                                    <View className="bg-surfaceVariant/30 rounded-2xl p-4 mb-6">
-                                        <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">Function Signature</Text>
-                                        <Text className="text-onSurface text-xs font-mono">{`function ${level.functionName}(${signatureArgs}) {`}</Text>
-                                        <Text className="text-onSurface text-xs font-mono">{`  // ...`}</Text>
-                                        <Text className="text-onSurface text-xs font-mono">{`}`}</Text>
+                                        <Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-2">Focus Area</Text>
+                                        <Text className="text-onSurface text-lg font-bold">{level.moduleTitle}</Text>
                                     </View>
                                 )}
 
                                 <View className="bg-surfaceVariant/20 rounded-2xl p-4 mb-6">
-                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">Code Format Hints</Text>
-                                    <Text className="text-onSurface text-xs mb-1">Use the exact function name shown above.</Text>
-                                    <Text className="text-onSurface text-xs mb-1">Return the result instead of printing it.</Text>
-                                    <Text className="text-onSurface text-xs mb-1">Do not use imports or external libraries.</Text>
-                                    <Text className="text-onSurface text-xs">Handle all test cases exactly as shown.</Text>
+                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">How You Are Judged</Text>
+                                    <Text className="text-onSurface text-xs mb-1">Your prompt must lead the model to working JavaScript.</Text>
+                                    <Text className="text-onSurface text-xs mb-1">Repeating the brief is not enough.</Text>
+                                    <Text className="text-onSurface text-xs">Strong prompts add constraints, output expectations, and edge-case guidance.</Text>
                                 </View>
 
-                                {level.testCases && level.testCases.length > 0 && (
-                                    <View>
-                                        <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-3">Test Cases</Text>
-                                        {level.testCases.map((testCase: any, index: number) => (
-                                            <View key={`test-${testCase.id || index}-${index}`} className="bg-surfaceVariant/20 rounded-xl p-4 mb-3">
-                                                <View className="flex-row items-center mb-2">
-                                                    <Text className="text-primary text-sm font-bold mr-2">Test {index + 1}</Text>
-                                                    <Text className="text-onSurfaceVariant text-xs">{testCase.name}</Text>
-                                                </View>
-                                                <View className="flex-row">
-                                                    <View className="flex-1 mr-2">
-                                                        <Text className="text-onSurfaceVariant text-[10px] uppercase mb-1">Input</Text>
-                                                        <Text className="text-onSurface text-xs font-mono bg-surfaceVariant/50 rounded-lg p-2">
-                                                            {JSON.stringify(testCase.input)}
-                                                        </Text>
-                                                    </View>
-                                                    <View className="flex-1 ml-2">
-                                                        <Text className="text-onSurfaceVariant text-[10px] uppercase mb-1">Expected</Text>
-                                                        <Text className="text-onSurface text-xs font-mono bg-surfaceVariant/50 rounded-lg p-2">
-                                                            {JSON.stringify(testCase.expectedOutput)}
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                                {testCase.description && (
-                                                    <Text className="text-onSurfaceVariant text-xs mt-2 italic">
-                                                        {testCase.description}
-                                                    </Text>
-                                                )}
+                                {visibleHints.length > 0 && (
+                                    <View className="bg-surfaceVariant/30 rounded-2xl p-4 mb-6">
+                                        <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-3">Prompt Signals To Consider</Text>
+                                        {visibleHints.map((hint, index) => (
+                                            <View key={`${level.id}-code-hint-${index}`} className="bg-surfaceVariant/20 rounded-xl p-4 mb-3">
+                                                <Text className="text-onSurface text-sm leading-6">{hint}</Text>
                                             </View>
                                         ))}
                                     </View>
@@ -1048,28 +801,19 @@ export default function QuestScreen() {
 
                                 <Text className="text-onSurface text-2xl font-black mb-4">{level.title}</Text>
 
-                                <View className="bg-primary/10 rounded-2xl p-4 mb-6">
-                                    <Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-2">Project</Text>
-                                    <Text className="text-onSurface text-xl font-black">{level.briefProduct || 'Product Campaign'}</Text>
-                                </View>
-
-                                <View className="flex-row mb-4">
-                                    <View className="flex-1 mr-2 bg-surfaceVariant/30 rounded-xl p-4">
-                                        <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-1">Target Audience</Text>
-                                        <Text className="text-onSurface text-sm font-bold">{level.briefTarget || 'General audience'}</Text>
-                                    </View>
-                                    <View className="flex-1 ml-2 bg-surfaceVariant/30 rounded-xl p-4">
-                                        <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-1">Tone</Text>
-                                        <Text className="text-onSurface text-sm font-bold">{level.briefTone || 'Professional'}</Text>
-                                    </View>
-                                </View>
-
                                 <View className="bg-surfaceVariant/30 rounded-2xl p-4">
-                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">Goal</Text>
+                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">Visible Brief</Text>
                                     <Text className="text-onSurface text-base leading-6">
-                                        {level.briefGoal || 'Create compelling copy that persuades the audience.'}
+                                        {level.description || 'Write a prompt that steers the model toward stronger copy.'}
                                     </Text>
                                 </View>
+
+                                {level.briefTitle && (
+                                    <View className="bg-primary/10 rounded-2xl p-4 mt-4">
+                                        <Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-2">Deliverable</Text>
+                                        <Text className="text-onSurface text-xl font-black">{level.briefTitle}</Text>
+                                    </View>
+                                )}
 
                                 {level.wordLimit && (
                                     <View className="mt-4 flex-row items-center">
@@ -1081,13 +825,30 @@ export default function QuestScreen() {
                                         />
                                     </View>
                                 )}
+
+                                <View className="bg-surfaceVariant/20 rounded-2xl p-4 mt-4 mb-6">
+                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">How You Are Judged</Text>
+                                    <Text className="text-onSurface text-xs mb-1">Your prompt needs strategy, not just a restatement of the brief.</Text>
+                                    <Text className="text-onSurface text-xs mb-1">Strong prompts shape audience, tone, structure, and CTA.</Text>
+                                    <Text className="text-onSurface text-xs">Weak prompts that only paraphrase the brief score lower.</Text>
+                                </View>
+
+                                {visibleHints.length > 0 && (
+                                    <View>
+                                        <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-3">Prompt Signals To Consider</Text>
+                                        {visibleHints.map((hint, index) => (
+                                            <View key={`${level.id}-copy-hint-${index}`} className="bg-surfaceVariant/20 rounded-xl p-4 mb-3">
+                                                <Text className="text-onSurface text-sm leading-6">{hint}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
                             </View>
                         ) : (
                             <View className="p-6">
                                 <CopyAnalysisView
                                     copy={generatedCopy || ''}
                                     scoringResult={copyScoringResult}
-                                    requirements={level.requiredElements}
                                 />
                             </View>
                         )}

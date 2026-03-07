@@ -144,6 +144,7 @@ export default defineSchema({
     requirementBrief: v.optional(v.string()),
     requirementImage: v.optional(v.string()),
     language: v.optional(v.string()),
+    functionName: v.optional(v.string()),
     testCases: v.optional(v.array(v.object({
       input: v.any(),
       expectedOutput: v.any(),
@@ -156,11 +157,17 @@ export default defineSchema({
     briefTarget: v.optional(v.string()),
     briefTone: v.optional(v.string()),
     briefGoal: v.optional(v.string()),
+    wordLimit: v.optional(v.object({
+      min: v.optional(v.number()),
+      max: v.optional(v.number()),
+    })),
+    requiredElements: v.optional(v.array(v.string())),
     metrics: v.optional(v.array(v.object({
       name: v.string(),
       target: v.number(),
       weight: v.number(),
     }))),
+    promptChecklist: v.optional(v.array(v.string())),
 
     // Common metadata
     hints: v.optional(v.array(v.string())),

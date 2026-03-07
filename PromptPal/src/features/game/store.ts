@@ -40,6 +40,7 @@ export interface Level {
   language?: string;
   functionName?: string;
   testCases?: { id: string; name: string; input?: any; expectedOutput?: any; description?: string; passed?: boolean }[];
+  promptChecklist?: string[];
 
   // Copywriting Challenge specific
   briefTitle?: string;

@@ -206,7 +206,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Fixed Header */}
       <View className="flex-row justify-center items-center px-6 pt-4 pb-4">
         <Text className="text-onSurface text-lg font-black uppercase tracking-[3px]">Profile</Text>

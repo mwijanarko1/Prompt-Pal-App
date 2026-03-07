@@ -237,6 +237,38 @@
 - [x] Remove route-transition animation on cold launch paths
 - [ ] Validate new launch artwork and no-slide startup behavior on device
 
+## Build 65 Tabs Polish Plan
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 65
+- [x] Recreate native/liquid-glass tab feel using stable `Tabs`
+- [ ] Validate stable floating glass tab bar on device
+
+## Build 66 Tabs Redesign Plan
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 66
+- [x] Simplify the stable tab bar design with cleaner spacing and active-state treatment
+- [ ] Validate redesigned stable tabs on device
+
+## Build 67 Tabs Alignment Plan
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 67
+- [x] Remove floating dock treatment and return to a standard anchored tab bar
+- [x] Match tab bar colors and spacing to the existing dark theme
+- [ ] Validate anchored themed tabs on device
+
+## Build 68 Tabs Color Pass
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 68
+- [x] Replace black tab bar tones with dark navy/slate tones
+- [ ] Validate updated tab bar colors on device
+
+## Build 69 Tab Safe Area Fix
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 69
+- [x] Remove bottom safe-area fill from tab screens so content does not create a white strip above the tab bar
+- [ ] Validate tab/content seam on device
+
+## Build 70 Settings Modal Refresh
+- [x] Increment `PromptPal/app.json` iOS `buildNumber` to 70
+- [x] Redesign the settings modal with a stronger account card and custom header
+- [x] Make the sign-out CTA fit the modal design
+- [ ] Validate refreshed settings modal on device
+
 ## Build 39 Plan
 - [x] Increment `PromptPal/app.json` iOS `buildNumber` to 39
 - [x] Move router profile `EXPO_PUBLIC_HOME_ISO_STAGE` from `usage` to `full`

@@ -1,7 +1,37 @@
-import { query } from "./_generated/server";
+import { internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 
 const getIsoDateString = (date: Date): string => date.toISOString().split("T")[0];
+
+function toPublicLevel(level: any) {
+  return {
+    id: level.id,
+    type: level.type,
+    title: level.title,
+    description: level.description,
+    difficulty: level.difficulty,
+    passingScore: level.passingScore,
+    unlocked: level.unlocked,
+    isActive: level.isActive,
+    order: level.order,
+    targetImageUrl: level.targetImageUrl,
+    hiddenPromptKeywords: level.hiddenPromptKeywords,
+    style: level.style,
+    moduleTitle: level.moduleTitle,
+    language: level.language,
+    briefTitle: level.briefTitle,
+    wordLimit: level.wordLimit,
+    metrics: level.metrics,
+    hints: level.hints,
+    estimatedTime: level.estimatedTime,
+    points: level.points,
+    tags: level.tags,
+    learningObjectives: level.learningObjectives,
+    prerequisites: level.prerequisites,
+    createdAt: level.createdAt,
+    updatedAt: level.updatedAt,
+  };
+}
 
 // Get user usage and plan for a specific app
 // userId is now automatically extracted from the auth token
@@ -630,33 +660,7 @@ export const getAllLevels = query({
 
     const levels = await query.take(limit || 100);
 
-    return levels.map(level => ({
-      id: level.id,
-      type: level.type,
-      title: level.title,
-      difficulty: level.difficulty,
-      passingScore: level.passingScore,
-      unlocked: level.unlocked,
-      targetImageUrl: level.targetImageUrl,
-      hiddenPromptKeywords: level.hiddenPromptKeywords,
-      style: level.style,
-      moduleTitle: level.moduleTitle,
-      requirementBrief: level.requirementBrief,
-      language: level.language,
-      testCases: level.testCases,
-      briefTitle: level.briefTitle,
-      briefProduct: level.briefProduct,
-      briefTarget: level.briefTarget,
-      briefTone: level.briefTone,
-      briefGoal: level.briefGoal,
-      metrics: level.metrics,
-      hints: level.hints,
-      estimatedTime: level.estimatedTime,
-      points: level.points,
-      tags: level.tags,
-      learningObjectives: level.learningObjectives,
-      prerequisites: level.prerequisites,
-    }));
+    return levels.map(toPublicLevel);
   },
 });
 
@@ -673,7 +677,22 @@ export const getLevelById = query({
 
     if (!level) return null;
 
-    // Return level data with targetImageUrl for evaluation
+    return toPublicLevel(level);
+  },
+});
+
+export const getLevelEvaluationData = internalQuery({
+  args: {
+    id: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const level = await ctx.db
+      .query("levels")
+      .filter((q) => q.eq(q.field("id"), args.id))
+      .first();
+
+    if (!level) return null;
+
     return {
       id: level.id,
       type: level.type,
@@ -681,31 +700,22 @@ export const getLevelById = query({
       description: level.description,
       difficulty: level.difficulty,
       passingScore: level.passingScore,
-      unlocked: level.unlocked,
-      isActive: level.isActive,
-      order: level.order,
-      targetImageUrl: level.targetImageUrl,
-      hiddenPromptKeywords: level.hiddenPromptKeywords,
-      style: level.style,
       moduleTitle: level.moduleTitle,
       requirementBrief: level.requirementBrief,
       requirementImage: level.requirementImage,
       language: level.language,
+      functionName: level.functionName,
       testCases: level.testCases,
       briefTitle: level.briefTitle,
       briefProduct: level.briefProduct,
       briefTarget: level.briefTarget,
       briefTone: level.briefTone,
       briefGoal: level.briefGoal,
+      wordLimit: level.wordLimit,
+      requiredElements: level.requiredElements,
       metrics: level.metrics,
       hints: level.hints,
-      estimatedTime: level.estimatedTime,
-      points: level.points,
-      tags: level.tags,
-      learningObjectives: level.learningObjectives,
-      prerequisites: level.prerequisites,
-      createdAt: level.createdAt,
-      updatedAt: level.updatedAt,
+      promptChecklist: level.promptChecklist,
     };
   },
 });

@@ -2,7 +2,19 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText as aiGenerateText } from "ai";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
+import { CodeScoringService } from "../src/lib/scoring/codeScoring";
+import {
+  buildCopyAnalysisPrompt,
+  calculateCopyOverallScore,
+  checkRequiredElements,
+  countWords,
+  DEFAULT_COPY_WORD_LIMIT,
+  generateCopyFeedback,
+  isWithinWordLimit,
+  parseCopyMetrics,
+} from "../src/lib/scoring/copyScoringCore";
+import { assessCodePromptQuality, assessCopyPromptQuality } from "../src/lib/scoring/promptQuality";
 
 // Validate environment variable at startup
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -43,6 +55,52 @@ type EvaluateImageResult = {
   tier: "free" | "pro";
 };
 
+type PromptEvaluationResult = {
+  score: number;
+  promptQualityScore: number;
+  feedback: string[];
+};
+
+async function generateTextWithQuota(
+  ctx: any,
+  args: { userId: string; prompt: string; context?: string }
+): Promise<{ text: string; tokensUsed?: number; quotaCheck: QuotaResult }> {
+  const quotaCheck: QuotaResult = await ctx.runMutation(api.mutations.checkAndIncrementQuota, {
+    userId: args.userId,
+    appId: "prompt-pal",
+    quotaType: "textCalls",
+  });
+
+  if (!quotaCheck.allowed) {
+    throw new Error(`Quota exceeded. ${quotaCheck.remaining} calls remaining.`);
+  }
+
+  const result = await aiGenerateText({
+    model: google("gemini-2.5-flash"),
+    prompt: args.prompt,
+    system: args.context,
+  });
+
+  await ctx.runMutation(api.mutations.logAIGeneration, {
+    userId: args.userId,
+    appId: "prompt-pal",
+    requestId: crypto.randomUUID(),
+    type: "text",
+    model: "gemini-2.5-flash",
+    promptLength: args.prompt.length,
+    responseLength: result.text.length,
+    tokensUsed: result.usage?.totalTokens,
+    durationMs: 0,
+    success: true,
+  });
+
+  return {
+    text: result.text,
+    tokensUsed: result.usage?.totalTokens,
+    quotaCheck,
+  };
+}
+
 export const generateText = action({
   args: {
     prompt: v.string(),
@@ -54,44 +112,164 @@ export const generateText = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    // Check quota (existing logic from mutations.ts)
-    const quotaCheck: QuotaResult = await ctx.runMutation(api.mutations.checkAndIncrementQuota, {
+    const { text, tokensUsed, quotaCheck } = await generateTextWithQuota(ctx, {
       userId: identity.subject,
-      appId: args.appId,
-      quotaType: "textCalls"
-    });
-
-    if (!quotaCheck.allowed) {
-      throw new Error(`Quota exceeded. ${quotaCheck.remaining} calls remaining.`);
-    }
-
-    // Generate text directly
-    const result = await aiGenerateText({
-      model: google("gemini-2.5-flash"),
       prompt: args.prompt,
-      system: args.context,
-    });
-
-    // Log analytics (existing logic)
-    await ctx.runMutation(api.mutations.logAIGeneration, {
-      userId: identity.subject,
-      appId: args.appId,
-      requestId: crypto.randomUUID(),
-      type: "text",
-      model: "gemini-2.5-flash",
-      promptLength: args.prompt.length,
-      responseLength: result.text.length,
-      tokensUsed: result.usage?.totalTokens,
-      durationMs: 0, // You can add timing if needed
-      success: true,
+      context: args.context,
     });
 
     return {
-      result: result.text,
-      tokensUsed: result.usage?.totalTokens,
+      result: text,
+      tokensUsed,
       remainingQuota: quotaCheck.remaining,
       limit: quotaCheck.limit,
       tier: quotaCheck.tier
+    };
+  },
+});
+
+export const evaluateCodeSubmission = action({
+  args: {
+    levelId: v.string(),
+    code: v.string(),
+    userPrompt: v.string(),
+    visibleBrief: v.optional(v.string()),
+    visibleHints: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args): Promise<PromptEvaluationResult & { testResults: any[] }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const level = await ctx.runQuery(internal.queries.getLevelEvaluationData, { id: args.levelId });
+    if (!level || level.type !== "code") {
+      throw new Error("Coding level not found");
+    }
+
+    const hiddenTestCases = (level.testCases || []).map((testCase: any, index: number) => ({
+      id: `hidden-${index + 1}`,
+      name: testCase.description || `Hidden Test ${index + 1}`,
+      input: testCase.input,
+      expectedOutput: testCase.expectedOutput,
+      description: testCase.description,
+    }));
+
+    const codeResult = await CodeScoringService.scoreCode({
+      code: args.code,
+      language: level.language || "javascript",
+      testCases: hiddenTestCases,
+      functionName: level.functionName,
+      passingScore: level.passingScore,
+    });
+
+    const promptAssessment = assessCodePromptQuality({
+      userPrompt: args.userPrompt,
+      publicReferences: [
+        args.visibleBrief,
+        level.title,
+        level.description,
+        level.moduleTitle,
+        ...(args.visibleHints || []),
+      ],
+      checklist: level.promptChecklist,
+    });
+
+    const score = Math.round(codeResult.score * 0.8 + promptAssessment.score * 0.2);
+    const feedback = Array.from(
+      new Set([...promptAssessment.feedback, ...codeResult.feedback])
+    );
+
+    return {
+      score,
+      promptQualityScore: promptAssessment.score,
+      feedback,
+      testResults: codeResult.testResults,
+    };
+  },
+});
+
+export const evaluateCopySubmission = action({
+  args: {
+    levelId: v.string(),
+    text: v.string(),
+    userPrompt: v.string(),
+    visibleBrief: v.optional(v.string()),
+    visibleHints: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const level = await ctx.runQuery(internal.queries.getLevelEvaluationData, { id: args.levelId });
+    if (!level || level.type !== "copywriting") {
+      throw new Error("Copywriting level not found");
+    }
+
+    const trimmedText = args.text.trim();
+    const limits = level.wordLimit || DEFAULT_COPY_WORD_LIMIT;
+    const wordCount = countWords(trimmedText);
+    const withinLimit = isWithinWordLimit(wordCount, limits);
+
+    const promptAssessment = assessCopyPromptQuality({
+      userPrompt: args.userPrompt,
+      publicReferences: [
+        args.visibleBrief,
+        level.title,
+        level.description,
+        level.briefTitle,
+        ...(args.visibleHints || []),
+      ],
+      checklist: level.promptChecklist,
+    });
+
+    const analysisPrompt = buildCopyAnalysisPrompt(trimmedText, {
+      briefProduct: level.briefProduct,
+      briefTarget: level.briefTarget,
+      briefTone: level.briefTone,
+      briefGoal: level.briefGoal,
+    });
+
+    let analysisText = "";
+    try {
+      const generated = await generateTextWithQuota(ctx, {
+        userId: identity.subject,
+        prompt: analysisPrompt,
+        context: level.briefTone || undefined,
+      });
+      analysisText = generated.text;
+    } catch {
+      analysisText = "";
+    }
+
+    const metrics = parseCopyMetrics(analysisText, trimmedText, {
+      briefProduct: level.briefProduct,
+      briefTarget: level.briefTarget,
+      briefTone: level.briefTone,
+      briefGoal: level.briefGoal,
+    });
+    const elementChecks = checkRequiredElements(trimmedText, level.requiredElements);
+    const score = calculateCopyOverallScore(
+      metrics,
+      elementChecks,
+      withinLimit,
+      promptAssessment.score
+    );
+    const feedback = generateCopyFeedback({
+      metrics,
+      elementChecks,
+      wordCount,
+      limits,
+      overallScore: score,
+      passingScore: level.passingScore,
+      promptFeedback: promptAssessment.feedback,
+    });
+
+    return {
+      score,
+      metrics,
+      feedback,
+      wordCount,
+      withinLimit,
+      promptQualityScore: promptAssessment.score,
     };
   },
 });

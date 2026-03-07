@@ -292,11 +292,13 @@ export const codeLevels = [
     moduleTitle: "JavaScript Basics",
     requirementBrief: "Create a function that takes a name and returns 'Hello, [name]!'",
     language: "JavaScript",
+    functionName: "createGreeting",
     testCases: [
       { input: { name: "Alice" }, expectedOutput: "Hello, Alice!", description: "Standard name" },
       { input: { name: "Bob" }, expectedOutput: "Hello, Bob!", description: "Different name" },
       { input: { name: "" }, expectedOutput: "Hello, !", description: "Empty name" }
     ],
+    promptChecklist: ["valid JavaScript function", "return the greeting string", "handle empty input safely"],
     points: 100,
     hints: [
       "Be specific about the function signature",
@@ -323,11 +325,13 @@ export const codeLevels = [
     moduleTitle: "Array Operations",
     requirementBrief: "Create a function that filters numbers greater than 10",
     language: "JavaScript",
+    functionName: "filterAboveThreshold",
     testCases: [
       { input: { numbers: [5, 15, 8, 20, 3] }, expectedOutput: [15, 20], description: "Mixed array" },
       { input: { numbers: [1, 2, 3] }, expectedOutput: [], description: "All below threshold" },
       { input: { numbers: [11, 12, 13] }, expectedOutput: [11, 12, 13], description: "All above threshold" }
     ],
+    promptChecklist: ["explain filtering rule", "mention array input and array output", "cover empty arrays"],
     points: 100,
     hints: [
       "Explain the filtering logic clearly",
@@ -354,11 +358,13 @@ export const codeLevels = [
     moduleTitle: "String Operations",
     requirementBrief: "Create a function that capitalizes the first letter of a string",
     language: "JavaScript",
+    functionName: "capitalizeFirstLetter",
     testCases: [
       { input: { text: "hello" }, expectedOutput: "Hello", description: "Lowercase input" },
       { input: { text: "world" }, expectedOutput: "World", description: "Different word" },
       { input: { text: "" }, expectedOutput: "", description: "Empty string" }
     ],
+    promptChecklist: ["handle empty string", "return a string", "preserve remaining characters"],
     points: 100,
     hints: [
       "Be clear about string handling",
@@ -387,12 +393,14 @@ export const codeLevels = [
     moduleTitle: "Validation",
     requirementBrief: "Create a function that checks if a string is a valid email",
     language: "JavaScript",
+    functionName: "isValidEmail",
     testCases: [
       { input: { email: "test@example.com" }, expectedOutput: true, description: "Valid email" },
       { input: { email: "invalid-email" }, expectedOutput: false, description: "Missing @ symbol" },
       { input: { email: "test@.com" }, expectedOutput: false, description: "Missing domain" },
       { input: { email: "" }, expectedOutput: false, description: "Empty string" }
     ],
+    promptChecklist: ["define valid and invalid cases", "return a boolean", "handle malformed input"],
     points: 150,
     hints: [
       "Specify the validation rules",
@@ -419,10 +427,12 @@ export const codeLevels = [
     moduleTitle: "Asynchronous Programming",
     requirementBrief: "Create an async function that fetches user data and returns name",
     language: "JavaScript",
+    functionName: "fetchUserName",
     testCases: [
       { input: { userId: "123" }, expectedOutput: { name: "John" }, description: "Successful fetch" },
       { input: { userId: "456" }, expectedOutput: { name: "Jane" }, description: "Different user" }
     ],
+    promptChecklist: ["use async or await", "describe response parsing", "include error handling"],
     points: 150,
     hints: [
       "Specify async/await usage",
@@ -449,10 +459,12 @@ export const codeLevels = [
     moduleTitle: "Object Manipulation",
     requirementBrief: "Create a function that transforms user object to display format",
     language: "JavaScript",
+    functionName: "toDisplayUser",
     testCases: [
       { input: { user: { firstName: "John", lastName: "Doe" } }, expectedOutput: { fullName: "John Doe" }, description: "Standard transformation" },
       { input: { user: { firstName: "Jane", lastName: "Smith", age: 25 } }, expectedOutput: { fullName: "Jane Smith" }, description: "With extra property" }
     ],
+    promptChecklist: ["describe output object shape", "map only required properties", "ignore extra fields safely"],
     points: 150,
     hints: [
       "Specify the input/output object structure",
@@ -479,11 +491,13 @@ export const codeLevels = [
     moduleTitle: "State",
     requirementBrief: "Create a simple counter state with increment/decrement",
     language: "JavaScript",
+    functionName: "createCounterState",
     testCases: [
       { input: { action: "increment" }, expectedOutput: { count: 1 }, description: "First increment" },
       { input: { action: "decrement" }, expectedOutput: { count: 0 }, description: "Decrement from 1" },
       { input: { action: "reset" }, expectedOutput: { count: 0 }, description: "Reset action" }
     ],
+    promptChecklist: ["define initial state", "describe supported actions", "return updated state"],
     points: 150,
     hints: [
       "Specify state structure and methods",
@@ -512,9 +526,11 @@ export const codeLevels = [
     moduleTitle: "Advanced Patterns",
     requirementBrief: "Create a debounce function that delays function execution",
     language: "JavaScript",
+    functionName: "debounce",
     testCases: [
       { input: { func: "console.log", delay: 500 }, expectedOutput: "function", description: "Returns wrapped function" }
     ],
+    promptChecklist: ["return a wrapped function", "mention timer reset behavior", "use clearTimeout safely"],
     points: 250,
     hints: [
       "Specify timing requirements",
@@ -541,9 +557,11 @@ export const codeLevels = [
     moduleTitle: "React Hooks",
     requirementBrief: "Create a useLocalStorage hook with getter/setter",
     language: "JavaScript",
+    functionName: "useLocalStorage",
     testCases: [
       { input: { key: "theme", defaultValue: "dark" }, expectedOutput: { value: "dark", set: "function" }, description: "Returns value and setter" }
     ],
+    promptChecklist: ["describe hook return shape", "mention persistence to localStorage", "handle default value"],
     points: 250,
     hints: [
       "Specify hook signature and return",
@@ -570,9 +588,11 @@ export const codeLevels = [
     moduleTitle: "Architecture",
     requirementBrief: "Create middleware that adds auth headers to requests",
     language: "JavaScript",
+    functionName: "withAuthHeaders",
     testCases: [
       { input: { token: "abc123" }, expectedOutput: "function", description: "Returns enhanced fetch wrapper" }
     ],
+    promptChecklist: ["describe header injection", "preserve original request config", "return middleware wrapper"],
     points: 250,
     hints: [
       "Specify the middleware pattern",
@@ -607,6 +627,9 @@ export const copywritingLevels = [
     briefTarget: "Health-conscious adults",
     briefTone: "Energetic and motivating",
     briefGoal: "Encourage daily water intake",
+    wordLimit: { max: 10 },
+    requiredElements: ["benefit", "hydration", "action verb"],
+    promptChecklist: ["define audience", "set tone", "ask for a concise headline", "emphasize one clear benefit"],
     points: 100,
     metrics: [
       { name: "Clarity", target: 80, weight: 30 },
@@ -640,6 +663,9 @@ export const copywritingLevels = [
     briefTarget: "Young adults starting fitness journey",
     briefTone: "Encouraging and relatable",
     briefGoal: "Drive app downloads",
+    wordLimit: { max: 30 },
+    requiredElements: ["call to action", "benefit", "social energy"],
+    promptChecklist: ["mention audience", "ask for a CTA", "keep it concise", "shape the tone"],
     points: 100,
     metrics: [
       { name: "Engagement", target: 75, weight: 40 },
@@ -673,6 +699,9 @@ export const copywritingLevels = [
     briefTarget: "Busy professionals",
     briefTone: "Valuable and time-saving",
     briefGoal: "Increase open rates",
+    wordLimit: { max: 8 },
+    requiredElements: ["specific value", "curiosity"],
+    promptChecklist: ["mention desired outcome", "ask for curiosity without spam", "set length guidance"],
     points: 100,
     metrics: [
       { name: "Curiosity", target: 80, weight: 50 },
@@ -708,6 +737,9 @@ export const copywritingLevels = [
     briefTarget: "Remote workers and music lovers",
     briefTone: "Professional yet approachable",
     briefGoal: "Highlight key features and value",
+    wordLimit: { min: 60, max: 120 },
+    requiredElements: ["benefits", "feature clarity", "call to action"],
+    promptChecklist: ["ask for benefits over features", "mention audience use case", "specify structure"],
     points: 150,
     metrics: [
       { name: "Feature Clarity", target: 85, weight: 25 },
@@ -742,6 +774,9 @@ export const copywritingLevels = [
     briefTarget: "Small business owners",
     briefTone: "Professional and trustworthy",
     briefGoal: "Convert visitors to signups",
+    wordLimit: { min: 80, max: 160 },
+    requiredElements: ["value proposition", "trust signal", "call to action"],
+    promptChecklist: ["define conversion goal", "ask for trust-building language", "structure the sections"],
     points: 150,
     metrics: [
       { name: "Value Proposition", target: 80, weight: 30 },
@@ -776,6 +811,9 @@ export const copywritingLevels = [
     briefTarget: "Coffee enthusiasts",
     briefTone: "Warm and inviting",
     briefGoal: "Drive subscriptions",
+    wordLimit: { min: 25, max: 60 },
+    requiredElements: ["hook", "benefit", "urgency"],
+    promptChecklist: ["ask for a hook", "mention emotional tone", "request urgency without spam"],
     points: 150,
     metrics: [
       { name: "Hook Quality", target: 80, weight: 30 },
@@ -810,6 +848,9 @@ export const copywritingLevels = [
     briefTarget: "Productivity-focused professionals",
     briefTone: "Authoritative yet accessible",
     briefGoal: "Hook readers and establish value",
+    wordLimit: { min: 60, max: 120 },
+    requiredElements: ["problem", "value promise", "smooth flow"],
+    promptChecklist: ["ask for a problem-led opening", "set audience context", "request a value promise"],
     points: 150,
     metrics: [
       { name: "Hook Strength", target: 80, weight: 35 },
@@ -845,6 +886,9 @@ export const copywritingLevels = [
     briefTarget: "Course creators and educators",
     briefTone: "Professional and aspirational",
     briefGoal: "Drive course signups through multi-touch nurture",
+    wordLimit: { min: 120, max: 220 },
+    requiredElements: ["sequence logic", "value progression", "conversion CTA"],
+    promptChecklist: ["request multiple emails", "ask for narrative progression", "define conversion goal"],
     points: 250,
     metrics: [
       { name: "Narrative Flow", target: 80, weight: 25 },
@@ -879,6 +923,9 @@ export const copywritingLevels = [
     briefTarget: "Internal marketing team",
     briefTone: "Clear, inspiring, and actionable",
     briefGoal: "Provide consistent brand voice guidelines",
+    wordLimit: { min: 120, max: 220 },
+    requiredElements: ["dos and donts", "examples", "voice traits"],
+    promptChecklist: ["request guidelines format", "ask for examples", "define internal team audience"],
     points: 250,
     metrics: [
       { name: "Voice Clarity", target: 85, weight: 30 },
@@ -913,6 +960,9 @@ export const copywritingLevels = [
     briefTarget: "Tech-savvy early adopters",
     briefTone: "Exciting and persuasive",
     briefGoal: "Drive pre-orders through emotional connection",
+    wordLimit: { min: 120, max: 220 },
+    requiredElements: ["hook", "credibility", "cta"],
+    promptChecklist: ["ask for story arc", "mention emotional angle", "specify strong CTA"],
     points: 250,
     metrics: [
       { name: "Hook Quality", target: 85, weight: 25 },

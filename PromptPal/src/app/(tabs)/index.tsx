@@ -319,7 +319,7 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Fixed Header */}
       <View className="px-6 pt-4 pb-4 flex-row justify-between items-center">
         <View className="flex-row items-center">
@@ -401,40 +401,66 @@ export default function HomeScreen() {
       <Modal
         visible={settingsModalVisible}
         onClose={() => setSettingsModalVisible(false)}
-        title="Settings"
         size="sm"
       >
-        <View className="space-y-4">
-          <View className="flex-row items-center p-4 bg-surfaceVariant/50 rounded-xl">
-            <Ionicons name="person-circle-outline" size={24} color="#6B7280" />
-            <View className="ml-3 flex-1">
-              <Text className="text-onSurface font-semibold">{user?.firstName || "User"} {user?.lastName || ""}</Text>
-              <Text className="text-onSurfaceVariant text-sm">{user?.primaryEmailAddress?.emailAddress}</Text>
+        <View className="rounded-[28px] overflow-hidden bg-surface">
+          <View className="px-1 pb-5">
+            <View className="flex-row items-start justify-between mb-5">
+              <View>
+                <Text className="text-primary text-[10px] font-black uppercase tracking-[2.5px] mb-2">Account</Text>
+                <Text className="text-onSurface text-[32px] font-black tracking-tight">Settings</Text>
+                <Text className="text-onSurfaceVariant text-sm mt-1">
+                  Manage your PromptPal account.
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setSettingsModalVisible(false)}
+                className="w-11 h-11 rounded-full bg-surfaceVariant/40 items-center justify-center mt-1"
+              >
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </Pressable>
             </View>
-          </View>
 
-          <View className="space-y-2">
-            <Pressable className="flex-row items-center p-4 bg-surfaceVariant/50 rounded-xl">
-              <Ionicons name="notifications-outline" size={20} color="#6B7280" />
-              <Text className="text-onSurface ml-3 flex-1">Notifications</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-            </Pressable>
+            <View className="rounded-[28px] bg-surfaceVariant/30 border border-outline/10 p-5">
+              <View className="flex-row items-center">
+                <View className="w-14 h-14 rounded-full bg-primary/15 border border-primary/20 items-center justify-center overflow-hidden mr-4">
+                  {user?.imageUrl ? (
+                    <Image source={{ uri: user.imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                  ) : (
+                    <Ionicons name="person" size={28} color="#FF6B00" />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-onSurface text-xl font-black">
+                    {user?.firstName || "User"} {user?.lastName || ""}
+                  </Text>
+                  <Text className="text-onSurfaceVariant text-sm mt-1">
+                    {user?.primaryEmailAddress?.emailAddress}
+                  </Text>
+                </View>
+              </View>
 
-            <Pressable className="flex-row items-center p-4 bg-surfaceVariant/50 rounded-xl">
-              <Ionicons name="help-circle-outline" size={20} color="#6B7280" />
-              <Text className="text-onSurface ml-3 flex-1">Help & Support</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-            </Pressable>
+              <View className="mt-5 pt-5 border-t border-outline/10">
+                <View className="flex-row items-center justify-between">
+                  <View>
+                    <Text className="text-onSurface text-xs font-black uppercase tracking-[2px]">Session</Text>
+                    <Text className="text-onSurfaceVariant text-sm mt-1">
+                      Signed in and synced with Clerk
+                    </Text>
+                  </View>
+                  <View className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/15">
+                    <Text className="text-primary text-[10px] font-black uppercase tracking-[2px]">Active</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
 
-            <Pressable className="flex-row items-center p-4 bg-surfaceVariant/50 rounded-xl">
-              <Ionicons name="information-circle-outline" size={20} color="#6B7280" />
-              <Text className="text-onSurface ml-3 flex-1">About</Text>
-              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          <View className="pt-4 border-t border-outline/20">
-            <SignOutButton />
+            <View className="mt-5">
+              <SignOutButton
+                className="rounded-2xl py-4 px-5"
+                textClassName="text-base font-black uppercase tracking-[2px]"
+              />
+            </View>
           </View>
         </View>
       </Modal>
