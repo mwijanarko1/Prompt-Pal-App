@@ -1,6 +1,6 @@
-import { action } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 /**
  * Calculate points for a user based on their achievements and progress
@@ -39,7 +39,7 @@ function calculatePoints(userStats: any, levelProgress: any[], achievements: any
 /**
  * Update points and ranking for a specific user
  */
-export const updateUserRanking = action({
+export const updateUserRanking = internalAction({
   args: {
     userId: v.string(),
   },
@@ -47,20 +47,20 @@ export const updateUserRanking = action({
     const { userId } = args;
 
     // Get user statistics
-    const userStats = await ctx.runQuery(api.queries.getUserStatistics, { userId });
+    const userStats = await ctx.runQuery(internal.queries.getUserStatistics, { userId });
     if (!userStats) return;
 
     // Get level progress
-    const levelProgress = await ctx.runQuery(api.queries.getUserLevelProgress, { userId });
+    const levelProgress = await ctx.runQuery(internal.queries.getUserLevelProgress, { userId });
 
     // Get achievements
-    const achievements = await ctx.runQuery(api.queries.getUserAchievements, { userId });
+    const achievements = await ctx.runQuery(internal.queries.internalGetUserAchievements, { userId });
 
     // Calculate new points
     const newPoints = calculatePoints(userStats, levelProgress, achievements);
 
     // Update the user's points
-    await ctx.runMutation(api.mutations.updateUserStatistics, {
+    await ctx.runMutation(internal.mutations.internalUpdateUserStatistics, {
       userId,
       points: newPoints,
     });
@@ -72,7 +72,7 @@ export const updateUserRanking = action({
 /**
  * Recalculate rankings for all users
  */
-export const recalculateRankings = action({
+export const recalculateRankings = internalAction({
   args: {},
   handler: async (ctx, args): Promise<number> => {
     // Get all users with their stats
@@ -81,13 +81,13 @@ export const recalculateRankings = action({
     // Calculate points for each user
     const userPoints: any[] = [];
     for (const stat of allStats) {
-      const user = await ctx.runQuery(api.queries.getUserStatistics, { userId: stat.userId });
+      const user = await ctx.runQuery(internal.queries.getUserStatistics, { userId: stat.userId });
       if (!user) continue;
 
-      const levelProgress = await ctx.runQuery(api.queries.getUserLevelProgress, {
+      const levelProgress = await ctx.runQuery(internal.queries.getUserLevelProgress, {
         userId: stat.userId,
       });
-      const achievements = await ctx.runQuery(api.queries.getUserAchievements, {
+      const achievements = await ctx.runQuery(internal.queries.internalGetUserAchievements, {
         userId: stat.userId,
       });
 
@@ -107,7 +107,7 @@ export const recalculateRankings = action({
       const { userId, points } = userPoints[i];
       const newRank = i + 1;
 
-      await ctx.runMutation(api.mutations.updateUserStatistics, {
+      await ctx.runMutation(internal.mutations.internalUpdateUserStatistics, {
         userId,
         points,
         globalRank: newRank,
@@ -121,7 +121,7 @@ export const recalculateRankings = action({
 /**
  * Get user's rank comparison with nearby players
  */
-export const getRankComparison = action({
+export const getRankComparison = internalAction({
   args: {
     userId: v.string(),
   },
@@ -132,7 +132,7 @@ export const getRankComparison = action({
   } | null> => {
     const { userId } = args;
 
-    const userStats = await ctx.runQuery(api.queries.getUserStatistics, { userId });
+    const userStats = await ctx.runQuery(internal.queries.getUserStatistics, { userId });
     if (!userStats) return null;
 
     const userRank = userStats.globalRank;
@@ -162,7 +162,7 @@ export const getRankComparison = action({
 /**
  * Get system statistics
  */
-export const getSystemStatistics = action({
+export const getSystemStatistics = internalAction({
   args: {},
   handler: async (ctx, args): Promise<{
     totalUsers: number;

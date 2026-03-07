@@ -26,6 +26,7 @@ export interface Level {
   passingScore: number;
   unlocked: boolean;
   prerequisites?: string[];
+  hints?: string[];
 
   // Image Challenge specific
   targetImageUrl?: string | number; // Can be local asset (number) or URL (string)

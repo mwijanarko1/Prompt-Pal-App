@@ -2,13 +2,6 @@
 import { convexHttpClient } from './convex-client';
 import { api } from '../../convex/_generated/api.js';
 
-// Model configuration - used for reference only (actual calls go through Convex)
-const MODELS = {
-  text: 'gemini-2.5-flash' as const,
-  image: 'gemini-2.5-flash-image-preview' as const,
-  vision: 'gemini-2.5-flash' as const,
-};
-
 export class GeminiService {
   // Generate an image based on a text prompt
   async generateImage(prompt: string): Promise<string> {
@@ -23,7 +16,6 @@ export class GeminiService {
       console.error('[Gemini] Image generation failed:', error);
       throw error;
     }
-  }
   }
 
   // Compare two images and return similarity score (0-100)
@@ -40,7 +32,6 @@ export class GeminiService {
       console.error('[Gemini] Comparison failed:', error);
       throw error;
     }
-  }
   }
 
   // Get contextual hints for prompt improvement

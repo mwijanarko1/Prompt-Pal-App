@@ -181,7 +181,7 @@ export default function GameScreen() {
           // Fetch attempt history for this level
           try {
             const attempts = user?.id
-              ? await convexHttpClient.query(api.queries.getUserLevelAttempts, { userId: user.id, levelId: id as string })
+              ? await convexHttpClient.query(api.queries.getUserLevelAttempts, { levelId: id as string })
               : [];
             setAttemptHistory(attempts);
 
@@ -406,7 +406,6 @@ export default function GameScreen() {
         try {
           if (user?.id) {
             await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
-              userId: user.id,
               levelId: level.id,
               score: finalScore,
               feedback: evaluation.feedback || [],
@@ -416,7 +415,6 @@ export default function GameScreen() {
 
             // Refresh attempt history to include the new attempt
             const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
-              userId: user.id,
               levelId: level.id,
             });
             setAttemptHistory(attempts || []);
@@ -431,7 +429,6 @@ export default function GameScreen() {
           if (user?.id) {
             const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
             await convexHttpClient.mutation(api.mutations.updateLevelProgress, {
-              userId: user.id,
               appId: "prompt-pal",
               levelId: level.id,
               isCompleted: true,
@@ -530,7 +527,6 @@ export default function GameScreen() {
             }));
 
             await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
-              userId: user.id,
               levelId: level.id,
               score: finalScore,
               feedback: evaluation.feedback || [],
@@ -540,7 +536,6 @@ export default function GameScreen() {
             });
 
             const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
-              userId: user.id,
               levelId: level.id,
             });
             setAttemptHistory(attempts || []);
@@ -553,7 +548,6 @@ export default function GameScreen() {
           if (user?.id) {
             const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
             await convexHttpClient.mutation(api.mutations.updateLevelProgress, {
-              userId: user.id,
               appId: "prompt-pal",
               levelId: level.id,
               isCompleted: true,
@@ -622,7 +616,6 @@ export default function GameScreen() {
               .filter((label): label is string => label !== undefined);
 
             await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
-              userId: user.id,
               levelId: level.id,
               score: finalScore,
               feedback: copyScoringResult.feedback || [],
@@ -632,7 +625,6 @@ export default function GameScreen() {
 
             // Refresh attempt history to include the new attempt
             const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
-              userId: user.id,
               levelId: level.id,
             });
             setAttemptHistory(attempts || []);
@@ -645,7 +637,6 @@ export default function GameScreen() {
           if (user?.id) {
             const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
             await convexHttpClient.mutation(api.mutations.updateLevelProgress, {
-              userId: user.id,
               appId: "prompt-pal",
               levelId: level.id,
               isCompleted: true,
@@ -673,7 +664,7 @@ export default function GameScreen() {
       } else if (error.response?.status === 403) {
         Alert.alert('Content Policy', 'Your prompt may violate content policies. Please try a different prompt.');
       } else {
-        Alert.alert('Error', 'Something went wrong. Please try again.');
+        Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
       }
     } finally {
       setIsGenerating(false);

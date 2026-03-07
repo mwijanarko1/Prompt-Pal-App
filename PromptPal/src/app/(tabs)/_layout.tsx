@@ -1,23 +1,30 @@
 import { Redirect, Tabs } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
-import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { Platform, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
+import { useOnboardingStore } from '@/features/onboarding/store';
 
 const BRAND = '#FF6B00';
-const BRAND_DARK = '#F97316';
 const MARGIN_H = 72;
 
 function TabsNavigator() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
+  const { hasCompletedOnboarding } = useOnboardingStore();
 
   const bgColor = '#FFFFFF';
   const inactiveColor = '#64748B';
   const activeColor = BRAND;
   const bottomOffset =
     Platform.OS === 'ios' ? Math.max(insets.bottom + 4, 28) : 24;
+
+  // Show onboarding flow fullscreen if not completed
+  if (!hasCompletedOnboarding) {
+    return <OnboardingFlow />;
+  }
 
   return (
     <Tabs

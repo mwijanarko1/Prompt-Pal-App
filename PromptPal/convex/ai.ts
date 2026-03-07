@@ -65,7 +65,7 @@ async function generateTextWithQuota(
   ctx: any,
   args: { userId: string; prompt: string; context?: string }
 ): Promise<{ text: string; tokensUsed?: number; quotaCheck: QuotaResult }> {
-  const quotaCheck: QuotaResult = await ctx.runMutation(api.mutations.checkAndIncrementQuota, {
+  const quotaCheck: QuotaResult = await ctx.runMutation(internal.mutations.checkAndIncrementQuota, {
     userId: args.userId,
     appId: "prompt-pal",
     quotaType: "textCalls",
@@ -75,13 +75,15 @@ async function generateTextWithQuota(
     throw new Error(`Quota exceeded. ${quotaCheck.remaining} calls remaining.`);
   }
 
+  const startedAt = Date.now();
   const result = await aiGenerateText({
     model: google("gemini-2.5-flash"),
     prompt: args.prompt,
     system: args.context,
   });
+  const durationMs = Date.now() - startedAt;
 
-  await ctx.runMutation(api.mutations.logAIGeneration, {
+  await ctx.runMutation(internal.mutations.logAIGeneration, {
     userId: args.userId,
     appId: "prompt-pal",
     requestId: crypto.randomUUID(),
@@ -90,7 +92,7 @@ async function generateTextWithQuota(
     promptLength: args.prompt.length,
     responseLength: result.text.length,
     tokensUsed: result.usage?.totalTokens,
-    durationMs: 0,
+    durationMs,
     success: true,
   });
 
@@ -228,17 +230,12 @@ export const evaluateCopySubmission = action({
       briefGoal: level.briefGoal,
     });
 
-    let analysisText = "";
-    try {
-      const generated = await generateTextWithQuota(ctx, {
-        userId: identity.subject,
-        prompt: analysisPrompt,
-        context: level.briefTone || undefined,
-      });
-      analysisText = generated.text;
-    } catch {
-      analysisText = "";
-    }
+    const generated = await generateTextWithQuota(ctx, {
+      userId: identity.subject,
+      prompt: analysisPrompt,
+      context: level.briefTone || undefined,
+    });
+    const analysisText = generated.text;
 
     const metrics = parseCopyMetrics(analysisText, trimmedText, {
       briefProduct: level.briefProduct,
@@ -289,7 +286,7 @@ export const generateImage = action({
     if (!identity) throw new Error("Not authenticated");
 
     // Check quota
-    const quotaCheck: QuotaResult = await ctx.runMutation(api.mutations.checkAndIncrementQuota, {
+    const quotaCheck: QuotaResult = await ctx.runMutation(internal.mutations.checkAndIncrementQuota, {
       userId: identity.subject,
       appId: args.appId,
       quotaType: "imageCalls"
@@ -299,11 +296,13 @@ export const generateImage = action({
       throw new Error(`Quota exceeded. ${quotaCheck.remaining} calls remaining.`);
     }
 
+    const startedAt = Date.now();
     // Generate image using Gemini 2.5 Flash Image (preview) model
     const result = await aiGenerateText({
       model: google("gemini-2.5-flash-image-preview"),
       prompt: args.prompt,
     });
+    const durationMs = Date.now() - startedAt;
 
     // Extract image from result.files
     const imageFile = result.files?.find(file => file.mediaType?.startsWith('image/'));
@@ -319,7 +318,7 @@ export const generateImage = action({
     const imageId = await (ctx as any).storage.store(imageBlob);
 
     // Save metadata
-    await ctx.runMutation(api.mutations.saveGeneratedImage, {
+    await ctx.runMutation(internal.mutations.saveGeneratedImage, {
       userId: identity.subject,
       appId: args.appId,
       storageId: imageId,
@@ -333,14 +332,14 @@ export const generateImage = action({
     });
 
     // Log analytics
-    await ctx.runMutation(api.mutations.logAIGeneration, {
+    await ctx.runMutation(internal.mutations.logAIGeneration, {
       userId: identity.subject,
       appId: args.appId,
       requestId: crypto.randomUUID(),
       type: "image",
       model: "gemini-2.5-flash-image-preview",
       promptLength: args.prompt.length,
-      durationMs: 0, // You can add timing if needed
+      durationMs,
       success: true,
     });
 
@@ -375,7 +374,7 @@ export const evaluateImage = action({
     if (!identity) throw new Error("Not authenticated");
 
     // Check quota - image evaluation uses text calls
-    const quotaCheck: QuotaResult = await ctx.runMutation(api.mutations.checkAndIncrementQuota, {
+    const quotaCheck: QuotaResult = await ctx.runMutation(internal.mutations.checkAndIncrementQuota, {
       userId: identity.subject,
       appId: "prompt-pal",
       quotaType: "textCalls"
@@ -420,10 +419,21 @@ Return your response as JSON with this exact format:
 }`;
 
     // Generate evaluation using AI
+    const startedAt = Date.now();
     const result = await aiGenerateText({
       model: google("gemini-2.5-flash"),
-      prompt: evaluationPrompt,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: evaluationPrompt },
+            { type: "image", image: new URL(args.expectedImageUrl) },
+            { type: "image", image: new URL(args.userImageUrl) },
+          ],
+        },
+      ],
     });
+    const durationMs = Date.now() - startedAt;
 
     // Parse the AI response as JSON
     let evaluation;
@@ -443,7 +453,7 @@ Return your response as JSON with this exact format:
     }
 
     // Log analytics
-    await ctx.runMutation(api.mutations.logAIGeneration, {
+    await ctx.runMutation(internal.mutations.logAIGeneration, {
       userId: identity.subject,
       appId: "prompt-pal",
       requestId: crypto.randomUUID(),
@@ -452,7 +462,7 @@ Return your response as JSON with this exact format:
       promptLength: evaluationPrompt.length,
       responseLength: result.text.length,
       tokensUsed: result.usage?.totalTokens,
-      durationMs: 0,
+      durationMs,
       success: true,
     });
 

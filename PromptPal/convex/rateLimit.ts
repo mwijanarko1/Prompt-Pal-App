@@ -1,4 +1,7 @@
-import { query, mutation, action } from "./_generated/server";
+import {
+  internalMutation,
+  type MutationCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
 
 /**
@@ -32,10 +35,10 @@ type RateLimitResult = {
 
 /**
  * Rate limiting utility for Convex functions
- * Uses sliding window algorithm with in-memory caching
+ * Uses a fixed-window counter stored in Convex.
  */
 export async function checkRateLimit(
-  ctx: any,
+  ctx: MutationCtx,
   identifier: string,
   windowMs: number = 60000, // 1 minute default
   maxRequests: number = 60
@@ -46,7 +49,7 @@ export async function checkRateLimit(
   // Try to get existing rate limit record
   const existing = await ctx.db
     .query("rateLimits")
-    .withIndex("by_identifier", (q: any) => q.eq("identifier", identifier))
+    .withIndex("by_identifier", (q) => q.eq("identifier", identifier))
     .first();
   
   if (!existing) {
@@ -115,7 +118,7 @@ export async function checkRateLimit(
 /**
  * Clean up old rate limit records (run periodically)
  */
-export const cleanupRateLimits = mutation({
+export const cleanupRateLimits = internalMutation({
   args: {
     olderThanMs: v.optional(v.number()),
   },
@@ -140,7 +143,7 @@ export const cleanupRateLimits = mutation({
 /**
  * Get current rate limit status for an identifier
  */
-export const getRateLimitStatus = query({
+export const getRateLimitStatus = internalMutation({
   args: {
     identifier: v.string(),
     windowMs: v.optional(v.number()),

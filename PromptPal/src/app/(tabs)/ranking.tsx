@@ -181,15 +181,12 @@ export default function RankingScreen() {
         // Fetch user rank data
         let userRankData = null;
         if (user?.id) {
-          const stats = await convexHttpClient.query(api.queries.getUserStatistics, {
-            userId: user.id,
-          });
+          const stats = await convexHttpClient.query(api.queries.getMyUserStatistics, {});
           userRankData = {
             userId: user.id,
-            clerkId: user.id,
             globalRank: stats.globalRank,
             name: user.fullName || 'User',
-            avatar: user.imageUrl,
+            avatarUrl: user.imageUrl,
             totalXp: stats.totalXp,
             currentLevel: stats.currentLevel,
             isCurrentUser: true,
@@ -279,15 +276,12 @@ export default function RankingScreen() {
 
         let userRankData = null;
         if (user?.id) {
-          const stats = await convexHttpClient.query(api.queries.getUserStatistics, {
-            userId: user.id,
-          });
+          const stats = await convexHttpClient.query(api.queries.getMyUserStatistics, {});
           userRankData = {
             userId: user.id,
-            clerkId: user.id,
             globalRank: stats.globalRank,
             name: user.fullName || 'User',
-            avatar: user.imageUrl,
+            avatarUrl: user.imageUrl,
             totalXp: stats.totalXp,
             currentLevel: stats.currentLevel,
             isCurrentUser: true,
@@ -426,7 +420,6 @@ export default function RankingScreen() {
         data={rankList}
         renderItem={renderRankItem}
         keyExtractor={(item) => item.userId}
-        estimatedItemSize={88}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>

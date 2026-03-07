@@ -12,6 +12,7 @@ import { useQuery } from 'convex/react';
 import { useUsage } from '@/lib/usage';
 import { convexHttpClient } from '@/lib/convex-client';
 import { useUserProgressStore } from '@/features/user/store';
+import { useOnboardingStore } from '@/features/onboarding/store';
 import { api } from '../../../convex/_generated/api.js';
 import Svg, { Circle } from 'react-native-svg';
 import { StatCard } from '@/components/ui';
@@ -123,8 +124,8 @@ export default function ProfileScreen() {
   const { level } = useUserProgressStore();
 
   // Convex Queries
-  const achievements = useQuery(api.queries.getUserAchievements, user?.id ? { userId: user.id } : "skip");
-  const userResults = useQuery(api.queries.getUserResults, user?.id ? { userId: user.id, appId: "prompt-pal" } : "skip");
+  const achievements = useQuery(api.queries.getUserAchievements, user?.id ? {} : "skip");
+  const userResults = useQuery(api.queries.getUserResults, user?.id ? { appId: "prompt-pal" } : "skip");
   const usage = useUsage();
 
   const isLoading = achievements === undefined || userResults === undefined || usage === null;
@@ -160,7 +161,7 @@ export default function ProfileScreen() {
 
     setIsDeletingAccount(true);
     try {
-      await convexHttpClient.mutation((api as any).mutations.deleteCurrentUserData, {});
+      await convexHttpClient.mutation(api.mutations.deleteCurrentUserData, {});
       await user.delete();
       try {
         await signOut();
@@ -217,120 +218,144 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-      <View className="items-center px-6">
-        {/* Avatar Section */}
-        <View className="mb-6 relative">
-          <View className="w-32 h-32 rounded-full border-4 border-primary shadow-glow items-center justify-center p-1">
-            <View className="w-full h-full rounded-full overflow-hidden bg-surfaceVariant">
-              {user?.imageUrl ? (
-                <Image source={{ uri: user.imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-              ) : (
-                <View className="w-full h-full items-center justify-center">
-                  <Ionicons name="person" size={60} color="#9CA3AF" />
-                </View>
-              )}
+        <View className="items-center px-6">
+          {/* Avatar Section */}
+          <View className="mb-6 relative">
+            <View className="w-32 h-32 rounded-full border-4 border-primary shadow-glow items-center justify-center p-1">
+              <View className="w-full h-full rounded-full overflow-hidden bg-surfaceVariant">
+                {user?.imageUrl ? (
+                  <Image source={{ uri: user.imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                ) : (
+                  <View className="w-full h-full items-center justify-center">
+                    <Ionicons name="person" size={60} color="#9CA3AF" />
+                  </View>
+                )}
+              </View>
+            </View>
+            <View className="absolute bottom-0 right-0 bg-primary px-3 py-1 rounded-full border-2 border-background">
+              <Text className="text-white text-xs font-black">Lv. {level}</Text>
             </View>
           </View>
-          <View className="absolute bottom-0 right-0 bg-primary px-3 py-1 rounded-full border-2 border-background">
-            <Text className="text-white text-xs font-black">Lv. {level}</Text>
-          </View>
-        </View>
 
-        {/* User Info */}
-        <Text className="text-onSurface text-3xl font-black mb-1">{user?.fullName || 'Architect'}</Text>
-        <View className="flex-row items-center mb-1">
-          <Ionicons name="checkmark-circle" size={16} color="#FF6B00" />
-          <Text className="text-primary text-[10px] font-black uppercase tracking-widest ml-1">
-            {tierTitle}
+          {/* User Info */}
+          <Text className="text-onSurface text-3xl font-black mb-1">{user?.fullName || 'Architect'}</Text>
+          <View className="flex-row items-center mb-1">
+            <Ionicons name="checkmark-circle" size={16} color="#FF6B00" />
+            <Text className="text-primary text-[10px] font-black uppercase tracking-widest ml-1">
+              {tierTitle}
+            </Text>
+          </View>
+          <Text className="text-onSurfaceVariant text-[10px] font-bold uppercase tracking-widest opacity-60">
+            Member since {new Date(user?.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
           </Text>
-        </View>
-        <Text className="text-onSurfaceVariant text-[10px] font-bold uppercase tracking-widest opacity-60">
-          Member since {new Date(user?.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-        </Text>
 
-        {/* Premium Card - Hidden for free plan */}
+          {/* Premium Card - Hidden for free plan */}
 
-        {/* Usage Quota Section */}
-        <View className="w-full mb-10 mt-10">
-          <Text className="text-onSurface text-2xl font-black mb-8 px-2">Usage Quota</Text>
-          <View className="flex-row justify-center w-full">
-            <CircularProgress
-              size={width * 0.28}
-              percentage={textUsagePercent}
-              label="Text"
-              subLabel={`${usage?.used.textCalls || 0}/${usage?.limits.textCalls || 0}`}
-              color="#FF6B00"
-              isDark={isDark}
-            />
-            {/* Image quota hidden - will be implemented once image generation module is ready */}
+          {/* Usage Quota Section */}
+          <View className="w-full mb-10 mt-10">
+            <Text className="text-onSurface text-2xl font-black mb-8 px-2">Usage Quota</Text>
+            <View className="flex-row justify-center w-full">
+              <CircularProgress
+                size={width * 0.28}
+                percentage={textUsagePercent}
+                label="Text"
+                subLabel={`${usage?.used.textCalls || 0}/${usage?.limits.textCalls || 0}`}
+                color="#FF6B00"
+                isDark={isDark}
+              />
+              {/* Image quota hidden - will be implemented once image generation module is ready */}
+            </View>
           </View>
-        </View>
 
 
 
-        {/* Achievements Section */}
-        <View className="w-full mb-10">
-          <View className="flex-row justify-between items-end mb-8 px-2">
-            <Text className="text-onSurface text-2xl font-black">Achievements</Text>
-            <Pressable>
-              <Text className="text-primary text-[10px] font-black uppercase tracking-widest">View All</Text>
+          {/* Achievements Section */}
+          <View className="w-full mb-10">
+            <View className="flex-row justify-between items-end mb-8 px-2">
+              <Text className="text-onSurface text-2xl font-black">Achievements</Text>
+              <Pressable>
+                <Text className="text-primary text-[10px] font-black uppercase tracking-widest">View All</Text>
+              </Pressable>
+            </View>
+
+            {achievements && achievements.length > 0 ? (
+              <FlashList
+                data={achievements}
+                renderItem={renderAchievementItem}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: 20 }}
+              />
+            ) : (
+              <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">No achievements yet</Text>
+            )}
+          </View>
+
+          {/* Images Gallery Section - Hidden until image generation module is implemented */}
+
+          {/* Statistics Section */}
+          <View className="w-full mb-8">
+            <Text className="text-onSurface text-2xl font-black mb-8 px-2">Statistics</Text>
+            <View className="flex-row gap-4">
+              <StatCard
+                label="Total Prompts"
+                value={totalPrompts.toLocaleString()}
+                trend="Global Usage"
+                color="#FF6B00"
+                variant="featured"
+              />
+              <StatCard
+                label="Avg. Accuracy"
+                value={`${avgAccuracy}%`}
+                trend="Performance"
+                color="#4151FF"
+                isSecondary
+                variant="featured"
+              />
+            </View>
+          </View>
+
+          {/* Developer Tools */}
+          <View className="w-full mb-8 border-t border-surfaceVariant/20 pt-8">
+            <Text className="text-onSurface text-2xl font-black mb-3 px-2">Developer Tools</Text>
+            <Text className="text-onSurfaceVariant text-[11px] font-bold uppercase tracking-widest px-2 mb-5 opacity-80">
+              Debug utilities for testing the app experience.
+            </Text>
+            <Pressable
+              onPress={() => {
+                const { resetOnboarding } = useOnboardingStore.getState();
+                resetOnboarding();
+                Alert.alert(
+                  'Onboarding Reset',
+                  'The onboarding flow will appear on your next app navigation.'
+                );
+              }}
+              className="rounded-2xl px-5 py-4 border bg-primary/10 border-primary/30 flex-row items-center justify-center"
+            >
+              <Ionicons name="refresh-outline" size={18} color="#FF6B00" />
+              <Text className="text-primary text-center text-sm font-black uppercase tracking-widest ml-2">
+                Replay Onboarding
+              </Text>
             </Pressable>
           </View>
 
-          {achievements && achievements.length > 0 ? (
-            <FlashList
-              data={achievements}
-              renderItem={renderAchievementItem}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 20 }}
-            />
-          ) : (
-            <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">No achievements yet</Text>
-          )}
-        </View>
-
-        {/* Images Gallery Section - Hidden until image generation module is implemented */}
-
-        {/* Statistics Section */}
-        <View className="w-full mb-8">
-          <Text className="text-onSurface text-2xl font-black mb-8 px-2">Statistics</Text>
-          <View className="flex-row gap-4">
-            <StatCard
-              label="Total Prompts"
-              value={totalPrompts.toLocaleString()}
-              trend="Global Usage"
-              color="#FF6B00"
-              variant="featured"
-            />
-            <StatCard
-              label="Avg. Accuracy"
-              value={`${avgAccuracy}%`}
-              trend="Performance"
-              color="#4151FF"
-              isSecondary
-              variant="featured"
-            />
+          <View className="w-full mb-8 border-t border-surfaceVariant/20 pt-8">
+            <Text className="text-onSurface text-2xl font-black mb-3 px-2">Account</Text>
+            <Text className="text-onSurfaceVariant text-[11px] font-bold uppercase tracking-widest px-2 mb-5 opacity-80">
+              Delete account permanently removes your profile, progress, and app history.
+            </Text>
+            <Pressable
+              onPress={confirmDeleteAccount}
+              disabled={isDeletingAccount}
+              className={`rounded-2xl px-5 py-4 border ${isDeletingAccount ? 'bg-red-900/30 border-red-700/40' : 'bg-red-600/20 border-red-500/60'}`}
+            >
+              <Text className="text-red-400 text-center text-sm font-black uppercase tracking-widest">
+                {isDeletingAccount ? 'Deleting Account...' : 'Delete Account'}
+              </Text>
+            </Pressable>
           </View>
         </View>
-
-        <View className="w-full mb-8 border-t border-surfaceVariant/20 pt-8">
-          <Text className="text-onSurface text-2xl font-black mb-3 px-2">Account</Text>
-          <Text className="text-onSurfaceVariant text-[11px] font-bold uppercase tracking-widest px-2 mb-5 opacity-80">
-            Delete account permanently removes your profile, progress, and app history.
-          </Text>
-          <Pressable
-            onPress={confirmDeleteAccount}
-            disabled={isDeletingAccount}
-            className={`rounded-2xl px-5 py-4 border ${isDeletingAccount ? 'bg-red-900/30 border-red-700/40' : 'bg-red-600/20 border-red-500/60'}`}
-          >
-            <Text className="text-red-400 text-center text-sm font-black uppercase tracking-widest">
-              {isDeletingAccount ? 'Deleting Account...' : 'Delete Account'}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
       </ScrollView>
     </SafeAreaView>
   );

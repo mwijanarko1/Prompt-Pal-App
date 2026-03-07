@@ -1,22 +1,15 @@
 import { useUser, useAuth } from '@clerk/clerk-expo'
-import { Link } from 'expo-router'
-import { Text, View, ScrollView, Pressable, Alert, ActivityIndicator, useColorScheme } from 'react-native'
+import { Text, View, ScrollView, Pressable, Alert } from 'react-native'
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, useCallback, memo, ComponentProps } from 'react';
-import { FlashList } from "@shopify/flash-list";
-import { getUnlockedLevels } from '@/features/levels/data';
-import { UsageDisplay } from '@/components/UsageDisplay';
-import { useUsage, UsageStats } from '@/lib/usage';
 import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore, getOverallProgress } from '@/features/user/store';
 import { logDailyQuestStart } from '@/lib/analytics';
-import { logger } from '@/lib/logger';
 import { SignOutButton } from '@/components/SignOutButton';
-import { Button, Card, Modal, ProgressBar, StatCard } from '@/components/ui';
+import { Modal, ProgressBar, StatCard } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
-import { convexHttpClient } from '@/lib/convex-client';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api.js';
 
@@ -81,6 +74,12 @@ const getIconName = (icon: string): IoniconName => {
   }
 
   return mapping[icon] || "book";
+};
+
+const MODULE_TYPE_MAPPING: Record<string, string> = {
+  'coding-logic': 'code',
+  'copywriting': 'copywriting',
+  'image-generation': 'image'
 };
 
 interface QuestCardProps {
@@ -282,9 +281,8 @@ export default function HomeScreen() {
   const { user } = useUser()
   const { isLoaded, isSignedIn } = useAuth()
   const router = useRouter();
-  const usage = useUsage();
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
-  const { unlockedLevels, completedLevels } = useGameStore();
+  const { completedLevels } = useGameStore();
   const { level, xp, currentStreak, learningModules, currentQuest, loadFromBackend } = useUserProgressStore();
   const overallProgress = getOverallProgress(xp);
 
@@ -292,14 +290,7 @@ export default function HomeScreen() {
   const allLevels = useQuery(api.queries.getLevels, { appId: 'prompt-pal' }) || [];
 
   const getModuleLevelInfo = useCallback((moduleId: string) => {
-    // Map moduleId to level types used in levels_data.ts
-    const typeMapping: Record<string, string> = {
-      'coding-logic': 'code',
-      'copywriting': 'copywriting',
-      'image-generation': 'image'
-    };
-
-    const type = typeMapping[moduleId];
+    const type = MODULE_TYPE_MAPPING[moduleId];
     if (!type) return null;
 
     const moduleLevels = allLevels
@@ -331,14 +322,7 @@ export default function HomeScreen() {
   const renderModuleItem = useCallback(({ item }: { item: LearningModule }) => {
     const levelInfo = getModuleLevelInfo(item.id);
 
-    // Calculate actual progress based on completed levels
-    const typeMapping: Record<string, string> = {
-      'coding-logic': 'code',
-      'copywriting': 'copywriting',
-      'image-generation': 'image'
-    };
-
-    const type = typeMapping[item.id];
+    const type = MODULE_TYPE_MAPPING[item.id];
     const moduleLevels = allLevels?.filter(l => l.type === type) || [];
     const completedLevelsInModule = moduleLevels.filter(l => completedLevels.includes(l.id)).length;
     const actualProgress = moduleLevels.length > 0 ? Math.round((completedLevelsInModule / moduleLevels.length) * 100) : 0;
@@ -424,14 +408,15 @@ export default function HomeScreen() {
 
 
 
-          {/* Module Cards with FlashList */}
+          {/* Module cards */}
           {learningModules && learningModules.length > 0 && (
-            <FlashList
-              data={learningModules}
-              renderItem={renderModuleItem}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-            />
+            <View>
+              {learningModules.map((module) => (
+                <View key={module.id}>
+                  {renderModuleItem({ item: module })}
+                </View>
+              ))}
+            </View>
           )}
         </View>
       </ScrollView>

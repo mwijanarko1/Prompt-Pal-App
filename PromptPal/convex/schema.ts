@@ -1,6 +1,12 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+const dailyQuestRequirements = v.object({
+  difficulty: v.optional(v.string()),
+  topic: v.optional(v.string()),
+  levelId: v.optional(v.string()),
+});
+
 export default defineSchema({
   // Apps configuration table
   apps: defineTable({
@@ -333,7 +339,7 @@ export default defineSchema({
     levelId: v.optional(v.string()), // Associated level to complete
     type: v.string(), // 'image', 'code', 'copywriting'
     category: v.string(),
-    requirements: v.any(), // Specific requirements for quest
+    requirements: dailyQuestRequirements, // Specific requirements for quest
     difficulty: v.string(), // 'easy', 'medium', 'hard'
     isActive: v.boolean(),
     expiresAt: v.optional(v.number()),
@@ -490,6 +496,7 @@ export default defineSchema({
     userAgent: v.optional(v.string()), // Browser/device info
     timestamp: v.number(), // Metric timestamp
   })
+    .index("by_user", ["userId"])
     .index("by_app_type", ["appId", "metricType"])
     .index("by_timestamp", ["timestamp"]),
 

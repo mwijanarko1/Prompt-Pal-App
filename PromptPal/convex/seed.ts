@@ -1,5 +1,5 @@
 import { action } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { allLevels } from "./levels_data";
 
 const logSeed = (...args: unknown[]): void => {
@@ -131,7 +131,7 @@ export const seedLearningModules = action({
       const module = modules[i];
       const existing = await ctx.runQuery(api.queries.getLearningModuleById, { id: module.id });
       if (!existing) {
-        await ctx.runMutation(api.mutations.createLearningModule, {
+        await ctx.runMutation(internal.mutations.createLearningModule, {
           ...module,
           appId: "prompt-pal",
           isActive: true,
@@ -357,10 +357,10 @@ export const seedLearningResources = action({
       });
 
       if (existing) {
-        await ctx.runMutation(api.mutations.updateLearningResource, payload);
+        await ctx.runMutation(internal.mutations.updateLearningResource, payload);
         logSeed(`Updated learning resource: ${res.title}`);
       } else {
-        await ctx.runMutation(api.mutations.createLearningResource, payload);
+        await ctx.runMutation(internal.mutations.createLearningResource, payload);
         logSeed(`Created learning resource: ${res.title}`);
       }
     }
@@ -376,7 +376,7 @@ export const seedLevels = action({
     for (const level of allLevels) {
       const existing = await ctx.runQuery(api.queries.getLevelById, { id: level.id });
       if (!existing) {
-        await ctx.runMutation(api.mutations.createLevel, {
+        await ctx.runMutation(internal.mutations.createLevel, {
           ...level,
           appId: "prompt-pal",
           isActive: true,
@@ -385,7 +385,7 @@ export const seedLevels = action({
       } else {
         // Update existing level with new data
         const { id, ...levelData } = level;
-        await ctx.runMutation(api.mutations.updateLevel, {
+        await ctx.runMutation(internal.mutations.updateLevel, {
           id: level.id,
           appId: "prompt-pal",
           ...levelData,
@@ -403,7 +403,7 @@ export const seedLevels = action({
 export const seedDailyQuests = action({
   args: {},
   handler: async (ctx) => {
-    await ctx.runMutation(api.mutations.generateDailyQuestPool, {
+    await ctx.runMutation(internal.mutations.generateDailyQuestPool, {
       appId: "prompt-pal",
     });
 
@@ -475,7 +475,7 @@ export const seedAchievements = action({
     for (const achievement of achievements) {
       const existing = await ctx.runQuery(api.queries.getAchievementById, { id: achievement.id });
       if (!existing) {
-        await ctx.runMutation(api.mutations.createAchievement, {
+        await ctx.runMutation(internal.mutations.createAchievement, {
           ...achievement,
         });
         logSeed(`Created achievement: ${achievement.title}`);

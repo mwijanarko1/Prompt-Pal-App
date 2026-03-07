@@ -1,4 +1,8 @@
-import { mutation } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  type MutationCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -40,8 +44,17 @@ const pickRandom = <T,>(items: readonly T[]): T => {
   return items[Math.floor(Math.random() * items.length)];
 };
 
+async function requireAuthenticatedUserId(ctx: MutationCtx): Promise<string> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
+  }
+
+  return identity.subject;
+}
+
 const updateUserStreakForActivity = async (
-  ctx: any,
+  ctx: MutationCtx,
   userId: string,
   activityTimestamp = Date.now()
 ): Promise<void> => {
@@ -203,15 +216,12 @@ export const deleteCurrentUserData = mutation({
     }
     deleted.userFriends = relationshipIds.size;
 
-    const performanceMetrics = await ctx.db.query("performanceMetrics").collect();
-    let deletedPerformanceMetrics = 0;
-    for (const metric of performanceMetrics) {
-      if (metric.userId === userId) {
-        await ctx.db.delete(metric._id);
-        deletedPerformanceMetrics += 1;
-      }
-    }
-    deleted.performanceMetrics = deletedPerformanceMetrics;
+    deleted.performanceMetrics = await deleteDocumentsByIndex(
+      ctx,
+      "performanceMetrics",
+      "by_user",
+      (q) => q.eq("userId", userId)
+    );
 
     const userProfile = await ctx.db
       .query("users")
@@ -236,7 +246,7 @@ export const deleteCurrentUserData = mutation({
 /**
  * Get or create user plan with atomic quota check and increment
  */
-export const checkAndIncrementQuota = mutation({
+export const checkAndIncrementQuota = internalMutation({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -335,7 +345,7 @@ export const checkAndIncrementQuota = mutation({
 /**
  * Update user plan (used by Superwall webhooks)
  */
-export const updateUserPlan = mutation({
+export const updateUserPlan = internalMutation({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -366,9 +376,51 @@ export const updateUserPlan = mutation({
 /**
  * Update user statistics (gamification data)
  */
-export const updateUserStatistics = mutation({
+async function applyUserStatistics(
+  ctx: MutationCtx,
+  userId: string,
+  stats: {
+    totalXp?: number;
+    currentLevel?: number;
+    currentStreak?: number;
+    longestStreak?: number;
+    lastActivityDate?: string;
+    points?: number;
+    globalRank?: number;
+  }
+) {
+  const existing = await ctx.db
+    .query("userStatistics")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .first();
+
+  const statData = {
+    ...stats,
+    updatedAt: Date.now(),
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, statData);
+    return;
+  }
+
+  await ctx.db.insert("userStatistics", {
+    userId,
+    totalXp: 0,
+    currentLevel: 1,
+    currentStreak: 0,
+    longestStreak: 0,
+    globalRank: 0,
+    points: 0,
+    ...stats,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+}
+
+export const internalUpdateUserStatistics = internalMutation({
   args: {
-    userId: v.optional(v.string()),
+    userId: v.string(),
     totalXp: v.optional(v.number()),
     currentLevel: v.optional(v.number()),
     currentStreak: v.optional(v.number()),
@@ -379,39 +431,23 @@ export const updateUserStatistics = mutation({
   },
   handler: async (ctx, args) => {
     const { userId, ...stats } = args;
-    const identity = await ctx.auth.getUserIdentity();
-    const resolvedUserId = userId ?? identity?.subject;
+    await applyUserStatistics(ctx, userId, stats);
+  },
+});
 
-    if (!resolvedUserId) {
-      throw new Error("User must be authenticated");
-    }
-
-    const existing = await ctx.db
-      .query("userStatistics")
-      .withIndex("by_user", (q) => q.eq("userId", resolvedUserId))
-      .first();
-
-    const statData = {
-      ...stats,
-      updatedAt: Date.now(),
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, statData);
-    } else {
-      await ctx.db.insert("userStatistics", {
-        userId: resolvedUserId,
-        totalXp: 0,
-        currentLevel: 1,
-        currentStreak: 0,
-        longestStreak: 0,
-        globalRank: 0,
-        points: 0,
-        ...stats,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    }
+export const updateUserStatistics = mutation({
+  args: {
+    totalXp: v.optional(v.number()),
+    currentLevel: v.optional(v.number()),
+    currentStreak: v.optional(v.number()),
+    longestStreak: v.optional(v.number()),
+    lastActivityDate: v.optional(v.string()),
+    points: v.optional(v.number()),
+    globalRank: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireAuthenticatedUserId(ctx);
+    await applyUserStatistics(ctx, userId, args);
   },
 });
 
@@ -546,7 +582,7 @@ export const saveUserLevelAttempt = mutation({
 /**
  * Update user module progress
  */
-export const updateUserModuleProgress = mutation({
+export const updateUserModuleProgress = internalMutation({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -588,7 +624,7 @@ export const updateUserModuleProgress = mutation({
 /**
  * Update user quest states
  */
-export const updateUserQuests = mutation({
+export const updateUserQuests = internalMutation({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -678,7 +714,7 @@ export const updateUserGameState = mutation({
 /**
  * Log AI generation (privacy-safe - no sensitive content)
  */
-export const logAIGeneration = mutation({
+export const logAIGeneration = internalMutation({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -715,7 +751,7 @@ export const logAIGeneration = mutation({
 /**
  * Log analytics event
  */
-export const logAnalyticsEvent = mutation({
+export const logAnalyticsEvent = internalMutation({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -744,7 +780,7 @@ export const logAnalyticsEvent = mutation({
 /**
  * Log error
  */
-export const logError = mutation({
+export const logError = internalMutation({
   args: {
     userId: v.optional(v.string()),
     appId: v.optional(v.string()),
@@ -773,7 +809,7 @@ export const logError = mutation({
 /**
  * Log performance metric
  */
-export const logPerformanceMetric = mutation({
+export const logPerformanceMetric = internalMutation({
   args: {
     userId: v.optional(v.string()),
     appId: v.string(),
@@ -802,7 +838,7 @@ export const logPerformanceMetric = mutation({
 /**
  * Create or update user profile
  */
-export const upsertUser = mutation({
+export const upsertUser = internalMutation({
   args: {
     clerkId: v.string(),
     name: v.string(),
@@ -840,9 +876,46 @@ export const upsertUser = mutation({
 /**
  * Update user preferences
  */
+async function applyUserPreferences(
+  ctx: MutationCtx,
+  userId: string,
+  prefs: {
+    soundEnabled?: boolean;
+    hapticsEnabled?: boolean;
+    theme?: string;
+    difficulty?: string;
+    favoriteModule?: string;
+  }
+) {
+  const existing = await ctx.db
+    .query("userPreferences")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .first();
+
+  const prefData = {
+    ...prefs,
+    updatedAt: Date.now(),
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, prefData);
+    return;
+  }
+
+  await ctx.db.insert("userPreferences", {
+    userId,
+    soundEnabled: true,
+    hapticsEnabled: true,
+    theme: "dark",
+    difficulty: "easy",
+    ...prefs,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+}
+
 export const updateUserPreferences = mutation({
   args: {
-    userId: v.string(),
     soundEnabled: v.optional(v.boolean()),
     hapticsEnabled: v.optional(v.boolean()),
     theme: v.optional(v.string()),
@@ -850,41 +923,69 @@ export const updateUserPreferences = mutation({
     favoriteModule: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { userId, ...prefs } = args;
-
-    const existing = await ctx.db
-      .query("userPreferences")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .first();
-
-    const prefData = {
-      ...prefs,
-      updatedAt: Date.now(),
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, prefData);
-    } else {
-      await ctx.db.insert("userPreferences", {
-        userId,
-        soundEnabled: true,
-        hapticsEnabled: true,
-        theme: "dark",
-        difficulty: "easy",
-        ...prefs,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    }
+    const userId = await requireAuthenticatedUserId(ctx);
+    await applyUserPreferences(ctx, userId, args);
   },
 });
 
 /**
  * Update user progress on a level
  */
+async function applyLevelProgress(
+  ctx: MutationCtx,
+  userId: string,
+  args: {
+    appId: string;
+    levelId: string;
+    isUnlocked?: boolean;
+    isCompleted?: boolean;
+    bestScore?: number;
+    attempts?: number;
+    timeSpent?: number;
+    completedAt?: number;
+    hintsUsed?: number;
+    firstAttemptScore?: number;
+  }
+) {
+  const { appId, levelId, ...progress } = args;
+  const existing = await ctx.db
+    .query("userProgress")
+    .withIndex("by_user_level", (q) => q.eq("userId", userId).eq("levelId", levelId))
+    .first();
+
+  const progressData = {
+    ...progress,
+    appId,
+    updatedAt: Date.now(),
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, progressData);
+  } else {
+    await ctx.db.insert("userProgress", {
+      userId,
+      appId,
+      levelId,
+      isUnlocked: false,
+      isCompleted: false,
+      bestScore: 0,
+      attempts: 0,
+      timeSpent: 0,
+      hintsUsed: 0,
+      firstAttemptScore: 0,
+      ...progress,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  }
+
+  if (progress.isCompleted) {
+    await updateUserStreakForActivity(ctx, userId);
+  }
+}
+
 export const updateLevelProgress = mutation({
   args: {
-    userId: v.string(),
     appId: v.string(),
     levelId: v.string(),
     isUnlocked: v.optional(v.boolean()),
@@ -897,49 +998,15 @@ export const updateLevelProgress = mutation({
     firstAttemptScore: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { userId, appId, levelId, ...progress } = args;
-
-    const existing = await ctx.db
-      .query("userProgress")
-      .withIndex("by_user_level", (q) => q.eq("userId", userId).eq("levelId", levelId))
-      .first();
-
-    const progressData = {
-      ...progress,
-      appId,
-      updatedAt: Date.now(),
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, progressData);
-    } else {
-      await ctx.db.insert("userProgress", {
-        userId,
-        appId,
-        levelId,
-        isUnlocked: false,
-        isCompleted: false,
-        bestScore: 0,
-        attempts: 0,
-        timeSpent: 0,
-        hintsUsed: 0,
-        firstAttemptScore: 0,
-        ...progress,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    }
-
-    if (progress.isCompleted) {
-      await updateUserStreakForActivity(ctx, userId);
-    }
+    const userId = await requireAuthenticatedUserId(ctx);
+    await applyLevelProgress(ctx, userId, args);
   },
 });
 
 /**
  * Create a game session
  */
-export const createGameSession = mutation({
+export const createGameSession = internalMutation({
   args: {
     userId: v.string(),
     levelId: v.string(),
@@ -965,7 +1032,7 @@ export const createGameSession = mutation({
 /**
  * Update game session
  */
-export const updateGameSession = mutation({
+export const updateGameSession = internalMutation({
   args: {
     sessionId: v.id("gameSessions"),
     endedAt: v.optional(v.number()),
@@ -985,98 +1052,104 @@ export const updateGameSession = mutation({
 /**
  * Update learning module progress
  */
+async function applyModuleProgress(
+  ctx: MutationCtx,
+  userId: string,
+  args: {
+    moduleId: string;
+    progress: number;
+    completed?: boolean;
+    completedAt?: number;
+  }
+) {
+  const { moduleId, ...progressData } = args;
+  const existing = await ctx.db
+    .query("userModuleProgress")
+    .withIndex("by_user_module", (q) => q.eq("userId", userId).eq("moduleId", moduleId))
+    .first();
+
+  const data = {
+    ...progressData,
+    updatedAt: Date.now(),
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, data);
+    return;
+  }
+
+  await ctx.db.insert("userModuleProgress", {
+    userId,
+    moduleId,
+    completed: false,
+    ...progressData,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+}
+
 export const updateModuleProgress = mutation({
   args: {
-    userId: v.optional(v.string()),
     moduleId: v.string(),
     progress: v.number(),
     completed: v.optional(v.boolean()),
     completedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { userId: providedUserId, moduleId, ...progressData } = args;
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = providedUserId ?? identity?.subject;
-
-    if (!userId) {
-      throw new Error("User must be authenticated or userId must be provided");
-    }
-
-    const existing = await ctx.db
-      .query("userModuleProgress")
-      .withIndex("by_user_module", (q) => q.eq("userId", userId).eq("moduleId", moduleId))
-      .first();
-
-    const data = {
-      ...progressData,
-      updatedAt: Date.now(),
-    };
-
-    if (existing) {
-      await ctx.db.patch(existing._id, data);
-    } else {
-      await ctx.db.insert("userModuleProgress", {
-        userId,
-        moduleId,
-        completed: false,
-        ...progressData,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    }
+    const userId = await requireAuthenticatedUserId(ctx);
+    await applyModuleProgress(ctx, userId, args);
   },
 });
 
 /**
  * Complete a daily quest
  */
+async function completeQuestForUser(
+  ctx: MutationCtx,
+  userId: string,
+  questId: string,
+  score: number
+) {
+  const existing = await ctx.db
+    .query("userQuestCompletions")
+    .withIndex("by_user_quest", (q) => q.eq("userId", userId).eq("questId", questId))
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      completed: true,
+      completedAt: Date.now(),
+      score,
+    });
+  } else {
+    await ctx.db.insert("userQuestCompletions", {
+      userId,
+      questId,
+      completed: true,
+      completedAt: Date.now(),
+      score,
+      createdAt: Date.now(),
+    });
+  }
+
+  await updateUserStreakForActivity(ctx, userId);
+}
+
 export const completeDailyQuest = mutation({
   args: {
-    userId: v.optional(v.string()),
     questId: v.string(),
     score: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { userId, questId, score = 0 } = args;
-    const identity = await ctx.auth.getUserIdentity();
-    const resolvedUserId = userId ?? identity?.subject;
-
-    if (!resolvedUserId) {
-      throw new Error("User must be authenticated");
-    }
-
-    const existing = await ctx.db
-      .query("userQuestCompletions")
-      .withIndex("by_user_quest", (q) => q.eq("userId", resolvedUserId).eq("questId", questId))
-      .first();
-
-    if (existing) {
-      // Update existing completion
-      await ctx.db.patch(existing._id, {
-        completed: true,
-        completedAt: Date.now(),
-        score,
-      });
-    } else {
-      // Create new completion
-      await ctx.db.insert("userQuestCompletions", {
-        userId: resolvedUserId,
-        questId,
-        completed: true,
-        completedAt: Date.now(),
-        score,
-        createdAt: Date.now(),
-      });
-    }
-
-    await updateUserStreakForActivity(ctx, resolvedUserId);
+    const userId = await requireAuthenticatedUserId(ctx);
+    await completeQuestForUser(ctx, userId, args.questId, args.score ?? 0);
   },
 });
 
 /**
  * Unlock achievement for user
  */
-export const unlockAchievement = mutation({
+export const unlockAchievement = internalMutation({
   args: {
     userId: v.string(),
     achievementId: v.string(),
@@ -1103,7 +1176,7 @@ export const unlockAchievement = mutation({
 /**
  * Recalculate global rankings (admin function)
  */
-export const recalculateRankings = mutation({
+export const recalculateRankings = internalMutation({
   args: {},
   handler: async (ctx) => {
     // Get all users ordered by total XP
@@ -1128,7 +1201,7 @@ export const recalculateRankings = mutation({
 /**
  * Create a new level (admin function)
  */
-export const createLevel = mutation({
+export const createLevel = internalMutation({
   args: {
     id: v.string(),
     appId: v.string(),
@@ -1196,7 +1269,7 @@ export const createLevel = mutation({
 /**
  * Update level (admin function)
  */
-export const updateLevel = mutation({
+export const updateLevel = internalMutation({
   args: {
     id: v.string(),
     appId: v.string(),
@@ -1271,7 +1344,7 @@ export const updateLevel = mutation({
 /**
  * Create learning module (admin function)
  */
-export const createLearningModule = mutation({
+export const createLearningModule = internalMutation({
   args: {
     id: v.string(),
     appId: v.string(),
@@ -1308,7 +1381,7 @@ export const createLearningModule = mutation({
 /**
  * Create learning resource (admin function)
  */
-export const createLearningResource = mutation({
+export const createLearningResource = internalMutation({
   args: {
     id: v.string(),
     appId: v.string(),
@@ -1341,7 +1414,7 @@ export const createLearningResource = mutation({
 /**
  * Update learning resource (admin function)
  */
-export const updateLearningResource = mutation({
+export const updateLearningResource = internalMutation({
   args: {
     id: v.string(),
     appId: v.string(),
@@ -1381,7 +1454,7 @@ export const updateLearningResource = mutation({
 /**
  * Create daily quest (admin function)
  */
-export const createDailyQuest = mutation({
+export const createDailyQuest = internalMutation({
   args: {
     id: v.string(),
     appId: v.string(),
@@ -1391,7 +1464,11 @@ export const createDailyQuest = mutation({
     questType: v.union(v.literal("image"), v.literal("code"), v.literal("copywriting")),
     type: v.string(),
     category: v.string(),
-    requirements: v.any(),
+    requirements: v.object({
+      difficulty: v.optional(v.string()),
+      topic: v.optional(v.string()),
+      levelId: v.optional(v.string()),
+    }),
     difficulty: v.string(),
     isActive: v.boolean(),
     expiresAt: v.optional(v.number()),
@@ -1412,7 +1489,7 @@ export const createDailyQuest = mutation({
 /**
  * Generate daily quest pool (one quest per type)
  */
-export const generateDailyQuestPool = mutation({
+export const generateDailyQuestPool = internalMutation({
   args: {
     appId: v.string(),
   },
@@ -1504,15 +1581,9 @@ export const generateDailyQuestPool = mutation({
 export const getOrAssignCurrentQuest = mutation({
   args: {
     appId: v.string(),
-    userId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const resolvedUserId = args.userId ?? identity?.subject;
-
-    if (!resolvedUserId) {
-      throw new Error("User must be authenticated");
-    }
+    const resolvedUserId = await requireAuthenticatedUserId(ctx);
 
     const now = Date.now();
     const assignedDate = getIsoDateString(new Date(now));
@@ -1610,10 +1681,9 @@ export const getOrAssignCurrentQuest = mutation({
   },
 });
 
-/**
- * Create achievement (admin function)
- */
-export const createAchievement = mutation({
+// ===== GENERATED IMAGES STORAGE =====
+
+export const createAchievement = internalMutation({
   args: {
     id: v.string(),
     title: v.string(),
@@ -1634,13 +1704,10 @@ export const createAchievement = mutation({
       updatedAt: Date.now(),
     });
   },
-
 });
 
-// ===== GENERATED IMAGES STORAGE =====
-
 // Generate upload URL for image storage
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = internalMutation({
   args: {},
   handler: async (ctx) => {
     return await ctx.storage.generateUploadUrl();
@@ -1648,7 +1715,7 @@ export const generateUploadUrl = mutation({
 });
 
 // Save generated image metadata after upload
-export const saveGeneratedImage = mutation({
+export const saveGeneratedImage = internalMutation({
   args: {
     userId: v.string(),
     appId: v.string(),

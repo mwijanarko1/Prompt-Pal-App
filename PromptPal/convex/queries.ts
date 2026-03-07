@@ -1,7 +1,20 @@
-import { internalQuery, query } from "./_generated/server";
+import {
+  internalQuery,
+  query,
+  type QueryCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
 
 const getIsoDateString = (date: Date): string => date.toISOString().split("T")[0];
+
+async function requireAuthenticatedUserId(ctx: QueryCtx): Promise<string> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
+  }
+
+  return identity.subject;
+}
 
 function toPublicLevel(level: any) {
   return {
@@ -191,7 +204,7 @@ export const getUserProgress = query({
 });
 
 // Get user learning module progress
-export const getUserModules = query({
+export const getUserModules = internalQuery({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -215,7 +228,7 @@ export const getUserModules = query({
 });
 
 // Get user quest states
-export const getUserQuests = query({
+export const getUserQuests = internalQuery({
   args: {
     userId: v.string(),
     appId: v.string(),
@@ -446,7 +459,7 @@ export const getAnalyticsEvents = query({
 // ===== GAMIFICATION SYSTEM QUERIES =====
 
 // Get user profile
-export const getUser = query({
+export const getUser = internalQuery({
   args: {
     clerkId: v.string(),
   },
@@ -462,13 +475,12 @@ export const getUser = query({
 
 // Get user preferences
 export const getUserPreferences = query({
-  args: {
-    userId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireAuthenticatedUserId(ctx);
     const prefs = await ctx.db
       .query("userPreferences")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
     if (!prefs) {
@@ -492,7 +504,7 @@ export const getUserPreferences = query({
 });
 
 // Get user statistics
-export const getUserStatistics = query({
+export const getUserStatistics = internalQuery({
   args: {
     userId: v.string(),
   },
@@ -568,11 +580,11 @@ export const getMyUserStatistics = query({
 // Get user performance results for profile page
 export const getUserResults = query({
   args: {
-    userId: v.string(),
     appId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { userId, appId } = args;
+    const userId = await requireAuthenticatedUserId(ctx);
+    const { appId } = args;
 
     // Get all completed user progress for this user and app
     const completedProgress = await ctx.db
@@ -737,11 +749,11 @@ export const getLevelEvaluationData = internalQuery({
 // Get user attempts for a specific level
 export const getUserLevelAttempts = query({
   args: {
-    userId: v.string(),
     levelId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { userId, levelId } = args;
+    const userId = await requireAuthenticatedUserId(ctx);
+    const { levelId } = args;
 
     const attempts = await ctx.db
       .query("userLevelAttempts")
@@ -765,7 +777,7 @@ export const getUserLevelAttempts = query({
 });
 
 // Get the next attempt number for a user and level
-export const getNextAttemptNumber = query({
+export const getNextAttemptNumber = internalQuery({
   args: {
     userId: v.string(),
     levelId: v.string(),
@@ -784,7 +796,7 @@ export const getNextAttemptNumber = query({
 });
 
 // Get user progress on all levels
-export const getUserLevelProgress = query({
+export const getUserLevelProgress = internalQuery({
   args: {
     userId: v.string(),
   },
@@ -1019,11 +1031,11 @@ export const getLearningModuleById = query({
 // Get user module progress
 export const getUserModuleProgress = query({
   args: {
-    userId: v.string(),
     moduleId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { userId, moduleId } = args;
+    const userId = await requireAuthenticatedUserId(ctx);
+    const { moduleId } = args;
 
     let query = ctx.db
       .query("userModuleProgress")
@@ -1046,12 +1058,9 @@ export const getUserModuleProgress = query({
 
 // Get active daily quests
 export const getActiveDailyQuests = query({
-  args: {
-    userId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { userId } = args;
-
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireAuthenticatedUserId(ctx);
     const now = Date.now();
     const quests = await ctx.db
       .query("dailyQuests")
@@ -1059,31 +1068,12 @@ export const getActiveDailyQuests = query({
       .filter((q) => q.gt(q.field("expiresAt"), now))
       .collect();
 
-    // If userId provided, include completion status
-    if (userId) {
-      const completions = await ctx.db
-        .query("userQuestCompletions")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect();
+    const completions = await ctx.db
+      .query("userQuestCompletions")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
 
-      const completionMap = new Map(
-        completions.map(c => [c.questId, c])
-      );
-
-      return quests.map(quest => ({
-        id: quest.id,
-        title: quest.title,
-        description: quest.description,
-        xpReward: quest.xpReward,
-        questType: quest.questType,
-        requirements: quest.requirements,
-        difficulty: quest.difficulty,
-        isActive: quest.isActive,
-        expiresAt: quest.expiresAt,
-        completed: completionMap.has(quest.id) ? completionMap.get(quest.id)!.completed : false,
-        completedAt: completionMap.has(quest.id) ? completionMap.get(quest.id)!.completedAt : null,
-      }));
-    }
+    const completionMap = new Map(completions.map((completion) => [completion.questId, completion]));
 
     return quests.map(quest => ({
       id: quest.id,
@@ -1095,8 +1085,8 @@ export const getActiveDailyQuests = query({
       difficulty: quest.difficulty,
       isActive: quest.isActive,
       expiresAt: quest.expiresAt,
-      completed: false,
-      completedAt: null,
+      completed: completionMap.has(quest.id) ? completionMap.get(quest.id)!.completed : false,
+      completedAt: completionMap.has(quest.id) ? completionMap.get(quest.id)!.completedAt : null,
     }));
   },
 });
@@ -1120,15 +1110,9 @@ export const getDailyQuestById = query({
 export const getCurrentQuest = query({
   args: {
     appId: v.string(),
-    userId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    const resolvedUserId = args.userId ?? identity?.subject;
-
-    if (!resolvedUserId) {
-      throw new Error("User must be authenticated");
-    }
+    const resolvedUserId = await requireAuthenticatedUserId(ctx);
 
     const now = Date.now();
     const assignedDate = getIsoDateString(new Date(now));
@@ -1174,6 +1158,33 @@ export const getCurrentQuest = query({
   },
 });
 
+async function listUserAchievements(ctx: QueryCtx, userId: string) {
+  const userAchievements = await ctx.db
+    .query("userAchievements")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+
+  const achievements = [];
+  for (const userAchievement of userAchievements) {
+    const achievement = await ctx.db
+      .query("achievements")
+      .filter((q) => q.eq(q.field("id"), userAchievement.achievementId))
+      .first();
+    if (achievement) {
+      achievements.push({
+        id: achievement.id,
+        title: achievement.title,
+        description: achievement.description,
+        icon: achievement.icon,
+        rarity: achievement.rarity,
+        unlockedAt: userAchievement.unlockedAt,
+      });
+    }
+  }
+
+  return achievements;
+}
+
 // Get all achievements
 export const getAllAchievements = query({
   args: {},
@@ -1211,47 +1222,31 @@ export const getAchievementById = query({
 });
 
 // Get user achievements
-export const getUserAchievements = query({
+export const internalGetUserAchievements = internalQuery({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const userAchievements = await ctx.db
-      .query("userAchievements")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
+    return listUserAchievements(ctx, args.userId);
+  },
+});
 
-    // Get full achievement details
-    const achievements = [];
-    for (const ua of userAchievements) {
-      const achievement = await ctx.db
-        .query("achievements")
-        .filter((q) => q.eq(q.field("id"), ua.achievementId))
-        .first();
-      if (achievement) {
-        achievements.push({
-          id: achievement.id,
-          title: achievement.title,
-          description: achievement.description,
-          icon: achievement.icon,
-          rarity: achievement.rarity,
-          unlockedAt: ua.unlockedAt,
-        });
-      }
-    }
-
-    return achievements;
+export const getUserAchievements = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireAuthenticatedUserId(ctx);
+    return listUserAchievements(ctx, userId);
   },
 });
 
 // Get game sessions for user
 export const getUserGameSessions = query({
   args: {
-    userId: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { userId, limit = 10 } = args;
+    const userId = await requireAuthenticatedUserId(ctx);
+    const { limit = 10 } = args;
 
     const sessions = await ctx.db
       .query("gameSessions")

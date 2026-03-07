@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Input, Card, Badge, ProgressBar, ResultModal } from '@/components/ui';
+import { Button, Input, Card, Badge, ProgressBar, ResultModal, Modal } from '@/components/ui';
 import { getLevelById as getLocalLevelById, fetchLevelsFromApi, getLevelsByModuleId } from '@/features/levels/data';
 import { useGameStore, Level, ChallengeType } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
@@ -17,6 +17,7 @@ import { CodeExecutionView } from '@/features/game/components/CodeExecutionView'
 import type { CodeExecutionResult } from '@/features/game/components/CodeExecutionView';
 import { CopyAnalysisView } from '@/features/game/components/CopyAnalysisView';
 import type { CopyScoringResult } from '@/lib/scoring/copyScoring';
+import { buildQuestHelpContent } from '@/features/game/utils/questHelp';
 
 const { width, height: screenHeight } = Dimensions.get('window');
 
@@ -68,6 +69,7 @@ export default function QuestScreen() {
     const [activeCodeTab, setActiveCodeTab] = useState<'instructions' | 'attempt'>('instructions');
     const [activeCopyTab, setActiveCopyTab] = useState<'brief' | 'attempt'>('brief');
     const [showResult, setShowResult] = useState(false);
+    const [showHelpModal, setShowHelpModal] = useState(false);
     const [lastScore, setLastScore] = useState<number | null>(null);
     const [feedback, setFeedback] = useState<string[]>([]);
     const [matchedKeywords, setMatchedKeywords] = useState<string[]>([]);
@@ -90,6 +92,10 @@ export default function QuestScreen() {
     const copyVisibleBrief = useMemo(
         () => [level?.briefTitle, level?.description].filter(Boolean).join('\n\n'),
         [level?.briefTitle, level?.description]
+    );
+    const helpContent = useMemo(
+        () => (level ? buildQuestHelpContent(level, visibleHints) : null),
+        [level, visibleHints]
     );
 
     // Hint system state
@@ -194,7 +200,7 @@ export default function QuestScreen() {
                     // 4. Fetch attempt history
                     try {
                         const attempts = user?.id
-                            ? await convexHttpClient.query(api.queries.getUserLevelAttempts, { userId: user.id, levelId: levelId })
+                            ? await convexHttpClient.query(api.queries.getUserLevelAttempts, { levelId })
                             : [];
                         setAttemptHistory(attempts);
                     } catch (attemptsError) {
@@ -285,6 +291,25 @@ export default function QuestScreen() {
         }
     }, [level, prompt, isLoadingHint, hintCooldown]);
 
+    const openHelpModal = useCallback(() => {
+        Keyboard.dismiss();
+        setShowHelpModal(true);
+    }, []);
+
+    const openReferenceTab = useCallback(() => {
+        if (!level) return;
+
+        if (level.type === 'code') {
+            setActiveCodeTab('instructions');
+        } else if (level.type === 'copywriting') {
+            setActiveCopyTab('brief');
+        } else {
+            setActiveTab('target');
+        }
+
+        setShowHelpModal(false);
+    }, [level]);
+
     if (isLoading) {
         return (
             <SafeAreaView className="flex-1 bg-background items-center justify-center">
@@ -357,7 +382,6 @@ export default function QuestScreen() {
                 try {
                     if (user?.id) {
                         await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
-                            userId: user.id,
                             levelId: level.id,
                             score: finalScore,
                             feedback: evaluation.feedback || [],
@@ -366,7 +390,6 @@ export default function QuestScreen() {
                         });
 
                         const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
-                            userId: user.id,
                             levelId: level.id,
                         });
                         setAttemptHistory(attempts || []);
@@ -378,7 +401,6 @@ export default function QuestScreen() {
                 if (finalScore >= level.passingScore) {
                     if (user?.id && quest) {
                         await convexHttpClient.mutation(api.mutations.completeDailyQuest, {
-                            userId: user.id,
                             questId: quest.id,
                             score: finalScore,
                         });
@@ -469,7 +491,6 @@ export default function QuestScreen() {
                         }));
 
                         await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
-                            userId: user.id,
                             levelId: level.id,
                             score: finalScore,
                             feedback: evaluation.feedback || [],
@@ -479,7 +500,6 @@ export default function QuestScreen() {
                         });
 
                         const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
-                            userId: user.id,
                             levelId: level.id,
                         });
                         setAttemptHistory(attempts || []);
@@ -491,7 +511,6 @@ export default function QuestScreen() {
                 if (userPassed) {
                     if (user?.id && quest) {
                         await convexHttpClient.mutation(api.mutations.completeDailyQuest, {
-                            userId: user.id,
                             questId: quest.id,
                             score: finalScore,
                         });
@@ -550,7 +569,6 @@ export default function QuestScreen() {
                             .filter((label): label is string => label !== undefined);
 
                         await convexHttpClient.mutation(api.mutations.saveUserLevelAttempt, {
-                            userId: user.id,
                             levelId: level.id,
                             score: finalScore,
                             feedback: copyScoringResult.feedback || [],
@@ -559,7 +577,6 @@ export default function QuestScreen() {
                         });
 
                         const attempts = await convexHttpClient.query(api.queries.getUserLevelAttempts, {
-                            userId: user.id,
                             levelId: level.id,
                         });
                         setAttemptHistory(attempts || []);
@@ -571,7 +588,6 @@ export default function QuestScreen() {
                 if (finalScore >= level.passingScore) {
                     if (user?.id && quest) {
                         await convexHttpClient.mutation(api.mutations.completeDailyQuest, {
-                            userId: user.id,
                             questId: quest.id,
                             score: finalScore,
                         });
@@ -593,7 +609,7 @@ export default function QuestScreen() {
             } else if (error.response?.status === 403) {
                 Alert.alert('Content Policy', 'Your prompt may violate content policies. Please try a different prompt.');
             } else {
-                Alert.alert('Error', 'Something went wrong. Please try again.');
+                Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
             }
         } finally {
             setIsGenerating(false);
@@ -617,7 +633,13 @@ export default function QuestScreen() {
                         </Text>
                     </View>
 
-                    <TouchableOpacity className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant">
+                    <TouchableOpacity
+                        onPress={openHelpModal}
+                        disabled={!helpContent}
+                        className={`w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant ${helpContent ? '' : 'opacity-40'}`}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open challenge help"
+                    >
                         <Text className="text-onSurface text-xl font-bold">?</Text>
                     </TouchableOpacity>
                 </View>
@@ -1230,6 +1252,87 @@ export default function QuestScreen() {
                 }}
                 onClose={() => setShowResult(false)}
             />
+
+            {helpContent && (
+                <Modal
+                    visible={showHelpModal}
+                    onClose={() => setShowHelpModal(false)}
+                    size="md"
+                >
+                    <View className="rounded-[28px] overflow-hidden bg-surface">
+                        <View className="flex-row items-start justify-between mb-5">
+                            <View className="flex-1 pr-4">
+                                <Text className="text-primary text-[10px] font-black uppercase tracking-[2.5px] mb-2">
+                                    {helpContent.eyebrow}
+                                </Text>
+                                <Text className="text-onSurface text-[30px] font-black tracking-tight">
+                                    {helpContent.headline}
+                                </Text>
+                                <Text className="text-onSurfaceVariant text-sm mt-2 leading-5">
+                                    {helpContent.summary}
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => setShowHelpModal(false)}
+                                className="w-11 h-11 rounded-full bg-surfaceVariant/40 items-center justify-center"
+                                accessibilityRole="button"
+                                accessibilityLabel="Close challenge help"
+                            >
+                                <Ionicons name="close" size={22} color="#6B7280" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View className="flex-row items-center mb-5">
+                            <Badge
+                                label={`${level.passingScore}% to pass`}
+                                variant="primary"
+                                className="bg-primary/15 border-0 px-3 py-1 mr-2"
+                            />
+                            <Badge
+                                label={level.difficulty}
+                                variant="surface"
+                                className="bg-surfaceVariant border-0 px-3 py-1"
+                            />
+                        </View>
+
+                        <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={{ paddingBottom: 8 }}
+                        >
+                            {helpContent.sections.map((section) => (
+                                <View
+                                    key={section.title}
+                                    className="rounded-[24px] bg-surfaceVariant/25 border border-outline/10 p-4 mb-4"
+                                >
+                                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[2px] mb-3">
+                                        {section.title}
+                                    </Text>
+                                    {section.items.map((item, index) => (
+                                        <View
+                                            key={`${section.title}-${index}`}
+                                            className={`flex-row ${index === section.items.length - 1 ? '' : 'mb-2'}`}
+                                        >
+                                            <Text className="text-primary text-sm mr-2">•</Text>
+                                            <Text className="text-onSurface text-sm leading-6 flex-1">{item}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            ))}
+                        </ScrollView>
+
+                        <View className="mt-2">
+                            <Button
+                                onPress={openReferenceTab}
+                                variant="outline"
+                                fullWidth
+                                className="rounded-full py-4"
+                            >
+                                View {helpContent.referenceLabel}
+                            </Button>
+                        </View>
+                    </View>
+                </Modal>
+            )}
         </View>
     );
 }

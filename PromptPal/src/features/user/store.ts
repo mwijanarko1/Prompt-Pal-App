@@ -333,9 +333,7 @@ export const useUserProgressStore = create<UserProgress>()(
               appId: "prompt-pal"
             }),
             userId
-              ? convexHttpClient.query(api.queries.getUserModuleProgress, {
-                userId,
-              })
+              ? convexHttpClient.query(api.queries.getUserModuleProgress, {})
               : Promise.resolve([]),
           ]);
 
@@ -373,7 +371,6 @@ export const useUserProgressStore = create<UserProgress>()(
           // Load current quest
           const quest = await convexHttpClient.mutation(api.mutations.getOrAssignCurrentQuest, {
             appId: "prompt-pal",
-            ...(userId ? { userId } : {}),
           });
           if (quest) {
             set({ currentQuest: quest });
@@ -417,9 +414,7 @@ export const useUserProgressStore = create<UserProgress>()(
                   appId: "prompt-pal"
                 }),
                 userId
-                  ? convexHttpClient.query(api.queries.getUserModuleProgress, {
-                    userId,
-                  })
+                  ? convexHttpClient.query(api.queries.getUserModuleProgress, {})
                   : Promise.resolve([]),
               ]);
 
@@ -454,7 +449,6 @@ export const useUserProgressStore = create<UserProgress>()(
               // Load current quest
               const quest = await convexHttpClient.mutation(api.mutations.getOrAssignCurrentQuest, {
                 appId: "prompt-pal",
-                ...(userId ? { userId } : {}),
               });
               if (quest) {
                 set({ currentQuest: quest });

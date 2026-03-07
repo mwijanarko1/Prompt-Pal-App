@@ -1,0 +1,15 @@
+export const ONBOARDING_COLORS = {
+  background: '#0B1220',
+  surface: 'rgba(255, 255, 255, 0.04)',
+  surfaceBorder: 'rgba(255, 255, 255, 0.08)',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#CBD5E1',
+  textMuted: '#94A3B8',
+  textSubtle: '#64748B',
+  accent: '#FF6B00',
+  accentWarm: '#F59E0B',
+  success: '#22C55E',
+  info: '#4151FF',
+  teal: '#03DAC6',
+  violet: '#BB86FC',
+} as const;

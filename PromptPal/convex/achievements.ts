@@ -1,12 +1,12 @@
-import { action } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 /**
  * Check and unlock achievements for a user
  * This should be called after significant user actions (level completion, XP gain, etc.)
  */
-export const checkAndUnlockAchievements = action({
+export const checkAndUnlockAchievements = internalAction({
   args: {
     userId: v.string(),
     triggerType: v.string(), // 'level_completed', 'xp_gained', 'streak_updated', etc.
@@ -22,14 +22,14 @@ export const checkAndUnlockAchievements = action({
     const { userId, triggerType, triggerData } = args;
 
     // Get user statistics
-    const userStats = await ctx.runQuery(api.queries.getUserStatistics, { userId });
+    const userStats = await ctx.runQuery(internal.queries.getUserStatistics, { userId });
     if (!userStats) return [];
 
     // Get all achievements
     const allAchievements: any = await ctx.runQuery(api.queries.getAllAchievements, {});
 
     // Get user's current achievements
-    const userAchievements: any = await ctx.runQuery(api.queries.getUserAchievements, { userId });
+    const userAchievements: any = await ctx.runQuery(internal.queries.internalGetUserAchievements, { userId });
     const unlockedAchievementIds = new Set(userAchievements.map((ua: any) => ua.id));
 
     const newlyUnlockedAchievements = [];
@@ -71,7 +71,7 @@ export const checkAndUnlockAchievements = action({
       }
 
       if (shouldUnlock) {
-        await ctx.runMutation(api.mutations.unlockAchievement, {
+        await ctx.runMutation(internal.mutations.unlockAchievement, {
           userId,
           achievementId: achievement.id,
         });
@@ -86,7 +86,7 @@ export const checkAndUnlockAchievements = action({
 /**
  * Recalculate all achievements for a user (useful for data fixes)
  */
-export const recalculateUserAchievements = action({
+export const recalculateUserAchievements = internalAction({
   args: {
     userId: v.string(),
   },
@@ -94,14 +94,14 @@ export const recalculateUserAchievements = action({
     const { userId } = args;
 
     // Get user stats
-    const userStats = await ctx.runQuery(api.queries.getUserStatistics, { userId });
+    const userStats = await ctx.runQuery(internal.queries.getUserStatistics, { userId });
     if (!userStats) return;
 
     // Get all user level progress for detailed checks
-    const levelProgress = await ctx.runQuery(api.queries.getUserLevelProgress, { userId });
+    const levelProgress = await ctx.runQuery(internal.queries.getUserLevelProgress, { userId });
 
     // Clear existing achievements (except manually granted ones)
-    const existingAchievements = await ctx.runQuery(api.queries.getUserAchievements, { userId });
+    const existingAchievements = await ctx.runQuery(internal.queries.internalGetUserAchievements, { userId });
     // Note: In a real implementation, you might want to mark achievements as "recalculated"
 
     // Check each achievement type
@@ -137,7 +137,7 @@ export const recalculateUserAchievements = action({
       }
 
       if (shouldUnlock) {
-        await ctx.runMutation(api.mutations.unlockAchievement, {
+        await ctx.runMutation(internal.mutations.unlockAchievement, {
           userId,
           achievementId: achievement.id,
         });
