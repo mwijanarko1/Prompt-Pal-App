@@ -162,7 +162,7 @@ Users earn XP, maintain daily streaks, complete quests, and compete on global le
 
 ### Production Builds (TestFlight / App Store)
 
-Local `.env` files are not bundled into EAS builds. Configure environment variables via EAS Secrets before building. See [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for setup instructions.
+Local `.env` files are not bundled into EAS builds. Configure environment variables via EAS Secrets before building. See [docs/operations/DEPLOYMENT.md](../docs/operations/DEPLOYMENT.md) for setup instructions.
 
 ---
 
@@ -371,10 +371,10 @@ Track progress with XP, streaks, and unlockable achievements:
 ## 📚 Documentation
 
 ### Project Documentation
-- **[February 9 Progress Report](docs/feb-9-report.md)** - Latest project status (70% complete)
-- **[Convex Migration Guide](docs/CONVEX_MIGRATION.md)** - Complete migration documentation
+- **[February 9 Progress Report](docs/reports/feb-9-report.md)** - Latest project status (70% complete)
+- **[Convex Migration Guide](docs/operations/CONVEX_MIGRATION.md)** - Complete migration documentation
 - **[Codebase Map](docs/CODEBASE_MAP.md)** - Architecture and navigation guide
-- **[API Documentation](docs/API_DOCS.md)** - Backend API reference
+- **[API Documentation](docs/reference/API_DOCS.md)** - Backend API reference
 - **[Development Phases](docs/phases/)** - Sprint planning and milestones
 
 ### External Resources

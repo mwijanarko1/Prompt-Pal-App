@@ -1,4 +1,4 @@
-import React, { useCallback, memo, useMemo, useState } from 'react';
+import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,15 +7,14 @@ import { useRouter } from 'expo-router';
 import { FlashList } from "@shopify/flash-list";
 import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useClerk, useUser } from '@clerk/clerk-expo';
-import { useQuery } from 'convex/react';
-import { useUsage } from '@/lib/usage';
-import { convexHttpClient } from '@/lib/convex-client';
+import { useAuth, useClerk, useUser } from '@clerk/clerk-expo';
+import { convexHttpClient, refreshAuth } from '@/lib/convex-client';
 import { useUserProgressStore } from '@/features/user/store';
 import { useOnboardingStore } from '@/features/onboarding/store';
 import { api } from '../../../convex/_generated/api.js';
 import Svg, { Circle } from 'react-native-svg';
 import { StatCard } from '@/components/ui';
+import type { UsageStats } from '@/lib/usage';
 
 const { width } = Dimensions.get('window');
 
@@ -115,6 +114,7 @@ const AchievementBadge = memo(function AchievementBadge({ icon, label, color, is
 
 export default function ProfileScreen() {
   const { user } = useUser();
+  const { isLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -122,13 +122,84 @@ export default function ProfileScreen() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const { level } = useUserProgressStore();
+  const canQueryProfile = isLoaded && isSignedIn;
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [userResults, setUserResults] = useState<{ taskResults: Array<{ score?: number }> }>({ taskResults: [] });
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
 
-  // Convex Queries
-  const achievements = useQuery(api.queries.getUserAchievements, user?.id ? {} : "skip");
-  const userResults = useQuery(api.queries.getUserResults, user?.id ? { appId: "prompt-pal" } : "skip");
-  const usage = useUsage();
+  useEffect(() => {
+    if (!canQueryProfile) {
+      setAchievements([]);
+      setUserResults({ taskResults: [] });
+      setUsage(null);
+      setIsProfileLoading(true);
+      return;
+    }
 
-  const isLoading = achievements === undefined || userResults === undefined || usage === null;
+    let isCancelled = false;
+
+    const loadProfileData = async () => {
+      setIsProfileLoading(true);
+
+      try {
+        await refreshAuth();
+      } catch {
+        // Continue with best-effort Convex queries.
+      }
+
+      try {
+        const [nextAchievements, nextResults, nextUsage] = await Promise.all([
+          convexHttpClient.query(api.queries.getUserAchievements, {}),
+          convexHttpClient.query(api.queries.getUserResults, { appId: "prompt-pal" }),
+          convexHttpClient.query(api.queries.getUserUsage, { appId: "prompt-pal" }),
+        ]);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setAchievements(nextAchievements ?? []);
+        setUserResults(nextResults ?? { taskResults: [] });
+        setUsage(nextUsage ?? null);
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        console.error('Failed to load profile data:', error);
+        setAchievements([]);
+        setUserResults({ taskResults: [] });
+        setUsage({
+          tier: 'free',
+          used: {
+            textCalls: 0,
+            imageCalls: 0,
+            audioSummaries: 0,
+          },
+          limits: {
+            textCalls: 0,
+            imageCalls: 0,
+            audioSummaries: 0,
+          },
+          periodStart: Date.now(),
+          periodEnd: Date.now(),
+        });
+      } finally {
+        if (!isCancelled) {
+          setIsProfileLoading(false);
+        }
+      }
+    };
+
+    void loadProfileData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [canQueryProfile]);
+
+  const isLoading = !isLoaded || isProfileLoading || usage === null;
 
   const totalPrompts = userResults?.taskResults?.length || 0;
   const avgAccuracy = useMemo(() => {

@@ -16,6 +16,11 @@ async function requireAuthenticatedUserId(ctx: QueryCtx): Promise<string> {
   return identity.subject;
 }
 
+async function getAuthenticatedUserId(ctx: QueryCtx): Promise<string | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  return identity?.subject ?? null;
+}
+
 function toPublicLevel(level: any) {
   return {
     id: level.id,
@@ -54,13 +59,6 @@ export const getUserUsage = query({
   },
   handler: async (ctx, args) => {
     const { appId } = args;
-    
-    // Get user ID from auth context (Clerk JWT)
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-    const userId = identity.subject;
 
     // Get app configuration
     const app = await ctx.db
@@ -89,6 +87,21 @@ export const getUserUsage = query({
           imageCalls: 50,
           audioSummaries: 0,
         },
+        periodStart: now,
+        periodEnd: now + oneMonthMs,
+      };
+    }
+
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return {
+        tier: "free" as const,
+        used: {
+          textCalls: 0,
+          imageCalls: 0,
+          audioSummaries: 0,
+        },
+        limits: app.freeLimits,
         periodStart: now,
         periodEnd: now + oneMonthMs,
       };
@@ -477,7 +490,16 @@ export const getUser = internalQuery({
 export const getUserPreferences = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await requireAuthenticatedUserId(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return {
+        soundEnabled: true,
+        hapticsEnabled: true,
+        theme: "dark",
+        difficulty: "easy",
+        favoriteModule: null,
+      };
+    }
     const prefs = await ctx.db
       .query("userPreferences")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -542,15 +564,22 @@ export const getUserStatistics = internalQuery({
 export const getMyUserStatistics = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-
-    if (!identity) {
-      throw new Error("User must be authenticated");
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return {
+        totalXp: 0,
+        currentLevel: 1,
+        currentStreak: 0,
+        longestStreak: 0,
+        lastActivityDate: null,
+        globalRank: 0,
+        points: 0,
+      };
     }
 
     const stats = await ctx.db
       .query("userStatistics")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
     if (!stats) {
@@ -583,7 +612,10 @@ export const getUserResults = query({
     appId: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireAuthenticatedUserId(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return { taskResults: [] };
+    }
     const { appId } = args;
 
     // Get all completed user progress for this user and app
@@ -752,7 +784,10 @@ export const getUserLevelAttempts = query({
     levelId: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await requireAuthenticatedUserId(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     const { levelId } = args;
 
     const attempts = await ctx.db
@@ -1034,7 +1069,10 @@ export const getUserModuleProgress = query({
     moduleId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await requireAuthenticatedUserId(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     const { moduleId } = args;
 
     let query = ctx.db
@@ -1060,7 +1098,10 @@ export const getUserModuleProgress = query({
 export const getActiveDailyQuests = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await requireAuthenticatedUserId(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     const now = Date.now();
     const quests = await ctx.db
       .query("dailyQuests")
@@ -1112,7 +1153,10 @@ export const getCurrentQuest = query({
     appId: v.string(),
   },
   handler: async (ctx, args) => {
-    const resolvedUserId = await requireAuthenticatedUserId(ctx);
+    const resolvedUserId = await getAuthenticatedUserId(ctx);
+    if (!resolvedUserId) {
+      return null;
+    }
 
     const now = Date.now();
     const assignedDate = getIsoDateString(new Date(now));
@@ -1234,7 +1278,10 @@ export const internalGetUserAchievements = internalQuery({
 export const getUserAchievements = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await requireAuthenticatedUserId(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     return listUserAchievements(ctx, userId);
   },
 });
@@ -1245,7 +1292,10 @@ export const getUserGameSessions = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const userId = await requireAuthenticatedUserId(ctx);
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     const { limit = 10 } = args;
 
     const sessions = await ctx.db

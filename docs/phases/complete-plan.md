@@ -285,9 +285,9 @@ Users read marketing briefs and write prompts to generate persuasive copy. The s
 
 ## Documentation
 
-- **PRD**: `docs/prd.md` - Product Requirements Document
+- **PRD**: `docs/plans/prd.md` - Product Requirements Document
 - **Codebase Map**: `docs/CODEBASE_MAP.md` - Architecture overview
-- **API Docs**: `docs/API_DOCS.md` - Backend API documentation
+- **API Docs**: `docs/reference/API_DOCS.md` - Backend API documentation
 - **Phase Plans**: `docs/phases/phase-1.md` through `phase-6.md`
 - **Scoring README**: `PromptPal/src/lib/scoring/README.md`
 

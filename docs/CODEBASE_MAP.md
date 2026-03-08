@@ -40,7 +40,7 @@ graph TB
 ## Directory Structure
 
 - `PromptPal/`: Main React Native + Expo app
-- `docs/`: Project-level documentation (this map, plans, reports)
+- `docs/`: Project-level documentation (see [docs/README.md](README.md)) — CODEBASE_MAP, plans/, phases/, reports/, operations/, reference/, sessions/
 - `tasks/`: Work tracking and lessons learned
 - `AGENTS.md`: Agent instructions
 - `README.md`: Workspace overview
