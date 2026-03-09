@@ -3,6 +3,9 @@
  * Teaches prompt engineering for AI-assisted copy.
  * Uses llm_judge grading with custom criteria per lesson.
  * IDs: copywriting-1-easy through copywriting-15-hard (matches legacy slug format)
+ *
+ * IMPORTANT: Never change lesson IDs. User progress (userProgress table) is keyed by levelId.
+ * Changing instruction, title, grading, hints, etc. is safe—only ID changes would orphan progress.
  */
 
 const COPY_IDS = [
@@ -15,8 +18,8 @@ const COPY_IDS = [
 export const copywritingLessons = [
   {
     id: COPY_IDS[0],
-    title: "Kill the default voice",
-    instruction: "Write a one-sentence tagline for a coffee brand.",
+    title: "Make the tagline specific to one brand",
+    instruction: "Your task: get AI to produce a one-sentence tagline for the coffee brand below. Use the context (brand, audience, tone) to craft your own prompt—don't copy the instruction or context verbatim.",
     hint: "If your prompt just says 'write a tagline for a coffee brand,' AI will write something generic. Think about who drinks this coffee, what makes it different, and what feeling it should leave.",
     starterContext: {
       brand: "Blackout Coffee Co.",
@@ -48,7 +51,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
+      passingCondition: "Both required criteria (not_generic and no_banned_words) pass, and total weight is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -64,9 +67,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[1],
-    title: "Write a voice brief",
+    title: "Include a voice brief in your prompt",
     instruction:
-      "This skincare brand has a distinct personality. Write a prompt that gives AI enough of a voice brief to write in that personality, then use it to generate three Instagram captions.",
+      "Your task: get AI to produce three Instagram captions for the skincare brand below. Craft a prompt that includes a voice brief (how the brand talks, what it never says) and asks for the captions. Use your own words.",
     hint: "A voice brief isn't just 'be friendly.' It describes how the brand talks, what it never says, who it's talking to, and what it sounds like in real life.",
     starterContext: {
       brand: "Glow Theory",
@@ -104,7 +107,7 @@ export const copywritingLessons = [
           required: true,
         },
       ],
-      passingCondition: "All required criteria pass.",
+      passingCondition: "All three required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -122,9 +125,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[2],
-    title: "Ban the AI words",
+    title: "Ban specific words in your prompt",
     instruction:
-      "Generate a product description for a standing desk. Your prompt must explicitly ban specific words and phrases before AI writes a single word.",
+      "Your task: get AI to write a product description for the standing desk below. Craft a prompt that bans at least four words or phrases AI tends to overuse—and use your own list, don't copy examples.",
     hint: "Think about which words AI always reaches for when describing a product like this. Then ban them in the prompt before it gets the chance.",
     starterContext: {
       product: "The Frame Desk",
@@ -160,7 +163,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
+      passingCondition: "Both required criteria (prompt_contains_banned_list and output_contains_no_banned_words) pass, and total weight is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -178,9 +181,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[3],
-    title: "Read level and register",
+    title: "Match reading level and register to the audience",
     instruction:
-      "This email is written for a general consumer audience but it sounds like it was written for academics. Reprompt AI to rewrite it at the right level.",
+      "Your task: get AI to rewrite the email below for the target audience. Craft a prompt that specifies who the reader is and what register to use. Use your own words.",
     hint: "Don't just say 'make it simpler.' Tell AI the exact reading level, who the reader is, and what they should feel after reading it.",
     starterContext: {
       originalEmail:
@@ -216,7 +219,7 @@ export const copywritingLessons = [
           required: true,
         },
       ],
-      passingCondition: "All required criteria pass.",
+      passingCondition: "All three required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -234,9 +237,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[4],
-    title: "Give it a real opinion",
+    title: "Give AI a specific opinion to argue",
     instruction:
-      "Write a LinkedIn post about remote work. Your prompt must give AI a specific, opinionated take to argue, not just a topic to write about.",
+      "Your task: get AI to write a LinkedIn post about remote work. Craft a prompt that gives it a specific, arguable position to defend—use the starter context but put it in your own words.",
     hint: "AI without an opinion writes 'remote work has pros and cons.' Give it a real position to defend and a reason why.",
     starterContext: {
       author:
@@ -273,7 +276,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
+      passingCondition: "Both required criteria (prompt_contains_specific_opinion and post_takes_a_stand) pass, and total weight is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -291,9 +294,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[5],
-    title: "Prompt a framework",
+    title: "Fill a framework with specific content",
     instruction:
-      "Write a sales email for a project management tool using the PAS framework. Your prompt must tell AI what PAS is and map the product's specific problem, agitation, and solution before asking it to write.",
+      "Your task: get AI to write a sales email for the project management tool below using PAS. Craft a prompt that explains PAS and supplies specific problem, agitation, and solution from the context—in your own words.",
     hint: "Don't just say 'use PAS.' Give AI the actual content for each section so it fills the framework with real specifics, not placeholders.",
     starterContext: {
       product: "Stackr, a project management tool for small agencies",
@@ -333,7 +336,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
+      passingCondition: "Both required criteria (prompt_maps_pas_content and email_follows_pas_structure) pass, and total weight is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -351,9 +354,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[6],
-    title: "Vary the rhythm",
+    title: "Vary sentence length and rhythm",
     instruction:
-      "This paragraph reads like it was written by a machine. Reprompt AI to rewrite it with varied sentence length and rhythm.",
+      "Your task: get AI to rewrite the paragraph below with varied sentence length and rhythm. Craft a prompt that specifies where short, punchy sentences should appear. Use your own words.",
     hint: "Don't just say 'vary the sentences.' Tell AI specifically to mix very short sentences with longer ones, and tell it where the punchy short ones should land.",
     starterContext: {
       originalParagraph:
@@ -389,7 +392,7 @@ export const copywritingLessons = [
           required: true,
         },
       ],
-      passingCondition: "All required criteria pass.",
+      passingCondition: "All three required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -407,9 +410,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[7],
-    title: "Make it emotional without being manipulative",
+    title: "Name the target emotion and how to get there",
     instruction:
-      "Write a fundraising appeal for a children's literacy nonprofit. Your prompt must specify the exact emotion it should produce in the reader and how it should get there without guilt-tripping.",
+      "Your task: get AI to write a fundraising appeal for the nonprofit below. Craft a prompt that names the exact emotion you want and how to get there without guilt-tripping. Use your own words.",
     hint: "There's a difference between making someone feel hopeful and making them feel guilty. Tell AI which one you're going for and how to get there.",
     starterContext: {
       organization:
@@ -448,7 +451,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
+      passingCondition: "Both required criteria (prompt_names_target_emotion and copy_feels_hopeful_not_guilty) pass, and total weight is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -466,9 +469,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[8],
-    title: "Match a real writing sample",
+    title: "Include a writing sample and point at style elements",
     instruction:
-      "Paste in a sample of real writing from a brand or person. Then prompt AI to write a new piece in that exact style without copying the content.",
+      "Your task: paste a writing sample (100+ words) and get AI to write a product announcement in that style. Craft a prompt that points at specific style elements to replicate—sentence structure, punctuation, etc. Use your own words.",
     hint: "Point AI at specific things in the sample: the sentence structure, the punctuation habits, the vocabulary level, and how the writer opens and closes ideas.",
     starterContext: {
       task: "Write a product announcement post in the style of the sample the user provides",
@@ -505,7 +508,7 @@ export const copywritingLessons = [
           required: true,
         },
       ],
-      passingCondition: "All required criteria pass.",
+      passingCondition: "All three required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -523,9 +526,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[9],
-    title: "Inject controlled imperfection",
+    title: "Add one deliberate stylistic imperfection",
     instruction:
-      "This homepage headline is technically correct but sounds robotic. Reprompt AI to rewrite it with one natural imperfection that makes it sound like a person wrote it.",
+      "Your task: get AI to rewrite the headline below with one deliberate stylistic imperfection (fragment, aside, or interruption). Craft a prompt that names the type and where it should go. Use your own words.",
     hint: "Real writers use fragments, interruptions, run-ons, and asides. Tell AI to add one of these deliberately and tell it where.",
     starterContext: {
       originalHeadline:
@@ -561,7 +564,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
+      passingCondition: "Both required criteria (prompt_requests_specific_imperfection and output_contains_deliberate_imperfection) pass, and total weight is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -579,9 +582,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[10],
-    title: "Write for the channel",
+    title: "Adapt one message for three channels",
     instruction:
-      "You have one core message: this budgeting app helps people stop living paycheck to paycheck. Write it for three different channels in one prompt, and make sure each version follows that channel's rules.",
+      "Your task: get AI to adapt the core message below for three channels—Tweet (280 chars), Google ad headline (30 chars), email subject (50 chars). Craft a prompt that spells out the rules for each. Use your own words.",
     hint: "A tweet, a Google ad headline, and an email subject line all have different length limits, different reader intents, and different tones. Tell AI all three sets of rules before it writes.",
     starterContext: {
       coreMessage:
@@ -631,7 +634,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
+      passingCondition: "Both required criteria (prompt_specifies_rules_per_channel and each_version_fits_its_channel) pass, and total weight is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -649,9 +652,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[11],
-    title: "Strip the em dashes and transitions",
+    title: "Remove em dashes and formulaic transitions",
     instruction:
-      "This blog intro is full of AI tells. Reprompt AI to rewrite it with no em dashes, no formulaic transitions, and no sentences that wrap up too neatly.",
+      "Your task: get AI to rewrite the blog intro below and strip AI tells. Craft a prompt that lists specific patterns to remove—em dashes, formulaic transitions, neat wrap-ups. Use your own words.",
     hint: "List every specific pattern you want removed. Then tell AI what to replace them with.",
     starterContext: {
       originalIntro:
@@ -687,7 +690,7 @@ export const copywritingLessons = [
           required: true,
         },
       ],
-      passingCondition: "All required criteria pass.",
+      passingCondition: "All three required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -705,9 +708,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[12],
-    title: "Make a statistic feel human",
+    title: "Attach a human face to a statistic",
     instruction:
-      "This copy uses a compelling statistic but it lands flat. Reprompt AI to rewrite it so the statistic hits emotionally without losing its credibility.",
+      "Your task: get AI to rewrite the sentence below so the 78% statistic lands emotionally. Craft a prompt that tells it to attach a human detail or consequence to the number. Preserve the statistic. Use your own words.",
     hint: "A statistic on its own is just a number. Tell AI to attach a human face, a moment, or a consequence to it before or after it appears.",
     starterContext: {
       originalSentence:
@@ -744,7 +747,7 @@ export const copywritingLessons = [
           required: true,
         },
       ],
-      passingCondition: "All required criteria pass.",
+      passingCondition: "All three required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -762,9 +765,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[13],
-    title: "Audit the output before you ship it",
+    title: "Audit copy for AI tells and rewrite failures",
     instruction:
-      "AI just wrote this landing page section. Before you'd ship it, prompt AI to audit it for every signal that gives away it was AI-written.",
+      "Your task: get AI to audit the landing page copy below for AI tells and rewrite what fails. Craft a prompt with a specific checklist (banned words, em dashes, rhythm, hedging, CTAs). Use your own words.",
     hint: "Give AI a specific checklist to run against the copy, not just 'does this sound human?' The checklist should cover banned words, em dashes, uniform sentence length, hedging language, and generic CTAs.",
     starterContext: {
       generatedCopy:
@@ -799,7 +802,7 @@ export const copywritingLessons = [
           required: true,
         },
       ],
-      passingCondition: "All required criteria pass.",
+      passingCondition: "All three required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
     failState: {
@@ -817,9 +820,9 @@ export const copywritingLessons = [
   },
   {
     id: COPY_IDS[14],
-    title: "Write a full campaign from a brief",
+    title: "Produce a full campaign from one prompt",
     instruction:
-      "You have a product brief. Write a single prompt that produces a complete campaign: a landing page headline, a subheadline, a 3-sentence product description, an email subject line, and a CTA. Every piece must sound like it came from the same human writer.",
+      "Your task: get AI to produce a full campaign from the brief below—headline, subheadline, 3-sentence description, email subject, and CTA. Craft one prompt that sets voice, audience, banned elements, and format for each. Use your own words.",
     hint: "Your prompt needs to do everything at once: set the voice, ban the AI tells, specify the emotion, name the audience, and define the format for each asset. Nothing can be left for AI to guess.",
     starterContext: {
       brand: "Drift",
@@ -876,7 +879,7 @@ export const copywritingLessons = [
           required: false,
         },
       ],
-      passingCondition: "All required criteria pass and total weight score is at least 7 out of 8.",
+      passingCondition: "All four required criteria pass, and total weight is at least 7 out of 8.",
       perfectScore: "All five criteria pass.",
     },
     failState: {

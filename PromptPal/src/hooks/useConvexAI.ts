@@ -1,5 +1,6 @@
 import { useAction } from "convex/react";
 import { api } from "../../convex/_generated/api.js";
+import { isAppAIErrorData } from "@/lib/aiErrors";
 
 export function useConvexAI() {
   const generateTextAction = useAction(api.ai.generateText);
@@ -15,6 +16,13 @@ export function useConvexAI() {
         appId: "prompt-pal",
         context
       });
+
+      if (isAppAIErrorData(result.error)) {
+        const error = new Error(result.error.message) as Error & { data?: unknown };
+        error.data = result.error;
+        throw error;
+      }
+
       return result;
     } catch (error) {
       // Handle quota exceeded, network errors, etc.

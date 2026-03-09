@@ -10,6 +10,7 @@ import { useUserProgressStore } from '@/features/user/store';
 import { useConvexAI } from '@/hooks/useConvexAI';
 import { convexHttpClient } from '@/lib/convex-client';
 import { api } from '../../../convex/_generated/api.js';
+import { getAIErrorPresentation } from '@/lib/aiErrors';
 import { logger } from '@/lib/logger';
 import { NanoAssistant } from '@/lib/nanoAssistant';
 import { useUser } from '@clerk/clerk-expo';
@@ -17,6 +18,8 @@ import { CodeExecutionView } from '@/features/game/components/CodeExecutionView'
 import type { CodeExecutionResult } from '@/features/game/components/CodeExecutionView';
 import { CopyAnalysisView } from '@/features/game/components/CopyAnalysisView';
 import { PracticeStyleChallenge, type PracticeStyleSection } from '@/features/game/components/PracticeStyleChallenge';
+import { HtmlPreview } from '@/features/game/components/HtmlPreview';
+import { CopyTargetPreview } from '@/features/game/components/CopyTargetPreview';
 import type { CodeTestResult } from '@/lib/scoring/codeScoring';
 import type { CopyScoringResult } from '@/lib/scoring/copyScoring';
 
@@ -155,7 +158,7 @@ export default function GameScreen() {
     return { current, total, percentage };
   }, [level, moduleLevels]);
 
-  const { lives, loseLife, startLevel, completeLevel } = useGameStore();
+  const { lives, loseLife, startLevel, completeLevel, syncToBackend } = useGameStore();
   const { updateStreak, addXP } = useUserProgressStore();
 
   // Helper to determine XP reward for a level
@@ -474,6 +477,7 @@ export default function GameScreen() {
           await addXP(getLevelXPReward(level));
           setShowResult(true);
           await completeLevel(level.id);
+          syncToBackend().catch(() => {}); // Persist progress immediately
         } else {
           // User didn't pass - lose a life
           await loseLife();
@@ -484,17 +488,27 @@ export default function GameScreen() {
         setGeneratedCode(null);
         setCodeExecutionResult(null);
 
+        const starterCode = (level as { starterCode?: string }).starterCode;
+        const currentCode = generatedCode || starterCode;
         const codeSystemPrompt = [
-          'You are a JavaScript coding assistant.',
+          'You are a coding assistant. The user will give you a prompt to modify or extend the current code.',
           '',
           'VISIBLE CHALLENGE:',
           codeVisibleBrief || level.description || 'Solve the coding challenge described by the player.',
           '',
           visibleHints.length > 0 ? `VISIBLE GUIDANCE:\n- ${visibleHints.join('\n- ')}` : '',
           '',
-          'Use the player prompt as the implementation direction.',
-          'Return only executable JavaScript code.',
-          'Do not include markdown or explanations.',
+          currentCode
+            ? [
+                'CURRENT CODE (modify this according to the user\'s prompt):',
+                '```',
+                currentCode,
+                '```',
+                '',
+              ].join('\n')
+            : '',
+          'Use the player prompt as the implementation direction. Return the complete modified code.',
+          'Return only executable HTML/JavaScript code. Do not include markdown code fences or explanations.',
         ].join('\n');
 
         const generateResult = await generateText(prompt, codeSystemPrompt);
@@ -584,6 +598,7 @@ export default function GameScreen() {
           await addXP(getLevelXPReward(level));
           setShowResult(true);
           await completeLevel(level.id);
+          syncToBackend().catch(() => {}); // Persist progress immediately
         } else {
           await loseLife();
         }
@@ -673,21 +688,21 @@ export default function GameScreen() {
           await addXP(getLevelXPReward(level));
           setShowResult(true);
           await completeLevel(level.id);
+          syncToBackend().catch(() => {}); // Persist progress immediately
         } else {
           await loseLife();
         }
       }
     } catch (error: any) {
-      logger.error('GameScreen', error, { operation: 'handleGenerate' });
+      const aiError = getAIErrorPresentation(error);
 
-      // Handle specific error types
-      if (error.response?.status === 429) {
-        Alert.alert('Rate Limited', 'Too many requests. Please wait before trying again.');
-      } else if (error.response?.status === 403) {
-        Alert.alert('Content Policy', 'Your prompt may violate content policies. Please try a different prompt.');
+      if (aiError.isOperational) {
+        logger.warn('GameScreen', aiError.message, { operation: 'handleGenerate', code: aiError.code });
       } else {
-        Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
+        logger.error('GameScreen', error, { operation: 'handleGenerate' });
       }
+
+      Alert.alert(aiError.title, aiError.message);
     } finally {
       setIsGenerating(false);
     }
@@ -788,6 +803,69 @@ export default function GameScreen() {
     );
   };
 
+  const renderAttemptHistoryCard = () => {
+    if (!level || attemptHistory.length === 0) return null;
+    const passingScore = level.passingScore || 75;
+    return (
+      <View className="mt-4">
+        <Card className="p-4 rounded-[24px] border border-outline/30 bg-surfaceVariant/20">
+          <Text className="text-onSurface text-sm font-black mb-3">Attempt History</Text>
+          <View className="space-y-3">
+            {attemptHistory.map((attempt) => (
+              <View key={attempt.id} className="bg-surfaceVariant/30 rounded-lg p-3">
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">
+                    Attempt #{attempt.attemptNumber}
+                  </Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-onSurfaceVariant text-sm mr-2">{attempt.score}%</Text>
+                    <View className={`w-2 h-2 rounded-full ${attempt.score >= passingScore ? 'bg-success' : 'bg-error'}`} />
+                  </View>
+                </View>
+                {attempt.feedback && attempt.feedback.length > 0 && (
+                  <View className="mt-2">
+                    <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest mb-1">Feedback</Text>
+                    {attempt.feedback.map((feedbackItem, index) => (
+                      <View key={index} className="flex-row mb-1">
+                        <Text className="text-onSurfaceVariant text-xs mr-2">•</Text>
+                        <Text className="text-onSurfaceVariant text-xs flex-1">{feedbackItem}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {attempt.keywordsMatched && attempt.keywordsMatched.length > 0 && level.type === 'image' && (
+                  <View className="mt-2">
+                    <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest mb-1">Keywords</Text>
+                    <View className="flex-row flex-wrap">
+                      {attempt.keywordsMatched.map((keyword, index) => (
+                        <View key={index} className="bg-surfaceVariant/50 px-2 py-0.5 rounded mr-1 mb-1">
+                          <Text className="text-onSurfaceVariant text-xs">{keyword}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+                {level.type === 'code' && attempt.code && (
+                  <Text className="text-onSurfaceVariant text-xs mt-2" numberOfLines={2}>
+                    {attempt.code?.slice(0, 80)}…
+                  </Text>
+                )}
+                {level.type === 'copywriting' && attempt.copy && (
+                  <Text className="text-onSurfaceVariant text-xs mt-2" numberOfLines={2}>
+                    {attempt.copy?.slice(0, 80)}…
+                  </Text>
+                )}
+                <Text className="text-onSurfaceVariant text-xs mt-2">
+                  {new Date(attempt.createdAt).toLocaleDateString()}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      </View>
+    );
+  };
+
   const renderHintsPanel = () => {
     if (!level || hints.length === 0) return null;
 
@@ -827,63 +905,40 @@ export default function GameScreen() {
   };
 
   const renderCodeChallenge = () => {
-    const isOnboardingStyle = !!(level as { instruction?: string }).instruction;
     const missionText = (level as { instruction?: string }).instruction || level.description || 'Write a prompt that guides the model to solve this challenge.';
-    const focusText = (level as { lessonTakeaway?: string }).lessonTakeaway || (level as { moduleTitle?: string }).moduleTitle;
     const hintsUsed = NanoAssistant.getHintsUsed(level.id);
     const hintsRemaining = NanoAssistant.getHintsRemaining(level.id, level.difficulty);
     const maxHints = NanoAssistant.getMaxHintsPerLevel(level.difficulty);
     const noHintsLeft = hintsRemaining === 0;
     const charCount = prompt.length;
 
-    const gradingItems = (level as { grading?: { passingCondition?: string; criteria?: { description: string }[] } }).grading;
+    const starterCode = (level as { starterCode?: string }).starterCode;
+    const grading = level as { grading?: { criteria?: { description: string }[] } };
+    const requirementItems = grading.grading?.criteria?.map((c) => c.description) ?? [];
+
     const sections: PracticeStyleSection[] = [
-      {
-        title: 'Mission',
-        icon: 'flag-outline',
-        tone: 'neutral',
-        body: missionText,
-      },
-      ...(level.starterCode ? [{
-        title: 'Starter Code',
-        icon: 'code-outline',
+      { title: 'Mission', icon: 'flag-outline', tone: 'neutral' as const, body: missionText },
+      ...(requirementItems.length > 0 ? [{
+        title: 'Requirements',
+        icon: 'checkmark-done-outline',
         tone: 'neutral' as const,
-        code: level.starterCode,
+        items: requirementItems,
       }] : []),
-      ...(focusText ? [{
-        title: isOnboardingStyle ? 'Takeaway' : 'Focus Area',
-        icon: 'compass-outline',
-        tone: 'accent' as const,
-        body: focusText,
-      }] : []),
-      {
-        title: 'How You Are Judged',
-        icon: 'analytics-outline',
-        tone: 'neutral',
-        items: gradingItems?.passingCondition
-          ? [
-            gradingItems.passingCondition,
-            ...(gradingItems.criteria?.slice(0, 3).map((criterion) => criterion.description) ?? []),
-          ]
-          : [
-            'Your prompt must lead the model to working JavaScript.',
-            'Repeating the brief is not enough.',
-            'Strong prompts add constraints, output expectations, and edge-case guidance.',
-          ],
-      },
-      ...(visibleHints.length > 0 ? [{
-        title: 'Prompt Signals To Consider',
-        icon: 'bulb-outline',
-        tone: 'warning' as const,
-        items: visibleHints,
+      // When we have live preview, skip "What You See" text - the preview shows it
+      ...(!starterCode && (level as { whatUserSees?: string }).whatUserSees ? [{
+        title: 'What You See',
+        icon: 'eye-outline',
+        tone: 'neutral' as const,
+        body: (level as { whatUserSees?: string }).whatUserSees,
       }] : []),
     ];
 
     return (
       <PracticeStyleChallenge
         title={level.title || 'Code Challenge'}
-        subtitle={isOnboardingStyle ? 'Use the prototype details below to guide a precise prompt.' : (level.description || focusText)}
-        previewLabel={isOnboardingStyle ? 'Target Logic' : 'Challenge Brief'}
+        subtitle={level.description}
+        previewLabel="Target"
+        targetPreview={(generatedCode || starterCode) ? <HtmlPreview html={generatedCode || starterCode} height={220} /> : undefined}
         sections={sections}
         promptLabel="Your Prompt"
         prompt={prompt}
@@ -916,6 +971,9 @@ export default function GameScreen() {
   };
 
   const renderCopywritingChallenge = () => {
+    const missionText = (level as { instruction?: string }).instruction || level.description || 'Write a prompt that steers the model toward stronger copy.';
+    const grading = level as { grading?: { criteria?: { description: string }[] } };
+    const requirementItems = grading.grading?.criteria?.map((c) => c.description) ?? [];
     const hintsUsed = NanoAssistant.getHintsUsed(level.id);
     const hintsRemaining = NanoAssistant.getHintsRemaining(level.id, level.difficulty);
     const maxHints = NanoAssistant.getMaxHintsPerLevel(level.difficulty);
@@ -928,56 +986,37 @@ export default function GameScreen() {
     const isWordOverLimit = level.wordLimit ? wordCount > maxWords : false;
     const isWordUnderLimit = level.wordLimit ? wordCount < minWords : false;
 
+    const ctx = level?.starterContext as Record<string, unknown> | undefined;
+    const contextStr = ctx && Object.keys(ctx).length > 0 ? formatStarterContext(ctx) : undefined;
+
+    // Target preview already shows mission + requirements; only add Word Limit to avoid redundancy
     const sections: PracticeStyleSection[] = [
-      {
-        title: 'Visible Brief',
-        icon: 'document-text-outline',
-        tone: 'neutral',
-        body: copyVisibleBrief || 'Write a prompt that steers the model toward stronger copy.',
-      },
-      ...(level.briefTitle ? [{
-        title: 'Deliverable',
-        icon: 'gift-outline',
-        tone: 'accent' as const,
-        body: level.briefTitle,
-      }] : []),
       ...(level.wordLimit ? [{
         title: 'Word Limit',
         icon: 'text-outline',
         tone: 'secondary' as const,
         badge: `${minWords}-${maxWords} words`,
       }] : []),
-      {
-        title: 'How You Are Judged',
-        icon: 'analytics-outline',
-        tone: 'neutral',
-        items: [
-          'Your prompt needs strategy, not just a restatement of the brief.',
-          'Strong prompts shape audience, tone, structure, and CTA.',
-          'Weak prompts that only paraphrase the brief score lower.',
-        ],
-      },
-      ...(level.requiredElements && level.requiredElements.length > 0 ? [{
-        title: 'Required Elements',
-        icon: 'checkmark-done-outline',
-        tone: 'accent' as const,
-        items: level.requiredElements,
-      }] : []),
-      ...(visibleHints.length > 0 ? [{
-        title: 'Prompt Signals To Consider',
-        icon: 'bulb-outline',
-        tone: 'warning' as const,
-        items: visibleHints,
-      }] : []),
     ];
+
+    const copyRequirements = level.requiredElements?.length
+      ? level.requiredElements
+      : requirementItems;
 
     return (
       <PracticeStyleChallenge
         title={level.title || 'Copywriting Challenge'}
         subtitle={level.description}
-        previewLabel="Target Brief"
+        previewLabel="Target"
+        targetPreview={
+          <CopyTargetPreview
+            instruction={missionText}
+            criteria={requirementItems}
+            context={contextStr}
+          />
+        }
         sections={sections}
-        promptLabel="Craft Your Prompt"
+        promptLabel="Your Prompt"
         prompt={prompt}
         onChangePrompt={setPrompt}
         promptPlaceholder="Describe the audience, tone, structure, and output you want..."
@@ -1003,7 +1042,7 @@ export default function GameScreen() {
           <CopyAnalysisView
             copy={generatedCopy || ''}
             scoringResult={copyScoringResult}
-            requirements={level.requiredElements}
+            requirements={copyRequirements}
           />
         ) : undefined}
       />
@@ -1121,59 +1160,8 @@ export default function GameScreen() {
           </View>
         )}
 
-        {/* Attempt History */}
-        {attemptHistory.length > 0 && level.type === 'image' && (
-          <View className="mt-4">
-            <Card className="p-4 rounded-[24px] border border-outline/30 bg-surfaceVariant/20">
-              <Text className="text-onSurface text-sm font-black mb-3">Attempt History</Text>
-
-              <View className="space-y-3">
-                {attemptHistory.map((attempt) => (
-                  <View key={attempt.id} className="bg-surfaceVariant/30 rounded-lg p-3">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">
-                        Attempt #{attempt.attemptNumber}
-                      </Text>
-                      <View className="flex-row items-center">
-                        <Text className="text-onSurfaceVariant text-sm mr-2">{attempt.score}%</Text>
-                        <View className={`w-2 h-2 rounded-full ${attempt.score >= (level?.passingScore || 75) ? 'bg-success' : 'bg-error'}`} />
-                      </View>
-                    </View>
-
-                    {attempt.feedback && attempt.feedback.length > 0 && (
-                      <View className="mt-2">
-                        <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest mb-1">Feedback</Text>
-                        {attempt.feedback.map((feedbackItem, index) => (
-                          <View key={index} className="flex-row mb-1">
-                            <Text className="text-onSurfaceVariant text-xs mr-2">•</Text>
-                            <Text className="text-onSurfaceVariant text-xs flex-1">{feedbackItem}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    {attempt.keywordsMatched && attempt.keywordsMatched.length > 0 && (
-                      <View className="mt-2">
-                        <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest mb-1">Keywords</Text>
-                        <View className="flex-row flex-wrap">
-                          {attempt.keywordsMatched.map((keyword, index) => (
-                            <View key={index} className="bg-surfaceVariant/50 px-2 py-0.5 rounded mr-1 mb-1">
-                              <Text className="text-onSurfaceVariant text-xs">{keyword}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    )}
-
-                    <Text className="text-onSurfaceVariant text-xs mt-2">
-                      {new Date(attempt.createdAt).toLocaleDateString()}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </Card>
-          </View>
-        )}
+        {/* Attempt History - shown for image in this section; code/copy use renderAttemptHistory below */}
+        {attemptHistory.length > 0 && level.type === 'image' && renderAttemptHistoryCard()}
       </View>
     );
   };
@@ -1284,6 +1272,13 @@ export default function GameScreen() {
           {level.type === 'copywriting' && renderCopywritingChallenge()}
 
           {renderPromptSection()}
+
+          {/* Attempt History for code and copywriting (image shows it inside renderPromptSection) */}
+          {attemptHistory.length > 0 && (level.type === 'code' || level.type === 'copywriting') && (
+            <View className="px-6 py-4">
+              {renderAttemptHistoryCard()}
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1327,11 +1322,21 @@ export default function GameScreen() {
         keywordsMatched={matchedKeywords}
         onNext={() => {
           setShowResult(false);
-          if (level) {
-            const moduleId = getModuleIdFromLevelType(level.type || 'image');
-            router.push(`/game/levels/${moduleId}`);
+          if (!level) {
+            router.replace(`/game/levels/${getModuleIdFromLevelType('image')}`);
+            return;
+          }
+          const moduleId = level.moduleId || getModuleIdFromLevelType(level.type || 'image');
+          const expectedType = moduleId === 'image-generation' ? 'image' : moduleId === 'coding-logic' ? 'code' : 'copywriting';
+          const sortedLevels = [...moduleLevels]
+            .filter((l) => l.moduleId === moduleId || l.type === expectedType)
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          const idx = sortedLevels.findIndex((l) => l.id === level.id);
+          const nextLevel = idx >= 0 && idx < sortedLevels.length - 1 ? sortedLevels[idx + 1] : null;
+          if (nextLevel) {
+            router.replace(`/game/${nextLevel.id}`);
           } else {
-            router.push(`/game/levels/${getModuleIdFromLevelType('image')}`);
+            router.replace(`/game/levels/${moduleId}`);
           }
         }}
         onClose={() => setShowResult(false)}

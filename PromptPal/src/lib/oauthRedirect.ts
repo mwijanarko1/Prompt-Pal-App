@@ -3,14 +3,29 @@ import * as AuthSession from 'expo-auth-session'
 interface ClerkErrorShape {
   message?: string
   errors?: Array<{
+    code?: string
     message?: string
     longMessage?: string
   }>
 }
 
+/** Redirect URLs that fail to open (e.g. promptpal:/// with empty path) */
+const INVALID_REDIRECT_PATTERNS = [
+  /^promptpal:\/\/\/?$/,  // promptpal:// or promptpal:///
+  /^promptpal:\/\/\s*$/,  // trailing whitespace
+]
+
+function isValidRedirectUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false
+  const trimmed = url.trim()
+  if (!trimmed.startsWith('promptpal://')) return false
+  const hasPath = trimmed.length > 'promptpal://'.length && !INVALID_REDIRECT_PATTERNS.some((p) => p.test(trimmed))
+  return hasPath
+}
+
 /**
  * Provide a prioritized set of native redirect URLs for Clerk SSO.
- * Some provider/dashboard setups only allow one callback shape.
+ * Filters out malformed URLs (e.g. promptpal:///) that cause "Unable to open URL".
  */
 export function getOAuthRedirectCandidates(): string[] {
   const dynamicCandidates = [
@@ -25,11 +40,15 @@ export function getOAuthRedirectCandidates(): string[] {
   ]
 
   const envOverride = process.env.EXPO_PUBLIC_CLERK_OAUTH_REDIRECT_URL?.trim()
+  const fallbacks = ['promptpal://sso-callback', 'promptpal://oauth-native-callback']
 
   const candidates = [
     envOverride,
     ...dynamicCandidates,
-  ].filter((value): value is string => Boolean(value))
+    ...fallbacks,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .filter(isValidRedirectUrl)
 
   return Array.from(new Set(candidates))
 }
@@ -44,6 +63,15 @@ export function getClerkErrorMessage(error: unknown, fallbackMessage: string): s
 
   const clerkError = error as ClerkErrorShape
   const firstError = clerkError.errors?.[0]
+
+  // Map known Clerk codes to friendly messages
+  const code = firstError?.code
+  if (code === 'form_identifier_exists') {
+    return 'An account with this email already exists. Sign in instead.'
+  }
+  if (code === 'form_identifier_not_found') {
+    return 'No account found with this email. Please sign up.'
+  }
 
   return firstError?.longMessage || firstError?.message || clerkError.message || fallbackMessage
 }

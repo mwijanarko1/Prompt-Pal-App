@@ -64,7 +64,7 @@ export function CopyAnalysisView({
       <Card className="p-6 rounded-[32px] mb-6" variant="elevated">
         <View className="flex-row items-center justify-between mb-3">
           <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[2px]">
-            Generated Copy
+            Generated copy
           </Text>
           <TouchableOpacity
             onPress={async () => {
@@ -103,7 +103,7 @@ export function CopyAnalysisView({
       {hasResult && (
         <Card className="p-6 rounded-[32px] mb-6" variant="elevated">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-onSurface text-lg font-black">Overall Score</Text>
+            <Text className="text-onSurface text-lg font-black">Judging summary</Text>
             <View className="flex-row items-center">
               <Text className="text-primary text-3xl font-black mr-2">{score}%</Text>
               <View 

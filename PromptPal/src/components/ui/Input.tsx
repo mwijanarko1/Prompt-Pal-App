@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextInput as RNTextInput, View, Text } from 'react-native';
+import { TextInput as RNTextInput, View, Text, type TextInputProps } from 'react-native';
 
 interface InputProps {
   value: string;
@@ -10,8 +10,12 @@ interface InputProps {
   multiline?: boolean;
   numberOfLines?: number;
   secureTextEntry?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  keyboardType?: TextInputProps['keyboardType'];
+  autoCapitalize?: TextInputProps['autoCapitalize'];
+  autoCorrect?: boolean;
+  spellCheck?: boolean;
+  autoComplete?: TextInputProps['autoComplete'];
+  textContentType?: TextInputProps['textContentType'];
   className?: string;
   onFocus?: () => void;
   inputAccessoryViewID?: string;
@@ -27,7 +31,11 @@ export function Input({
   numberOfLines = 1,
   secureTextEntry = false,
   keyboardType = 'default',
-  autoCapitalize = 'sentences',
+  autoCapitalize = 'none',
+  autoCorrect = false,
+  spellCheck = false,
+  autoComplete,
+  textContentType,
   className = '',
   onFocus,
   inputAccessoryViewID,
@@ -54,6 +62,10 @@ export function Input({
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
+          spellCheck={spellCheck}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
           inputAccessoryViewID={inputAccessoryViewID}
           style={{
             paddingHorizontal: 16,

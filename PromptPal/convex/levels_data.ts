@@ -300,6 +300,7 @@ function mapCodingLessonToLevel(
     unlocked: index < 3,
     order,
     instruction: lesson.instruction,
+    whatUserSees: lesson.whatUserSees,
     hints: [lesson.hint],
     starterCode: lesson.starterCode,
     grading: lesson.grading,

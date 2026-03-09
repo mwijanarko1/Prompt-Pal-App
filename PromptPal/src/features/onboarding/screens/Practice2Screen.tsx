@@ -124,6 +124,9 @@ export function Practice2Screen() {
                                     }}
                                     multiline
                                     numberOfLines={3}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    spellCheck={false}
                                     editable={!isGenerating}
                                 />
                             </View>

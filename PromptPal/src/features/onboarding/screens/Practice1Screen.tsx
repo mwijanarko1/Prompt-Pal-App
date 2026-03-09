@@ -122,6 +122,9 @@ export function Practice1Screen() {
                                     }}
                                     multiline
                                     numberOfLines={3}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    spellCheck={false}
                                     editable={!isGenerating}
                                 />
                             </View>

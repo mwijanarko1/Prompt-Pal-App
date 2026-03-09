@@ -34,6 +34,8 @@ interface PracticeStyleChallengeProps {
   onPressHint: () => void;
   hintActionDisabled?: boolean;
   hintPanel?: React.ReactNode;
+  /** Live preview (e.g. HTML in WebView) - like onboarding's target design mockup */
+  targetPreview?: React.ReactNode;
   onSubmit: () => void;
   submitLabel: string;
   submitIcon: string;
@@ -102,6 +104,7 @@ export function PracticeStyleChallenge({
   onPressHint,
   hintActionDisabled = false,
   hintPanel,
+  targetPreview,
   onSubmit,
   submitLabel,
   submitIcon,
@@ -125,7 +128,7 @@ export function PracticeStyleChallenge({
 
   return (
     <View className="px-6 pt-4 pb-8">
-      <View className="w-full max-w-[520px] self-center">
+      <View className="w-full max-w-[520px] self-center min-w-0">
         <View className="items-center mb-6">
           <Text className="text-onSurface text-[28px] font-black text-center mb-2 leading-9">{title}</Text>
           {subtitle ? (
@@ -136,8 +139,8 @@ export function PracticeStyleChallenge({
         </View>
 
         <View className="mb-5">
-          <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-onSurfaceVariant text-[12px] font-black uppercase tracking-[3px]">
+          <View className="mb-2 flex-row items-center justify-between gap-3">
+            <Text className="min-w-0 flex-1 text-onSurfaceVariant text-[12px] font-black uppercase tracking-[3px]">
               {previewLabel}
             </Text>
             <TouchableOpacity
@@ -151,23 +154,30 @@ export function PracticeStyleChallenge({
             </TouchableOpacity>
           </View>
 
-          <View className="rounded-[20px] border border-outline/15 bg-surfaceVariant/20 p-5">
+          {targetPreview ? (
+            <View className="rounded-[20px] border border-outline/15 bg-surfaceVariant/20 p-4 mb-4 overflow-hidden">
+              {targetPreview}
+            </View>
+          ) : null}
+
+          {sections.length > 0 ? (
+          <View className="min-w-0 rounded-[20px] border border-outline/15 bg-surfaceVariant/20 p-5">
             {sections.map((section, index) => {
               const tone = toneClasses[section.tone ?? 'neutral'];
 
               return (
                 <View
                   key={`${section.title}-${index}`}
-                  className={`flex-row overflow-hidden rounded-2xl border mb-4 last:mb-0 ${tone.container}`}
+                  className={`mb-4 flex-row overflow-hidden rounded-2xl border min-w-0 last:mb-0 ${tone.container}`}
                 >
                   <View className={`w-1 ${tone.stripe}`} />
-                  <View className="flex-1 p-4">
-                    <View className="flex-row items-center justify-between mb-2">
-                        <View className="flex-row items-center flex-1">
+                  <View className="min-w-0 flex-1 p-4">
+                    <View className="mb-2 flex-row items-center justify-between gap-3">
+                        <View className="min-w-0 flex-1 flex-row items-center">
                         {section.icon ? (
                           <Ionicons name={section.icon as never} size={14} color={tone.iconColor} />
                         ) : null}
-                        <Text className={`text-[10px] font-black uppercase tracking-[3px] ${tone.text} ${section.icon ? 'ml-1.5' : ''}`}>
+                        <Text className={`min-w-0 flex-1 text-[10px] font-black uppercase tracking-[3px] ${tone.text} ${section.icon ? 'ml-1.5' : ''}`}>
                           {section.title}
                         </Text>
                       </View>
@@ -185,8 +195,8 @@ export function PracticeStyleChallenge({
                     ) : null}
 
                     {section.code ? (
-                      <View className="bg-surface rounded-xl p-3 border border-outline/10">
-                        <Text className="text-onSurface text-[12px] font-mono" selectable>
+                      <View className="min-w-0 bg-surface rounded-xl p-3 border border-outline/10">
+                        <Text className="min-w-0 text-onSurface text-[12px] font-mono leading-5" selectable>
                           {section.code}
                         </Text>
                       </View>
@@ -200,6 +210,7 @@ export function PracticeStyleChallenge({
               );
             })}
           </View>
+          ) : null}
         </View>
 
         {hintPanel ? <View className="mb-5">{hintPanel}</View> : null}
@@ -261,14 +272,14 @@ export function PracticeStyleChallenge({
         </Button>
 
         {attemptView ? (
-          <View className="mt-6">
+          <View className="mt-6 min-w-0">
             {attemptTitle ? (
               <Text className="text-onSurfaceVariant text-[12px] font-black uppercase tracking-[3px] mb-2">
                 {attemptTitle}
               </Text>
             ) : null}
-            <Card className="p-0 rounded-[24px] border border-outline/15 overflow-hidden" variant="elevated">
-              <View className="bg-surface">{attemptView}</View>
+            <Card className="w-full min-w-0 overflow-hidden rounded-[24px] border border-outline/15 p-0" variant="elevated">
+              <View className="min-w-0 bg-surface">{attemptView}</View>
             </Card>
           </View>
         ) : null}

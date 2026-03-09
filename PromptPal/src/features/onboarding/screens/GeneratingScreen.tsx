@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeInDown, useSharedValue, useAnimatedStyle, withTiming, Easing, withRepeat } from 'react-native-reanimated';
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
+import { getAIErrorPresentation } from '@/lib/aiErrors';
 import { useConvexAI } from '@/hooks/useConvexAI';
 import { ONBOARDING_COLORS } from '../theme';
 
@@ -84,8 +85,8 @@ export function GeneratingScreen() {
       setCopyFeedback(evaluation.feedback || []);
       goToNextStep();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      setError(message);
+      const aiError = getAIErrorPresentation(err);
+      setError(aiError.message);
       setProgress(0);
     }
   };

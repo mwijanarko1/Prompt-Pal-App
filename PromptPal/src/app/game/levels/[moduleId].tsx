@@ -3,6 +3,8 @@ import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { convexHttpClient } from '@/lib/convex-client';
+import { api } from '../../../../convex/_generated/api.js';
 import { fetchLevelsFromApi } from '@/features/levels/data';
 import { Card, ProgressBar } from '@/components/ui';
 import { useGameStore } from '@/features/game/store';
@@ -13,9 +15,10 @@ import { logger } from '@/lib/logger';
 export default function LevelsScreen() {
   const { moduleId } = useLocalSearchParams();
   const router = useRouter();
-  const { completedLevels, unlockedLevels } = useGameStore();
+  const { completedLevels, unlockedLevels, syncFromBackend } = useGameStore();
   const { learningModules } = useUserProgressStore();
   const [levels, setLevels] = useState<Level[]>([]);
+  const [backendCompletedIds, setBackendCompletedIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,16 +27,21 @@ export default function LevelsScreen() {
     [learningModules, moduleId]
   );
 
-  // Calculate actual progress based on completed levels
+  // Merge backend (userProgress) + game store: userProgress is source of truth for module progress
+  const effectiveCompletedLevels = useMemo(() => {
+    const merged = new Set([...completedLevels, ...backendCompletedIds]);
+    return Array.from(merged);
+  }, [completedLevels, backendCompletedIds]);
+
+  // Calculate actual progress based on completed levels (uses backend as source of truth)
   const actualProgress = useMemo(() => {
     if (levels.length === 0) return 0;
 
-    // Count completed levels for this module
-    const completedInModule = levels.filter(level => completedLevels.includes(level.id)).length;
+    const completedInModule = levels.filter(level => effectiveCompletedLevels.includes(level.id)).length;
     const progress = (completedInModule / levels.length) * 100;
 
     return Math.round(progress);
-  }, [levels, completedLevels]);
+  }, [levels, effectiveCompletedLevels]);
 
   // Update module progress in user store when it changes significantly
   useEffect(() => {
@@ -47,7 +55,11 @@ export default function LevelsScreen() {
       setIsLoading(true);
       setError(null);
       try {
-        const apiLevels = await fetchLevelsFromApi();
+        const [apiLevels, completedIds] = await Promise.all([
+          fetchLevelsFromApi(),
+          convexHttpClient.query(api.queries.getCompletedLevelIds, { appId: 'prompt-pal' }).catch(() => []),
+        ]);
+        setBackendCompletedIds(Array.isArray(completedIds) ? completedIds : []);
 
         if (apiLevels.length > 0) {
           // Filter levels by module type - try moduleId first, fallback to type mapping
@@ -84,8 +96,19 @@ export default function LevelsScreen() {
     }
   }, [moduleId]);
 
+  // Sync game store when backend has more completed levels (fixes stale local state)
+  useEffect(() => {
+    if (backendCompletedIds.length === 0) return;
+    const missing = backendCompletedIds.filter(id => !completedLevels.includes(id));
+    if (missing.length > 0) {
+      const merged = [...new Set([...completedLevels, ...backendCompletedIds])];
+      syncFromBackend({ completedLevels: merged });
+      useGameStore.getState().syncToBackend?.().catch(() => {});
+    }
+  }, [backendCompletedIds, completedLevels, syncFromBackend]);
+
   const renderLevelCard = (level: any, index: number) => {
-    const isCompleted = completedLevels.includes(level.id);
+    const isCompleted = effectiveCompletedLevels.includes(level.id);
 
     // Code and copywriting levels are always unlocked (no plan gating)
     const isCodingOrCopywriting = level.type === 'code' || level.type === 'copywriting' ||
@@ -94,7 +117,7 @@ export default function LevelsScreen() {
     // For code/copywriting: always unlocked
     // For image levels: check store + static field + prerequisites
     const prerequisitesMet = !level.prerequisites || level.prerequisites.length === 0 ||
-      level.prerequisites.every((prereqId: string) => completedLevels.includes(prereqId));
+      level.prerequisites.every((prereqId: string) => effectiveCompletedLevels.includes(prereqId));
     const isUnlocked = isCodingOrCopywriting ||
       unlockedLevels.includes(level.id) ||
       (level.unlocked && prerequisitesMet);

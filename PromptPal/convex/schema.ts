@@ -158,6 +158,7 @@ export default defineSchema({
     }))),
     // Onboarding-style code lessons (prompt-for-UI flow)
     instruction: v.optional(v.string()),
+    whatUserSees: v.optional(v.string()),
     starterCode: v.optional(v.string()),
     grading: v.optional(v.any()),
     failState: v.optional(v.any()),

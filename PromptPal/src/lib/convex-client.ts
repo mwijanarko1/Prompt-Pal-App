@@ -87,21 +87,52 @@ export async function refreshAuth(): Promise<void> {
 
 // Refresh token on a fixed cadence to avoid startup JWT decoding work.
 const TOKEN_REFRESH_INTERVAL_MS = 45 * 60 * 1000;
+let refreshTimeout: NodeJS.Timeout | null = null;
+
 async function scheduleTokenRefresh(token: string): Promise<void> {
   if (!token) {
     return;
+  }
+
+  if (refreshTimeout) {
+    clearTimeout(refreshTimeout);
   }
 
   logger.debug('ConvexHttpClient', 'Token refresh scheduled', {
     refreshInMinutes: Math.round(TOKEN_REFRESH_INTERVAL_MS / 60000),
   });
 
-  setTimeout(() => {
+  refreshTimeout = setTimeout(() => {
     refreshAuth().catch(error => {
       logger.error('ConvexHttpClient', 'Scheduled refresh failed', error);
     });
   }, TOKEN_REFRESH_INTERVAL_MS);
 }
+
+// Automatically retry once after auth refresh on unauthenticated error
+const originalQuery = client.query.bind(client);
+const originalMutation = client.mutation.bind(client);
+const originalAction = client.action.bind(client);
+
+async function wrapWithAuthRetry<T>(originalFn: (...args: any[]) => Promise<T>, ...args: any[]): Promise<T> {
+  try {
+    return await originalFn(...args);
+  } catch (error: any) {
+    const isAuthError = error?.message?.includes('Not authenticated') || error?.message?.includes('User must be authenticated');
+
+    if (isAuthError) {
+      logger.warn('ConvexHttpClient', 'Auth error detected, refreshing token and retrying...');
+      await refreshAuth();
+      return await originalFn(...args);
+    }
+    throw error;
+  }
+}
+
+// Override client methods to automatically handle auth retries
+client.query = ((...args: any[]) => wrapWithAuthRetry(originalQuery, ...args)) as any;
+client.mutation = ((...args: any[]) => wrapWithAuthRetry(originalMutation, ...args)) as any;
+client.action = ((...args: any[]) => wrapWithAuthRetry(originalAction, ...args)) as any;
 
 // Export the client (authentication will be set up automatically)
 export { client as convexHttpClient };

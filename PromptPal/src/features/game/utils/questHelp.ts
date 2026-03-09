@@ -110,14 +110,6 @@ export function buildQuestHelpContent(level: Level, visibleHints: string[]): Que
               },
             ]
           : []),
-        ...((level.promptChecklist?.length ?? 0) > 0 || visibleHints.length > 0
-          ? [
-              {
-                title: 'Prompt Signals To Consider',
-                items: uniqueItems([...(level.promptChecklist ?? []), ...visibleHints]),
-              },
-            ]
-          : []),
       ],
     };
   }

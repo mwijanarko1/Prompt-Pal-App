@@ -322,6 +322,43 @@ export const checkAndIncrementQuota = internalMutation({
   },
 });
 
+export const refundQuotaUsage = internalMutation({
+  args: {
+    userId: v.string(),
+    appId: v.string(),
+    quotaType: v.union(v.literal("textCalls"), v.literal("imageCalls"), v.literal("audioSummaries"), v.literal("dailyQuests"), v.literal("imageLevels"), v.literal("codingLogicLevels"), v.literal("copywritingLevels")),
+  },
+  handler: async (ctx, args) => {
+    const { userId, appId, quotaType } = args;
+
+    const plan = await ctx.db
+      .query("appPlans")
+      .withIndex("by_user_app", (q) => q.eq("userId", userId).eq("appId", appId))
+      .first();
+
+    if (!plan) {
+      return { refunded: false };
+    }
+
+    const currentUsage = plan.used[quotaType] ?? 0;
+    if (currentUsage <= 0) {
+      return { refunded: false };
+    }
+
+    await ctx.db.patch(plan._id, {
+      used: {
+        ...plan.used,
+        [quotaType]: currentUsage - 1,
+      },
+    });
+
+    return {
+      refunded: true,
+      remainingUsage: currentUsage - 1,
+    };
+  },
+});
+
 /**
  * Update user plan (used by Superwall webhooks)
  */
@@ -660,7 +697,7 @@ export const updateUserGameState = mutation({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) {
-      throw new Error("User must be authenticated");
+      return { skipped: true };
     }
 
     const userId = identity.subject;
@@ -1082,18 +1119,23 @@ export const updateModuleProgress = mutation({
 });
 
 /**
- * Complete a daily quest
+ * Complete a daily quest. Returns { alreadyCompleted: true } if user already
+ * completed a quest today (prevents duplicate XP).
  */
 async function completeQuestForUser(
   ctx: MutationCtx,
   userId: string,
   questId: string,
   score: number
-) {
+): Promise<{ alreadyCompleted: boolean }> {
   const existing = await ctx.db
     .query("userQuestCompletions")
     .withIndex("by_user_quest", (q) => q.eq("userId", userId).eq("questId", questId))
     .first();
+
+  if (existing?.completed) {
+    return { alreadyCompleted: true };
+  }
 
   if (existing) {
     await ctx.db.patch(existing._id, {
@@ -1113,6 +1155,7 @@ async function completeQuestForUser(
   }
 
   await updateUserStreakForActivity(ctx, userId);
+  return { alreadyCompleted: false };
 }
 
 export const completeDailyQuest = mutation({
@@ -1122,7 +1165,7 @@ export const completeDailyQuest = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireAuthenticatedUserId(ctx);
-    await completeQuestForUser(ctx, userId, args.questId, args.score ?? 0);
+    return completeQuestForUser(ctx, userId, args.questId, args.score ?? 0);
   },
 });
 
@@ -1209,6 +1252,7 @@ export const createLevel = internalMutation({
       description: v.optional(v.string()),
     }))),
     instruction: v.optional(v.string()),
+    whatUserSees: v.optional(v.string()),
     starterCode: v.optional(v.string()),
     grading: v.optional(v.any()),
     failState: v.optional(v.any()),
@@ -1284,6 +1328,7 @@ export const updateLevel = internalMutation({
       description: v.optional(v.string()),
     }))),
     instruction: v.optional(v.string()),
+    whatUserSees: v.optional(v.string()),
     starterCode: v.optional(v.string()),
     grading: v.optional(v.any()),
     failState: v.optional(v.any()),
@@ -1393,6 +1438,7 @@ export const deactivateLevelsByIdPrefixExcept = internalMutation({
 /**
  * Delete levels by prefix unless they are part of the current seed set.
  * Use for one-off cleanup of obsolete seeded rows.
+ * SAFEGUARD: Never deletes levels that have user progress.
  */
 export const deleteLevelsByIdPrefixExcept = internalMutation({
   args: {
@@ -1411,9 +1457,19 @@ export const deleteLevelsByIdPrefixExcept = internalMutation({
           .query("levels")
           .collect();
 
+    const progressByLevel = new Map<string, boolean>();
+    const progress = await ctx.db.query("userProgress").collect();
+    for (const p of progress) {
+      if (p.levelId) progressByLevel.set(p.levelId, true);
+    }
+
     let count = 0;
     for (const level of levels) {
-      if (level.id.startsWith(args.idPrefix) && !keepIds.has(level.id)) {
+      if (
+        level.id.startsWith(args.idPrefix) &&
+        !keepIds.has(level.id) &&
+        !progressByLevel.get(level.id)
+      ) {
         await ctx.db.delete(level._id);
         count++;
       }
@@ -1426,6 +1482,7 @@ export const deleteLevelsByIdPrefixExcept = internalMutation({
 /**
  * Delete all levels for an app whose id is not in the keepIds set.
  * Use to remove stale/obsolete levels before seeding.
+ * SAFEGUARD: Never deletes levels that have user progress (preserves completedLevels, attempts, etc.).
  */
 export const deleteLevelsNotInSet = internalMutation({
   args: {
@@ -1442,6 +1499,14 @@ export const deleteLevelsNotInSet = internalMutation({
     let count = 0;
     for (const level of levels) {
       if (!keepIdsSet.has(level.id)) {
+        // Check if any user has progress on this level - never delete if so
+        const hasProgress = await ctx.db
+          .query("userProgress")
+          .withIndex("by_level", (q) => q.eq("levelId", level.id))
+          .first();
+        if (hasProgress) {
+          continue; // Skip deletion to preserve user progress
+        }
         await ctx.db.delete(level._id);
         count++;
       }

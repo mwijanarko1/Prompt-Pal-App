@@ -3,6 +3,9 @@
  * Teaches prompt engineering for AI-assisted web development.
  * Used to seed dev and prod databases.
  * IDs: code-1-easy through code-5-easy, code-6-medium through code-10-medium, code-11-hard through code-15-hard
+ *
+ * IMPORTANT: Never change lesson IDs. User progress (userProgress table) is keyed by levelId.
+ * Changing instruction, title, grading, hints, etc. is safe—only ID changes would orphan progress.
  */
 
 const CODE_IDS = [
@@ -14,9 +17,10 @@ const CODE_IDS = [
 export const codingLessons = [
   {
     id: CODE_IDS[0],
-    title: "Describe what the user sees",
-    instruction: "Add a hero section to this webpage.",
-    hint: "Think about what text it shows, what it looks like, and what the user can do on it.",
+    title: "Describe the outcome, not the code",
+    instruction: "This page needs a hero section. Craft a prompt that describes what you want the user to see—a headline, supporting text, and a button. Use your own words; don't copy this instruction.",
+    whatUserSees: "A blank webpage. The body is empty. Nothing at the top yet—no headline, no subtext, no call to action.",
+    hint: "Describe what the user sees: the headline text, the subtext, and what the button says and does. Don't describe the HTML or code.",
     starterCode: "<html>\n  <body>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
@@ -31,13 +35,14 @@ export const codingLessons = [
     },
     failState: { condition: "has_hero_section passes but has_heading fails.", nudge: "There's a section there, but what is this page about? Give it a headline." },
     successState: { condition: "Passing condition is met.", feedback: "Good. You described what the user sees and AI filled it in. That's how every feature starts." },
-    lessonTakeaway: "Describing what the user sees is more useful than describing the code you want written.",
+    lessonTakeaway: "Describe what appears on screen—headline, text, button—not the HTML or code structure.",
   },
   {
     id: CODE_IDS[1],
-    title: "Specify your stack",
-    instruction: "Build a navigation bar for this app.",
-    hint: "AI doesn't know what framework or styling approach you're using. Tell it.",
+    title: "Name your tech stack",
+    instruction: "This page needs a navigation bar. Craft a prompt that tells AI what to build and that you're using Tailwind for styling. Use your own words.",
+    whatUserSees: "A page with Tailwind CSS loaded. The body is empty—no navbar, no links, nothing to navigate yet.",
+    hint: "Explicitly tell AI you're using Tailwind CSS. AI doesn't know your stack unless you say so.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
@@ -56,9 +61,10 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[2],
-    title: "One feature at a time",
-    instruction: "Add a contact form to this page. Just the form, nothing else.",
-    hint: "Keep your prompt focused on only the form. Don't ask for anything else at the same time.",
+    title: "Scope to one change at a time",
+    instruction: "This page needs a contact form below the heading. Craft a prompt that asks for name, email, and message fields plus a submit button—and explicitly tells AI to leave the existing heading untouched. Use your own words.",
+    whatUserSees: "A contact page with a bold 'Contact Us' heading at the top. Nothing below it—no form fields, no submit button yet.",
+    hint: "Ask only for the form. Tell AI to leave the heading exactly as it is.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body>\n    <h1 class=\"text-2xl font-bold p-8\">Contact Us</h1>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
@@ -77,16 +83,17 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[3],
-    title: "Describe behavior, not code",
-    instruction: "Make the sign up button on this page do something when clicked.",
-    hint: "Don't tell AI what code to write. Tell it what the user should experience.",
+    title: "Describe what happens, not how",
+    instruction: "The Sign Up button does nothing when clicked. Craft a prompt that describes what the user should see or experience when they click it (e.g. a modal, a form, a message). Describe the outcome, not the code. Use your own words.",
+    whatUserSees: "A page with a blue Sign Up button. When you click it, nothing happens—no modal, no redirect, no feedback.",
+    hint: "Describe what the user sees and experiences (e.g. 'show a modal with email and password fields'). Don't mention event listeners or JavaScript.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8\">\n    <button class=\"bg-blue-500 text-white px-4 py-2 rounded\">Sign Up</button>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
       criteria: [
-        { id: "has_click_behavior", description: "The button has a click handler or event listener attached to it.", method: "static_analysis", weight: 2, required: true },
-        { id: "behavior_is_meaningful", description: "The behavior is something a real user would expect: a modal, a redirect, a form appearing, or a confirmation message. Not just a console.log.", method: "llm_judge", weight: 2, required: true },
-        { id: "prompt_used_user_language", description: "The user's prompt described the experience from the user's perspective, not in technical terms like 'add an onclick handler'.", method: "llm_judge", weight: 2, required: false },
+        { id: "has_click_behavior", description: "The button has a meaningful action when clicked (e.g. shows an alert or modal).", method: "static_analysis", weight: 2, required: true },
+        { id: "behavior_is_meaningful", description: "The behavior is something a real user would expect: a signup form, a redirect, or a confirmation.", method: "llm_judge", weight: 2, required: true },
+        { id: "prompt_used_user_language", description: "The prompt describes the experience ('show a modal') instead of technical terms ('add an event listener').", method: "llm_judge", weight: 2, required: false },
       ],
       passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
@@ -97,16 +104,17 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[4],
-    title: "Set the guardrails",
-    instruction: "Change the color of the header on this page.",
-    hint: "Think about how to tell AI what to change without letting it touch anything else.",
+    title: "Protect what must stay the same",
+    instruction: "The header is dark gray. Craft a prompt that asks for a different header color and explicitly tells AI not to touch the nav links or main content. Use your own words.",
+    whatUserSees: "A page with a dark gray header bar showing 'My App' and links (Home, About, Contact). Below that, main content: 'Welcome to my app.'",
+    hint: "Tell AI exactly what to change (the header color) and what to leave alone (the links and main content).",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8\">\n    <header class=\"bg-gray-800 text-white p-4\">\n      <h1 class=\"text-2xl font-bold\">My App</h1>\n      <nav class=\"mt-2\">\n        <a href=\"#\" class=\"text-gray-300 mr-4\">Home</a>\n        <a href=\"#\" class=\"text-gray-300 mr-4\">About</a>\n        <a href=\"#\" class=\"text-gray-300\">Contact</a>\n      </nav>\n    </header>\n    <main class=\"mt-8\">\n      <p class=\"text-gray-600\">Welcome to my app.</p>\n    </main>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
       criteria: [
-        { id: "header_color_changed", description: "The background color of the header element is different from the original gray-800.", method: "static_analysis", weight: 2, required: true },
-        { id: "nav_links_intact", description: "The nav links are still present and unchanged.", method: "static_analysis", weight: 2, required: true },
-        { id: "main_content_intact", description: "The main content below the header is untouched.", method: "static_analysis", weight: 2, required: true },
+        { id: "header_color_changed", description: "The header background color is different from the original hex value (#1f2937 / gray-800).", method: "static_analysis", weight: 2, required: true },
+        { id: "nav_links_intact", description: "All navigation links (Home, About, Contact) are still present and visible.", method: "static_analysis", weight: 2, required: true },
+        { id: "main_content_intact", description: "The 'Welcome to my app' message and main section are completely untouched.", method: "static_analysis", weight: 2, required: true },
       ],
       passingCondition: "All required criteria pass.",
       perfectScore: "All three criteria pass.",
@@ -117,16 +125,17 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[5],
-    title: "Report the bug precisely",
-    instruction: "This form submits even when the email field is empty. Fix it.",
-    hint: "Tell AI exactly what the bug is, where it is, and what the correct behavior should be.",
+    title: "Report bugs: what's wrong, where, and expected",
+    instruction: "This form has a bug: it submits when the email field is empty. Craft a prompt that describes what's wrong, where it happens, and what should happen instead. Use your own words.",
+    whatUserSees: "A form with an email field and a Submit button. If you leave the email empty and click Submit, it still shows 'Form submitted!'—no validation, no error message.",
+    hint: "Include three things: what's wrong (submits when empty), where (the email field), and what should happen instead (show error, block submit).",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8\">\n    <form id=\"contactForm\" class=\"space-y-4\">\n      <input type=\"text\" placeholder=\"Email\" class=\"border p-2 w-full rounded\" />\n      <button type=\"submit\" class=\"bg-blue-500 text-white px-4 py-2 rounded\">Submit</button>\n    </form>\n    <script>\n      document.getElementById('contactForm').addEventListener('submit', function(e) {\n        e.preventDefault();\n        alert('Form submitted!');\n      });\n    </script>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
       criteria: [
-        { id: "has_validation", description: "The form now validates that the email field is not empty before submitting.", method: "static_analysis", weight: 2, required: true },
-        { id: "shows_error_message", description: "When the user submits with an empty email, they see an error message telling them the field is required.", method: "llm_judge", weight: 2, required: true },
-        { id: "valid_submission_still_works", description: "When the email field is filled in, the form still submits successfully.", method: "llm_judge", weight: 2, required: true },
+        { id: "has_validation", description: "The form shows a clear error message if the email field is left empty.", method: "static_analysis", weight: 2, required: true },
+        { id: "shows_error_message", description: "The error message is visible to the user and explains what they need to do.", method: "llm_judge", weight: 2, required: true },
+        { id: "valid_submission_still_works", description: "The form still successfully submits when a valid email is provided.", method: "llm_judge", weight: 2, required: true },
       ],
       passingCondition: "All required criteria pass.",
       perfectScore: "All three criteria pass.",
@@ -137,9 +146,10 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[6],
-    title: "Ask for the plan first",
-    instruction: "You need to add a dark mode toggle to this app. Before asking AI to write any code, ask it to plan the approach.",
-    hint: "Prompt AI to think through the steps, the components involved, and any edge cases before it writes a single line.",
+    title: "Ask for a plan before code",
+    instruction: "You want to add a dark mode toggle. Craft a prompt that asks AI to plan the approach first—steps, components, edge cases—without writing any code. Use your own words.",
+    whatUserSees: "A simple app with a header ('My App') and main content ('Welcome to my app.'). White background, black text. No dark mode toggle yet.",
+    hint: "Say something like 'Plan how to add dark mode before writing code. List the steps and any edge cases (e.g. saving the user's preference).'",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8 bg-white text-black\">\n    <header class=\"mb-8\">\n      <h1 class=\"text-2xl font-bold\">My App</h1>\n    </header>\n    <main>\n      <p>Welcome to my app.</p>\n    </main>\n  </body>\n</html>",
     grading: {
       method: "llm_judge",
@@ -157,16 +167,17 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[7],
-    title: "Prompt for edge cases",
-    instruction: "This page fetches and displays a list of users. Make it handle what happens when the fetch fails or the list is empty.",
-    hint: "Explicitly name the edge cases in your prompt. AI won't add them unless you ask.",
+    title: "Name edge cases in your prompt",
+    instruction: "This page fetches users but has no error or empty-state handling. Craft a prompt that names both edge cases and what the user should see in each. Use your own words.",
+    whatUserSees: "A 'Users' page that fetches names from an API and shows them in a list. When the request succeeds, you see names. When it fails or returns nothing, you see nothing—no error message, no empty state.",
+    hint: "List both edge cases explicitly: 'When the request fails, show X. When the list is empty, show Y.' AI won't add them unless you name them.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8\">\n    <h1 class=\"text-2xl font-bold mb-4\">Users</h1>\n    <ul id=\"userList\" class=\"space-y-2\"></ul>\n    <script>\n      fetch('https://jsonplaceholder.typicode.com/users')\n        .then(res => res.json())\n        .then(users => {\n          const list = document.getElementById('userList');\n          users.forEach(user => {\n            const li = document.createElement('li');\n            li.textContent = user.name;\n            list.appendChild(li);\n          });\n        });\n    </script>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
       criteria: [
-        { id: "handles_fetch_failure", description: "The code catches fetch errors and shows the user a message when the request fails.", method: "static_analysis", weight: 2, required: true },
-        { id: "handles_empty_list", description: "The code checks if the returned list is empty and shows the user a message instead of an empty page.", method: "llm_judge", weight: 2, required: true },
-        { id: "error_messages_are_user_friendly", description: "The error and empty state messages are written for a real user, not a developer. No raw error objects or console output.", method: "llm_judge", weight: 2, required: false },
+        { id: "handles_fetch_failure", description: "The code contains error handling (like a .catch or try/catch) for the network request.", method: "static_analysis", weight: 2, required: true },
+        { id: "handles_empty_list", description: "Shows a clear 'No users found' message if the API returns an empty list.", method: "llm_judge", weight: 2, required: true },
+        { id: "error_messages_are_user_friendly", description: "All messages are written for a real person (no raw code errors or console logs).", method: "llm_judge", weight: 2, required: false },
       ],
       passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
@@ -177,36 +188,38 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[8],
-    title: "Iterate without starting over",
-    instruction: "This card component is close but not right yet. Fix only the spacing and make the title larger, without rewriting the whole prompt.",
-    hint: "Write a short follow-up prompt that targets exactly what needs to change. Don't describe the whole component again.",
+    title: "Refine with a focused follow-up",
+    instruction: "This card feels cramped. Craft a prompt that asks for two changes only: more spacing between elements and a larger title. Tell AI to leave everything else untouched. Use your own words.",
+    whatUserSees: "A small card with a tight title ('Card Title'), description text, and a blue Action button. The spacing feels cramped and the title is a bit small.",
+    hint: "Write a short prompt like 'Increase spacing between the elements and make the title bigger.' Don't describe the whole card again.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8\">\n    <div class=\"border rounded p-2 w-64\">\n      <h2 class=\"text-sm font-bold\">Card Title</h2>\n      <p class=\"text-gray-600\">This is the card description text.</p>\n      <button class=\"bg-blue-500 text-white px-2 py-1 rounded\">Action</button>\n    </div>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
       criteria: [
-        { id: "title_is_larger", description: "The card title is visually larger than in the original, using a bigger text size class.", method: "static_analysis", weight: 2, required: true },
-        { id: "spacing_improved", description: "The padding or gap between elements inside the card is larger than the original.", method: "static_analysis", weight: 2, required: true },
-        { id: "nothing_else_changed", description: "The card content, button, and description text are all unchanged. Only spacing and title size were modified.", method: "llm_judge", weight: 2, required: false },
+        { id: "title_is_larger", description: "The card title uses a larger font size class (e.g., text-lg or text-xl) than the original text-sm.", method: "static_analysis", weight: 2, required: true },
+        { id: "spacing_improved", description: "The card has more padding or breathing room between its elements.", method: "static_analysis", weight: 2, required: true },
+        { id: "nothing_else_changed", description: "The button, text content, and overall structure remain exactly the same.", method: "llm_judge", weight: 2, required: false },
       ],
       passingCondition: "All required criteria pass and total weight score is at least 4 out of 6.",
       perfectScore: "All three criteria pass.",
     },
-    failState: { condition: "title_is_larger or spacing_improved fails.", nudge: "The changes didn't land. Try being more specific about which element needs more space and how much bigger the title should be." },
+    failState: { condition: "title_is_larger or spacing_improved fails.", nudge: "Be explicit: 'Add more padding inside the card' and 'Make the title text-lg or text-xl'. Vague requests get vague results." },
     successState: { condition: "Passing condition is met.", feedback: "A targeted follow-up prompt is faster than rewriting everything. You only need to describe what changed." },
     lessonTakeaway: "Treat AI as a conversation loop. When something is 70% right, write a focused follow-up instead of starting over.",
   },
   {
     id: CODE_IDS[9],
-    title: "Give AI the context it's missing",
-    instruction: "Add a logout button to the navbar. This app uses a global auth state stored in a variable called `authStore`.",
-    hint: "AI doesn't know about your app's architecture unless you tell it. Include the relevant context in your prompt.",
+    title: "Share the context AI needs",
+    instruction: "This app has an authStore with a logout() method but no logout button. Craft a prompt that tells AI about the existing authStore and asks for a navbar button that calls it. Use your own words.",
+    whatUserSees: "A dark header bar with 'My App' on the left and links (Dashboard, Settings) on the right. No logout button. The app has an authStore with a logout function—but the UI doesn't use it yet.",
+    hint: "Tell AI that authStore exists and has a logout() method. Without that, it will write generic code that doesn't connect to your app.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body>\n    <header class=\"bg-gray-800 text-white p-4 flex items-center justify-between\">\n      <h1 class=\"text-xl font-bold\">My App</h1>\n      <nav class=\"flex gap-4\">\n        <a href=\"#\" class=\"text-gray-300\">Dashboard</a>\n        <a href=\"#\" class=\"text-gray-300\">Settings</a>\n      </nav>\n    </header>\n    <script>\n      const authStore = {\n        user: { name: 'Mikhail' },\n        logout: function() {\n          this.user = null;\n          alert('Logged out');\n        }\n      };\n    </script>\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
       criteria: [
-        { id: "has_logout_button", description: "The navbar contains a logout button.", method: "static_analysis", weight: 1, required: true },
-        { id: "calls_auth_store_logout", description: "The logout button calls authStore.logout() when clicked.", method: "static_analysis", weight: 3, required: true },
-        { id: "button_is_in_navbar", description: "The logout button is placed inside the existing navbar, not below it or elsewhere on the page.", method: "llm_judge", weight: 2, required: true },
+        { id: "has_logout_button", description: "A new logout button is visible inside the navigation bar.", method: "static_analysis", weight: 1, required: true },
+        { id: "calls_auth_store_logout", description: "Clicking the logout button correctly triggers the existing authStore logout function.", method: "static_analysis", weight: 3, required: true },
+        { id: "button_is_in_navbar", description: "The logout button is placed correctly alongside Dashboard and Settings.", method: "llm_judge", weight: 2, required: true },
       ],
       passingCondition: "All required criteria pass.",
       perfectScore: "All three criteria pass.",
@@ -217,9 +230,10 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[10],
-    title: "Describe a UI without technical terms",
-    instruction: "Redesign this pricing card using only visual and behavioral language in your prompt. No framework names, no class names, no CSS properties.",
-    hint: "Describe colors, sizes, layout, and what happens on hover the way you'd describe it to a designer, not a developer.",
+    title: "Describe the design in plain language",
+    instruction: "This pricing card looks plain. Craft a prompt that describes how you want it to look—colors, spacing, hover effects—using only plain language, no class names or CSS. Describe it as you would to a designer. Use your own words.",
+    whatUserSees: "A gray page with a centered white card: 'Pro Plan', '$29/mo', a feature list, and a blue Get Started button. It works but looks plain—no hover effects, no visual polish.",
+    hint: "Say things like 'make the button darken on hover' or 'add more space between the price and the list'—not 'add hover:bg-blue-600' or 'mb-4'.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-16 bg-gray-100 flex justify-center\">\n    <div class=\"border p-4 w-64 bg-white\">\n      <h2 class=\"text-lg font-bold\">Pro Plan</h2>\n      <p class=\"text-2xl\">$29/mo</p>\n      <ul>\n        <li>Feature one</li>\n        <li>Feature two</li>\n        <li>Feature three</li>\n      </ul>\n      <button class=\"bg-blue-500 text-white px-4 py-2 mt-4\">Get Started</button>\n    </div>\n  </body>\n</html>",
     grading: {
       method: "llm_judge",
@@ -237,9 +251,10 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[11],
-    title: "Reset the context mid-session",
-    instruction: "You've been building this app across a long session and AI is starting to lose track. Write a context reset prompt that gets it back on track before adding a new feature.",
-    hint: "Summarize what's been built, what the current state is, and exactly what you need next. Treat it like a briefing.",
+    title: "Brief AI when it loses track",
+    instruction: "AI has lost context. Craft a prompt that (1) briefly summarizes what this app is and what's already built, then (2) asks for an 'Add task' button. Don't copy this instruction—put it in your own words.",
+    whatUserSees: "A TaskFlow app: blue header with title and Logout button, main area with 'Your Tasks' and a list (Buy groceries, Finish project report). You want to add a new feature but AI has lost context.",
+    hint: "Structure your prompt: 'This is a task app. It has [X, Y, Z]. Add [specific feature].' A clear briefing gets better output than jumping straight to the request.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body>\n    <header class=\"bg-blue-600 text-white p-4 flex justify-between items-center\">\n      <h1 class=\"text-xl font-bold\">TaskFlow</h1>\n      <button class=\"text-sm bg-white text-blue-600 px-3 py-1 rounded\">Logout</button>\n    </header>\n    <main class=\"p-8\">\n      <h2 class=\"text-lg font-bold mb-4\">Your Tasks</h2>\n      <ul id=\"taskList\" class=\"space-y-2\">\n        <li class=\"border p-3 rounded bg-white\">Buy groceries</li>\n        <li class=\"border p-3 rounded bg-white\">Finish project report</li>\n      </ul>\n    </main>\n  </body>\n</html>",
     grading: {
       method: "llm_judge",
@@ -251,15 +266,16 @@ export const codingLessons = [
       passingCondition: "All required criteria pass.",
       perfectScore: "All three criteria pass.",
     },
-    failState: { condition: "new_feature_is_added_correctly fails.", nudge: "AI got confused and broke something or added the wrong thing. Try writing a cleaner summary of what exists and what you need next." },
+    failState: { condition: "new_feature_is_added_correctly fails.", nudge: "Start with a clear summary: 'This app has [X]. Add [Y].' Keep the briefing short and the request specific." },
     successState: { condition: "Passing condition is met.", feedback: "A deliberate context reset keeps output quality from degrading in long sessions. It's one of the highest-leverage prompting habits." },
     lessonTakeaway: "In long sessions, AI loses coherence. A summary prompt that recaps the current state and the next step gets you back on track fast.",
   },
   {
     id: CODE_IDS[12],
-    title: "Ask AI to audit its own output",
-    instruction: "Ask AI to review the code it just generated and find any security issues, hardcoded values, or missing error states.",
-    hint: "Don't ask 'does this look good?' Ask it to check for specific things.",
+    title: "Ask AI to audit its code",
+    instruction: "This login form may have security and UX issues. Craft a prompt that asks AI to audit it for specific things: hardcoded secrets, missing error handling, missing loading state. Give it a checklist. Use your own words.",
+    whatUserSees: "A login form with username, password, and Login button. The code submits to an API—but there's a hardcoded API key, no error handling if the request fails, and no loading state.",
+    hint: "Give AI a checklist: 'Check for hardcoded values, missing error handling, and missing loading state.' Specific requests get specific findings.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8\">\n    <form id=\"loginForm\" class=\"space-y-4 max-w-sm\">\n      <input type=\"text\" id=\"username\" placeholder=\"Username\" class=\"border p-2 w-full rounded\" />\n      <input type=\"password\" id=\"password\" placeholder=\"Password\" class=\"border p-2 w-full rounded\" />\n      <button type=\"submit\" class=\"bg-blue-500 text-white px-4 py-2 rounded w-full\">Login</button>\n    </form>\n    <script>\n      document.getElementById('loginForm').addEventListener('submit', function(e) {\n        e.preventDefault();\n        const username = document.getElementById('username').value;\n        const password = document.getElementById('password').value;\n        fetch('http://api.myapp.com/login', {\n          method: 'POST',\n          body: JSON.stringify({ username, password, apiKey: '12345-hardcoded-key' })\n        }).then(res => res.json()).then(data => {\n          window.location.href = '/dashboard';\n        });\n      });\n    </script>\n  </body>\n</html>",
     grading: {
       method: "llm_judge",
@@ -277,9 +293,10 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[13],
-    title: "Write a spec, then build from it",
-    instruction: "Write a one-paragraph spec for a task manager app, then use that spec as your prompt to scaffold the full app structure.",
-    hint: "Your spec should cover what the app does, who uses it, what the core features are, and what the tech stack is. Then paste it directly as your prompt.",
+    title: "Spec first, then prompt",
+    instruction: "Write a short spec for a task manager (purpose, who uses it, at least two features, Tailwind). Then use that spec as your prompt—but rephrase it in your own words; don't paste the spec verbatim.",
+    whatUserSees: "A blank page. Tailwind is loaded. Nothing built yet—you're starting from scratch with a spec and a prompt.",
+    hint: "Example: 'A task manager for individuals. Users can add tasks and mark them complete. Use Tailwind. Build the full structure.' Then paste it as your prompt.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body>\n  </body>\n</html>",
     grading: {
       method: "llm_judge",
@@ -297,18 +314,19 @@ export const codingLessons = [
   },
   {
     id: CODE_IDS[14],
-    title: "Build a full feature in one prompt",
-    instruction: "Write a single prompt that builds a complete working feature: a user profile card that fetches data from an API, handles loading and error states, and is fully styled.",
-    hint: "Pack everything into one prompt: the stack, the data source, the edge cases, the visual description, and the expected output format. Nothing should be left for AI to guess.",
+    title: "Pack everything into one prompt",
+    instruction: "Build a user profile card in one prompt. Your prompt must cover: Tailwind, fetching from jsonplaceholder.typicode.com/users/1, loading state, error state, and what the card displays. Craft it in your own words—don't copy this list verbatim.",
+    whatUserSees: "A gray page with Tailwind loaded. Nothing on it—no profile card, no data. You're building the whole feature in one prompt.",
+    hint: "Include every requirement in one prompt: stack, API URL, loading state, error state, and what the card should display. Leave nothing for AI to guess.",
     starterCode: "<html>\n  <head>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n  </head>\n  <body class=\"p-8 bg-gray-100\">\n  </body>\n</html>",
     grading: {
       method: "static_analysis + llm_judge",
       criteria: [
-        { id: "fetches_real_data", description: "The code fetches data from an API endpoint and renders it in the profile card.", method: "static_analysis", weight: 2, required: true },
-        { id: "has_loading_state", description: "The component shows a loading indicator while the data is being fetched.", method: "llm_judge", weight: 2, required: true },
-        { id: "has_error_state", description: "The component shows an error message if the fetch fails.", method: "llm_judge", weight: 2, required: true },
-        { id: "is_fully_styled", description: "The profile card is visually complete: it has a layout, readable typography, and doesn't look like an unstyled HTML dump.", method: "llm_judge", weight: 1, required: true },
-        { id: "prompt_left_nothing_to_guess", description: "The user's prompt specified the stack, the data source, the edge cases, and the visual requirements. AI had no significant gaps to fill.", method: "llm_judge", weight: 1, required: false },
+        { id: "fetches_real_data", description: "The code contains a fetch call to jsonplaceholder.typicode.com/users (or similar user API) and displays the fetched data (name, email, or similar fields) in the DOM.", method: "static_analysis", weight: 2, required: true },
+        { id: "has_loading_state", description: "A loading spinner or message is visible while the data is being fetched.", method: "llm_judge", weight: 2, required: true },
+        { id: "has_error_state", description: "A clear error message appears if the data fails to load.", method: "llm_judge", weight: 2, required: true },
+        { id: "is_fully_styled", description: "The profile card has a complete, polished layout with good typography.", method: "llm_judge", weight: 1, required: true },
+        { id: "prompt_left_nothing_to_guess", description: "The prompt specifies the stack, data source, edge cases, and visual look.", method: "llm_judge", weight: 1, required: false },
       ],
       passingCondition: "All required criteria pass and total weight score is at least 7 out of 8.",
       perfectScore: "All five criteria pass.",

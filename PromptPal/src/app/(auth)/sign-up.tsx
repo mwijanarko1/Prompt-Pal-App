@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { Text, View, KeyboardAvoidingView, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useSignUp, useSSO } from '@clerk/clerk-expo'
-import { Link, useRouter } from 'expo-router'
+import { useAuth, useSignUp, useSSO } from '@clerk/clerk-expo'
+import { Link, Redirect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { GoogleIcon } from '@/components/GoogleIcon'
 import * as WebBrowser from 'expo-web-browser'
@@ -22,12 +22,20 @@ const useWarmUpBrowser = () => {
 WebBrowser.maybeCompleteAuthSession()
 
 export default function SignUpScreen() {
+  const { isSignedIn, isLoaded: isAuthLoaded } = useAuth()
   const { isLoaded, signUp, setActive } = useSignUp()
   const { startSSOFlow } = useSSO()
   const router = useRouter()
 
   useWarmUpBrowser()
 
+  // If already signed in (e.g. from race with tabs redirect), go straight to app
+  if (isAuthLoaded && isSignedIn) {
+    return <Redirect href="/(tabs)" />
+  }
+
+  const [firstName, setFirstName] = React.useState('')
+  const [lastName, setLastName] = React.useState('')
   const [emailAddress, setEmailAddress] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [pendingVerification, setPendingVerification] = React.useState(false)
@@ -35,6 +43,8 @@ export default function SignUpScreen() {
   const [isLoading, setIsLoading] = React.useState(false)
   const [isOAuthLoading, setIsOAuthLoading] = React.useState<string | null>(null)
   const [errors, setErrors] = React.useState<{
+    firstName?: string;
+    lastName?: string;
     email?: string;
     password?: string;
     code?: string;
@@ -43,7 +53,15 @@ export default function SignUpScreen() {
 
   // Validate sign-up form
   const validateSignUpForm = () => {
-    const newErrors: { email?: string; password?: string } = {}
+    const newErrors: { firstName?: string; lastName?: string; email?: string; password?: string } = {}
+
+    if (!firstName.trim()) {
+      newErrors.firstName = 'First name is required'
+    }
+
+    if (!lastName.trim()) {
+      newErrors.lastName = 'Last name is required'
+    }
 
     if (!emailAddress.trim()) {
       newErrors.email = 'Email is required'
@@ -88,6 +106,8 @@ export default function SignUpScreen() {
 
     try {
       await signUp.create({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         emailAddress,
         password,
       })
@@ -99,9 +119,7 @@ export default function SignUpScreen() {
       // and capture OTP code
       setPendingVerification(true)
     } catch (err) {
-      const errorMessage = (err && typeof err === 'object' && 'errors' in err && Array.isArray((err as { errors?: Array<{ message?: string }> }).errors))
-        ? (err as { errors: Array<{ message?: string }> }).errors[0]?.message || 'Failed to create account'
-        : 'Failed to create account'
+      const errorMessage = getClerkErrorMessage(err, 'Failed to create account')
       setErrors({ general: errorMessage })
     } finally {
       setIsLoading(false)
@@ -127,22 +145,22 @@ export default function SignUpScreen() {
       // and redirect the user
       if (signUpAttempt.status === 'complete') {
         await setActive({ session: signUpAttempt.createdSessionId })
-        router.replace('/')
+        // Auth layout Redirect will navigate when isSignedIn propagates.
+        // Defer navigation to avoid race where layout still sees isSignedIn=false.
+        setTimeout(() => router.replace('/(tabs)'), 500)
       } else {
         setErrors({ general: 'Verification failed. Please try again.' })
       }
     } catch (err) {
-      const errorMessage = (err && typeof err === 'object' && 'errors' in err && Array.isArray((err as { errors?: Array<{ message?: string }> }).errors))
-        ? (err as { errors: Array<{ message?: string }> }).errors[0]?.message || 'Verification failed'
-        : 'Verification failed'
+      const errorMessage = getClerkErrorMessage(err, 'Verification failed. Please try again.')
       setErrors({ general: errorMessage })
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Handle OAuth sign up
-  const handleOAuthSignUp = React.useCallback(async (provider: 'google' | 'apple') => {
+  // Handle OAuth sign up (Google only)
+  const handleOAuthSignUp = React.useCallback(async () => {
     if (isOAuthLoading || !startSSOFlow) return
 
     setIsOAuthLoading(provider)
@@ -155,7 +173,7 @@ export default function SignUpScreen() {
       for (const redirectUrl of redirectCandidates) {
         try {
           const ssoAttempt = await startSSOFlow({
-            strategy: `oauth_${provider}`,
+            strategy: 'oauth_google',
             redirectUrl,
           })
           const createdSessionId =
@@ -165,15 +183,14 @@ export default function SignUpScreen() {
 
           if (createdSessionId) {
             await ssoAttempt.setActive?.({ session: createdSessionId })
-            router.replace('/')
+            setTimeout(() => router.replace('/(tabs)'), 500)
             return
           }
 
           const completionStatus = ssoAttempt.signIn?.status || ssoAttempt.signUp?.status
           if (completionStatus) {
-            const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1)
             lastError = new Error(
-              `${providerLabel} authentication did not complete (status: ${completionStatus}).`
+              `Google authentication did not complete (status: ${completionStatus}).`
             )
             break
           }
@@ -182,28 +199,22 @@ export default function SignUpScreen() {
         }
       }
 
-      const fallbackMessage = `Failed to sign up with ${provider.charAt(0).toUpperCase() + provider.slice(1)}`
-      let errorMessage = getClerkErrorMessage(lastError, fallbackMessage)
+      let errorMessage = getClerkErrorMessage(lastError, 'Failed to sign up with Google')
       if (errorMessage.includes('Missing external verification redirect URL for SSO flow')) {
         const primaryRedirect = redirectCandidates[0] || 'promptpal://sso-callback'
-        const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1)
-        errorMessage = `${providerLabel} SSO redirect is not configured in Clerk. Add ${primaryRedirect} to Clerk redirect URLs.`
+        errorMessage = `Google SSO redirect is not configured in Clerk. Add ${primaryRedirect} to Clerk redirect URLs.`
       }
 
       logger.error('OAuthSignUp', lastError, {
-        provider,
+        provider: 'google',
         redirectCandidates,
       })
 
       setErrors({ general: errorMessage })
-    } catch (err: any) {
-      let errorMessage = getClerkErrorMessage(
-        err,
-        `Failed to sign up with ${provider.charAt(0).toUpperCase() + provider.slice(1)}`
-      )
+    } catch (err: unknown) {
+      let errorMessage = getClerkErrorMessage(err, 'Failed to sign up with Google')
       if (errorMessage.includes('Missing external verification redirect URL for SSO flow')) {
-        const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1)
-        errorMessage = `${providerLabel} SSO redirect is not configured in Clerk for this app build.`
+        errorMessage = 'Google SSO redirect is not configured in Clerk for this app build.'
       }
       setErrors({ general: errorMessage })
     } finally {
@@ -257,6 +268,11 @@ export default function SignUpScreen() {
                       if (errors.code) setErrors({ ...errors, code: undefined })
                     }}
                     keyboardType="numeric"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
                     autoFocus
                   />
                 </View>
@@ -294,16 +310,12 @@ export default function SignUpScreen() {
         behavior="padding"
         className="flex-1"
       >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-          showsVerticalScrollIndicator={false}
-          className="px-6"
-        >
+        <View className="flex-1 px-6 justify-center">
           {/* Header */}
-          <View className="items-center mb-10">
-            <View className="flex-row items-center mb-3">
-              <Text className="text-primary text-5xl font-black tracking-tighter">Prompt</Text>
-              <Text className="text-secondary text-5xl font-black tracking-tighter">Pal</Text>
+          <View className="items-center mb-4">
+            <View className="flex-row items-center mb-2">
+              <Text className="text-primary text-4xl font-black tracking-tighter">Prompt</Text>
+              <Text className="text-secondary text-4xl font-black tracking-tighter">Pal</Text>
             </View>
             <Text className="text-onSurfaceVariant text-center text-[10px] font-black uppercase tracking-[3px] leading-4">
               Create an account to start your{'\n'}mastery journey
@@ -311,23 +323,67 @@ export default function SignUpScreen() {
           </View>
 
           {/* Sign Up Form */}
-          <View className="bg-surface border border-outline/20 rounded-[40px] p-8 shadow-2xl shadow-black/50 mb-8">
-            <Text className="text-onSurface text-2xl font-black mb-8 text-center tracking-tight">
+          <View className="bg-surface border border-outline/20 rounded-[32px] p-5 shadow-2xl shadow-black/50 mb-4">
+            <Text className="text-onSurface text-xl font-black mb-4 text-center tracking-tight">
               Sign Up
             </Text>
 
             {errors.general && (
-              <View className="bg-error/10 border border-error/30 rounded-2xl p-4 mb-6">
+              <View className="bg-error/10 border border-error/30 rounded-2xl p-3 mb-4">
                 <Text className="text-error text-[10px] text-center font-black uppercase tracking-widest">
                   {errors.general}
                 </Text>
               </View>
             )}
 
-            <View className="space-y-5">
+            <View className="gap-3">
               <View>
-                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-2 ml-1 tracking-[2px]">Email Address</Text>
-                <View className={`bg-surfaceVariant/50 border ${errors.email ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-4 flex-row items-center`}>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-1.5 ml-1 tracking-[2px]">First Name</Text>
+                <View className={`bg-surfaceVariant/50 border ${errors.firstName ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-3 flex-row items-center`}>
+                  <Ionicons name="person-outline" size={20} color={errors.firstName ? "#EF4444" : "#9CA3AF"} />
+                  <TextInput
+                    className="flex-1 ml-3 text-onSurface text-base font-bold"
+                    value={firstName}
+                    onChangeText={(text) => {
+                      setFirstName(text)
+                      if (errors.firstName) setErrors({ ...errors, firstName: undefined })
+                    }}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    autoComplete="given-name"
+                    textContentType="givenName"
+                    placeholder="First"
+                  />
+                </View>
+                {errors.firstName && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.firstName}</Text>}
+              </View>
+
+              <View>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-1.5 ml-1 tracking-[2px]">Last Name</Text>
+                <View className={`bg-surfaceVariant/50 border ${errors.lastName ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-3 flex-row items-center`}>
+                  <Ionicons name="person-outline" size={20} color={errors.lastName ? "#EF4444" : "#9CA3AF"} />
+                  <TextInput
+                    className="flex-1 ml-3 text-onSurface text-base font-bold"
+                    value={lastName}
+                    onChangeText={(text) => {
+                      setLastName(text)
+                      if (errors.lastName) setErrors({ ...errors, lastName: undefined })
+                    }}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    autoComplete="family-name"
+                    textContentType="familyName"
+                    placeholder="Last"
+                  />
+                </View>
+                {errors.lastName && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.lastName}</Text>}
+              </View>
+
+              <View>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-1.5 ml-1 tracking-[2px]">Email Address</Text>
+                <View className={`bg-surfaceVariant/50 border ${errors.email ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-3 flex-row items-center`}>
                   <Ionicons name="mail-outline" size={20} color={errors.email ? "#EF4444" : "#9CA3AF"} />
                   <TextInput
                     className="flex-1 ml-3 text-onSurface text-base font-bold"
@@ -338,14 +394,18 @@ export default function SignUpScreen() {
                     }}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
                   />
                 </View>
                 {errors.email && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.email}</Text>}
               </View>
 
-              <View className="mt-4">
-                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-2 ml-1 tracking-[2px]">Password</Text>
-                <View className={`bg-surfaceVariant/50 border ${errors.password ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-4 flex-row items-center`}>
+              <View>
+                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-1.5 ml-1 tracking-[2px]">Password</Text>
+                <View className={`bg-surfaceVariant/50 border ${errors.password ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-3 flex-row items-center`}>
                   <Ionicons name="key-outline" size={20} color={errors.password ? "#EF4444" : "#9CA3AF"} />
                   <TextInput
                     className="flex-1 ml-3 text-onSurface text-base font-bold"
@@ -355,63 +415,51 @@ export default function SignUpScreen() {
                       if (errors.password) setErrors({ ...errors, password: undefined })
                     }}
                     secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    autoComplete="new-password"
+                    textContentType="newPassword"
                   />
                 </View>
                 {errors.password && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.password}</Text>}
               </View>
             </View>
 
-            <View className="bg-surfaceVariant/30 rounded-2xl p-4 mt-6">
-              <Text className="text-onSurfaceVariant text-[9px] leading-4 font-black uppercase tracking-[1px]">
+            <View className="bg-surfaceVariant/30 rounded-2xl p-3 mt-4">
+              <Text className="text-onSurfaceVariant text-[9px] leading-3 font-black uppercase tracking-[1px]">
                 • 8+ characters, uppercase, lowercase, and a number.
               </Text>
             </View>
 
-            {/* OAuth Buttons */}
-            <View className="mt-8 space-y-3">
-              <View className="flex-row items-center mb-4">
+            {/* OAuth - Google only */}
+            <View className="mt-4">
+              <View className="flex-row items-center mb-3">
                 <View className="flex-1 h-px bg-outline/30" />
                 <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mx-4">or continue with</Text>
                 <View className="flex-1 h-px bg-outline/30" />
               </View>
 
-              <View className="flex-row">
-                <TouchableOpacity
-                  onPress={() => handleOAuthSignUp('google')}
-                  disabled={!!isOAuthLoading}
-                  className={`flex-1 bg-white border border-outline/30 h-16 rounded-2xl items-center justify-center flex-row shadow-lg mx-2 ${isOAuthLoading === 'google' ? 'opacity-70' : ''}`}
-                >
-                  {isOAuthLoading === 'google' ? (
-                    <ActivityIndicator color="#4285F4" size="small" />
-                  ) : (
-                    <>
-                      <GoogleIcon size={20} />
-                      <Text className="text-gray-700 font-black text-xs uppercase tracking-widest ml-3">Google</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => handleOAuthSignUp('apple')}
-                  disabled={!!isOAuthLoading}
-                  className={`flex-1 bg-black border border-outline/30 h-16 rounded-2xl items-center justify-center flex-row shadow-lg mx-2 ${isOAuthLoading === 'apple' ? 'opacity-70' : ''}`}
-                >
-                  {isOAuthLoading === 'apple' ? (
-                    <ActivityIndicator color="white" size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="logo-apple" size={20} color="white" />
-                      <Text className="text-white font-black text-xs uppercase tracking-widest ml-3">Apple</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                onPress={() => handleOAuthSignUp()}
+                disabled={!!isOAuthLoading}
+                className={`bg-white border border-outline/30 h-12 rounded-2xl items-center justify-center flex-row shadow-lg ${isOAuthLoading ? 'opacity-70' : ''}`}
+              >
+                {isOAuthLoading ? (
+                  <ActivityIndicator color="#4285F4" size="small" />
+                ) : (
+                  <>
+                    <GoogleIcon size={20} />
+                    <Text className="text-gray-700 font-black text-xs uppercase tracking-widest ml-3">Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
               onPress={onSignUpPress}
               disabled={isLoading}
-              className={`bg-secondary h-16 rounded-full items-center justify-center mt-8 shadow-lg shadow-secondary/20 ${isLoading ? 'opacity-70' : ''}`}
+              className={`bg-secondary h-14 rounded-full items-center justify-center mt-4 shadow-lg shadow-secondary/20 ${isLoading ? 'opacity-70' : ''}`}
             >
               {isLoading ? (
                 <ActivityIndicator color="white" />
@@ -422,7 +470,7 @@ export default function SignUpScreen() {
           </View>
 
           {/* Sign In Link */}
-          <View className="flex-row justify-center items-center mb-10">
+          <View className="flex-row justify-center items-center mt-4 mb-2">
             <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">
               Already have an account?
             </Text>
@@ -432,7 +480,7 @@ export default function SignUpScreen() {
               </Text>
             </Link>
           </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )

@@ -42,61 +42,59 @@ type TokenType = 'keyword' | 'string' | 'comment' | 'number' | 'operator' | 'nor
 function highlightCode(code: string, language: string): { text: string; type: TokenType }[] {
   const keywords = language.toLowerCase().includes('python') ? PY_KEYWORDS : JS_KEYWORDS;
   const tokens: { text: string; type: TokenType }[] = [];
+  let index = 0;
 
-  // Simple regex-based tokenization
-  const patterns = [
-    // Comments
-    { regex: /(\/\/.*$|\/\*[\s\S]*?\*\/|#.*$)/gm, type: 'comment' as TokenType },
-    // Strings
-    { regex: /(["'`])((?:\\.|(?!\1)[^\\\n])*?)\1/g, type: 'string' as TokenType },
-    // Numbers
-    { regex: /\b\d+(\.\d+)?\b/g, type: 'number' as TokenType },
-    // Operators
-    { regex: /[+\-*/%=<>!&|^~?:;,.(){}[\]]/g, type: 'operator' as TokenType },
-    // Keywords and identifiers
-    { regex: /\b\w+\b/g, type: 'normal' as TokenType },
-  ];
+  while (index < code.length) {
+    const remaining = code.slice(index);
 
-  let lastIndex = 0;
-  const matches: Array<{ index: number; match: string; type: TokenType }> = [];
-
-  // Find all matches
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.regex.exec(code)) !== null) {
-      matches.push({
-        index: match.index,
-        match: match[0],
-        type: pattern.type,
-      });
-    }
-  }
-
-  // Sort by index and process
-  matches.sort((a, b) => a.index - b.index);
-
-  for (const match of matches) {
-    // Add any text before this match
-    if (match.index > lastIndex) {
-      const beforeText = code.slice(lastIndex, match.index);
-      if (beforeText) {
-        tokens.push({ text: beforeText, type: 'normal' });
-      }
+    const commentMatch =
+      remaining.match(/^\/\/[^\n]*/) ??
+      remaining.match(/^\/\*[\s\S]*?\*\//) ??
+      remaining.match(/^#[^\n]*/);
+    if (commentMatch) {
+      tokens.push({ text: commentMatch[0], type: 'comment' });
+      index += commentMatch[0].length;
+      continue;
     }
 
-    // Add the matched token
-    let tokenType: TokenType = match.type;
-    if (tokenType === 'normal' && keywords.has(match.match)) {
-      tokenType = 'keyword';
+    const stringMatch = remaining.match(/^"(?:\\.|[^"\\])*"?|^'(?:\\.|[^'\\])*'?|^`(?:\\.|[\s\S])*?`/);
+    if (stringMatch) {
+      tokens.push({ text: stringMatch[0], type: 'string' });
+      index += stringMatch[0].length;
+      continue;
     }
 
-    tokens.push({ text: match.match, type: tokenType });
-    lastIndex = match.index + match.match.length;
-  }
+    const numberMatch = remaining.match(/^\b\d+(\.\d+)?\b/);
+    if (numberMatch) {
+      tokens.push({ text: numberMatch[0], type: 'number' });
+      index += numberMatch[0].length;
+      continue;
+    }
 
-  // Add remaining text
-  if (lastIndex < code.length) {
-    tokens.push({ text: code.slice(lastIndex), type: 'normal' });
+    const identifierMatch = remaining.match(/^\b[A-Za-z_]\w*\b/);
+    if (identifierMatch) {
+      const text = identifierMatch[0];
+      tokens.push({ text, type: keywords.has(text) ? 'keyword' : 'normal' });
+      index += text.length;
+      continue;
+    }
+
+    const operatorMatch = remaining.match(/^[+\-*/%=<>!&|^~?:;,.()[\]{}]/);
+    if (operatorMatch) {
+      tokens.push({ text: operatorMatch[0], type: 'operator' });
+      index += operatorMatch[0].length;
+      continue;
+    }
+
+    const normalMatch = remaining.match(/^[^A-Za-z0-9_+\-*/%=<>!&|^~?:;,.()[\]{}"'`#/]+/);
+    if (normalMatch) {
+      tokens.push({ text: normalMatch[0], type: 'normal' });
+      index += normalMatch[0].length;
+      continue;
+    }
+
+    tokens.push({ text: remaining[0], type: 'normal' });
+    index += 1;
   }
 
   return tokens;
@@ -150,11 +148,11 @@ export function CodeExecutionView({
   };
 
   return (
-    <View className="pb-6">
+    <View className="w-full min-w-0 pb-6">
       {hasCode && (
-        <Card className="mb-4" padding="md" variant="outlined">
-          <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-onSurfaceVariant text-[10px] uppercase tracking-[2px] font-bold">
+        <Card className="mb-4 w-full min-w-0" padding="md" variant="outlined">
+          <View className="mb-2 flex-row items-center justify-between gap-3">
+            <Text className="min-w-0 flex-1 text-onSurfaceVariant text-[10px] uppercase tracking-[2px] font-bold">
               Generated code
             </Text>
             <TouchableOpacity
@@ -169,8 +167,8 @@ export function CodeExecutionView({
               </Text>
             </TouchableOpacity>
           </View>
-          <View className="bg-surfaceVariant/50 rounded-xl p-3 border border-outline/50">
-            <Text className="text-onSurface text-xs font-mono" selectable>
+          <View className="w-full min-w-0 bg-surfaceVariant/50 rounded-xl border border-outline/50 p-3">
+            <Text className="w-full min-w-0 text-onSurface text-xs font-mono leading-5" selectable>
               {tokens.map((t, i) => {
                 let textClass = 'text-onSurface';
                 switch (t.type) {
@@ -202,12 +200,12 @@ export function CodeExecutionView({
       )}
 
       {executionResult && totalCount > 0 && (
-        <Card className="mb-4" padding="md" variant="outlined">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-onSurfaceVariant text-[10px] uppercase tracking-[2px] font-bold">
+        <Card className="mb-4 w-full min-w-0" padding="md" variant="outlined">
+          <View className="flex-row flex-wrap items-center justify-between gap-2">
+            <Text className="min-w-0 flex-1 text-onSurfaceVariant text-[10px] uppercase tracking-[2px] font-bold">
               Execution summary
             </Text>
-            <View className="flex-row items-center space-x-3">
+            <View className="flex-row flex-wrap items-center justify-end gap-3">
               {totalExecutionTime > 0 && (
                 <View className="flex-row items-center">
                   <Ionicons name="time-outline" size={12} color="#6B7280" />
@@ -235,11 +233,11 @@ export function CodeExecutionView({
       )}
 
       {executionResult?.error && (
-        <Card className="mb-4 border-error/30" padding="md" variant="outlined">
-          <View className="flex-row items-center justify-between mb-3">
-            <View className="flex-row items-center">
+        <Card className="mb-4 w-full min-w-0 border-error/30" padding="md" variant="outlined">
+          <View className="mb-3 flex-row items-center justify-between gap-3">
+            <View className="min-w-0 flex-1 flex-row items-center">
               <Ionicons name="alert-circle" size={18} color="#EF4444" />
-              <Text className="text-error text-[10px] uppercase tracking-[2px] font-bold ml-2">
+              <Text className="ml-2 min-w-0 flex-1 text-error text-[10px] uppercase tracking-[2px] font-bold">
                 Execution Error
               </Text>
             </View>
@@ -253,7 +251,7 @@ export function CodeExecutionView({
             </TouchableOpacity>
           </View>
 
-          <View className="bg-error/5 rounded-lg p-3 border border-error/20">
+          <View className="w-full min-w-0 bg-error/5 rounded-lg p-3 border border-error/20">
             <Text className="text-error text-sm font-mono leading-5">{executionResult.error}</Text>
           </View>
 
@@ -264,12 +262,12 @@ export function CodeExecutionView({
       )}
 
       {executionResult?.testResults && executionResult.testResults.length > 0 && (
-        <Card className="mb-4" padding="md" variant="outlined">
+        <Card className="mb-4 w-full min-w-0" padding="md" variant="outlined">
           <TouchableOpacity
             onPress={() => setTestResultsExpanded(!testResultsExpanded)}
-            className="flex-row items-center justify-between mb-3"
+            className="mb-3 flex-row items-center justify-between gap-3"
           >
-            <Text className="text-onSurfaceVariant text-[10px] uppercase tracking-[2px] font-bold">
+            <Text className="min-w-0 flex-1 text-onSurfaceVariant text-[10px] uppercase tracking-[2px] font-bold">
               Test results ({passedCount}/{totalCount} passed)
             </Text>
             <View className="flex-row items-center">
@@ -286,7 +284,7 @@ export function CodeExecutionView({
               {executionResult.testResults.map((tc: CodeTestResult, index: number) => (
             <View
               key={`test-result-${tc.id || index}-${index}`}
-              className="py-3 border-b border-outline/20 last:border-b-0"
+              className="w-full min-w-0 border-b border-outline/20 py-3 last:border-b-0"
             >
               <View className="flex-row items-center">
                 <View
@@ -300,7 +298,7 @@ export function CodeExecutionView({
                     color={tc.passed ? '#10B981' : '#EF4444'}
                   />
                 </View>
-                <Text className="text-onSurface text-sm flex-1 font-medium" numberOfLines={1}>
+                <Text className="min-w-0 flex-1 text-onSurface text-sm font-medium" numberOfLines={1}>
                   {tc.name}
                 </Text>
                 {tc.executionTime != null && (
@@ -318,26 +316,26 @@ export function CodeExecutionView({
               </View>
 
               {!tc.passed && (
-                <View className="mt-3 ml-9">
+                <View className="mt-3 ml-9 min-w-0">
                   {tc.error && (
-                    <View className="mb-3">
+                    <View className="mb-3 min-w-0">
                       <Text className="text-onSurfaceVariant text-[10px] uppercase mb-1 font-semibold">Error Message</Text>
-                      <View className="bg-error/10 rounded-lg p-2 border border-error/20">
+                      <View className="min-w-0 bg-error/10 rounded-lg p-2 border border-error/20">
                         <Text className="text-error text-xs font-mono leading-4">{tc.error}</Text>
                       </View>
                     </View>
                   )}
                   {(tc.expectedOutput || tc.actualOutput || tc.output) && (
-                    <View className="flex-row">
-                      <View className="flex-1 mr-2">
+                    <View className="min-w-0">
+                      <View className="mb-2 min-w-0">
                         <Text className="text-onSurfaceVariant text-[10px] uppercase mb-1 font-semibold">Expected Output</Text>
-                        <Text className="text-success text-xs font-mono bg-success/10 rounded-lg p-2 border border-success/20 min-h-[32px]">
+                        <Text className="min-w-0 text-success text-xs font-mono bg-success/10 rounded-lg p-2 border border-success/20 min-h-[32px]">
                           {formatValue(tc.expectedOutput)}
                         </Text>
                       </View>
-                      <View className="flex-1 ml-2">
+                      <View className="min-w-0">
                         <Text className="text-onSurfaceVariant text-[10px] uppercase mb-1 font-semibold">Your Output</Text>
-                        <Text className="text-error text-xs font-mono bg-error/10 rounded-lg p-2 border border-error/20 min-h-[32px]">
+                        <Text className="min-w-0 text-error text-xs font-mono bg-error/10 rounded-lg p-2 border border-error/20 min-h-[32px]">
                           {formatValue(tc.actualOutput ?? tc.output)}
                         </Text>
                       </View>
@@ -353,12 +351,12 @@ export function CodeExecutionView({
       )}
 
       {executionResult?.output != null && executionResult.output !== '' && (
-        <Card className="mb-4 bg-surfaceVariant/30" padding="md" variant="outlined">
+        <Card className="mb-4 w-full min-w-0 bg-surfaceVariant/30" padding="md" variant="outlined">
           <Text className="text-onSurfaceVariant text-[10px] uppercase tracking-[2px] font-bold mb-2">
             Feedback
           </Text>
-          <View className="bg-background/80 rounded-xl p-3 border border-outline/30">
-            <Text className="text-onSurface text-xs font-mono" selectable>
+          <View className="w-full min-w-0 bg-background/80 rounded-xl p-3 border border-outline/30">
+            <Text className="w-full min-w-0 text-onSurface text-xs font-mono leading-5" selectable>
               {executionResult.output}
             </Text>
           </View>

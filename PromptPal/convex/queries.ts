@@ -50,6 +50,7 @@ function toPublicLevel(level: any) {
     prerequisites: level.prerequisites,
     // Onboarding-style code lessons
     instruction: level.instruction,
+    whatUserSees: level.whatUserSees,
     starterCode: level.starterCode,
     grading: level.grading,
     failState: level.failState,
@@ -653,6 +654,26 @@ export const getUserResults = query({
   },
 });
 
+// Get completed level IDs from userProgress (source of truth for module progress)
+export const getCompletedLevelIds = query({
+  args: {
+    appId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthenticatedUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+    const appId = args.appId ?? "prompt-pal";
+    const completed = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user_app", (q) => q.eq("userId", userId).eq("appId", appId))
+      .filter((q) => q.eq(q.field("isCompleted"), true))
+      .collect();
+    return completed.map((p) => p.levelId);
+  },
+});
+
 // Helper function to determine task type from level ID
 function getTaskTypeFromLevelId(levelId: string): "image" | "code" | "copywriting" {
   if (levelId.startsWith("image-")) {
@@ -789,6 +810,8 @@ export const getLevelEvaluationData = internalQuery({
       successState: level.successState,
       lessonTakeaway: level.lessonTakeaway,
       starterContext: level.starterContext,
+      whatUserSees: level.whatUserSees,
+      starterCode: level.starterCode,
     };
   },
 });
@@ -1147,7 +1170,7 @@ export const getActiveDailyQuests = query({
   },
 });
 
-// Get daily quest by ID
+// Get daily quest by ID (includes completion status when user is authenticated)
 export const getDailyQuestById = query({
   args: {
     id: v.string(),
@@ -1158,7 +1181,19 @@ export const getDailyQuestById = query({
       .filter((q) => q.eq(q.field("id"), args.id))
       .first();
 
-    return quest;
+    if (!quest) return null;
+
+    const userId = await getAuthenticatedUserId(ctx);
+    let completed = false;
+    if (userId) {
+      const completion = await ctx.db
+        .query("userQuestCompletions")
+        .withIndex("by_user_quest", (q) => q.eq("userId", userId).eq("questId", quest.id))
+        .first();
+      completed = completion?.completed ?? false;
+    }
+
+    return { ...quest, completed };
   },
 });
 

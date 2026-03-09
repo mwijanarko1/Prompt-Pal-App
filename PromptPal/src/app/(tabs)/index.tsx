@@ -3,7 +3,7 @@ import { Text, View, ScrollView, Pressable, Alert } from 'react-native'
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, useCallback, memo, ComponentProps } from 'react';
+import { useEffect, useState, useCallback, memo, useMemo, ComponentProps } from 'react';
 import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore, getOverallProgress } from '@/features/user/store';
 import { logDailyQuestStart } from '@/lib/analytics';
@@ -288,6 +288,13 @@ export default function HomeScreen() {
 
   // Use useQuery for reactive level data
   const allLevels = useQuery(api.queries.getLevels, { appId: 'prompt-pal' }) || [];
+  const backendCompletedIds = useQuery(api.queries.getCompletedLevelIds, { appId: 'prompt-pal' }) ?? [];
+
+  // Merge backend (userProgress) + game store: userProgress is source of truth for module progress
+  const effectiveCompletedLevels = useMemo(() => {
+    const merged = new Set([...completedLevels, ...backendCompletedIds]);
+    return Array.from(merged);
+  }, [completedLevels, backendCompletedIds]);
 
   const getModuleLevelInfo = useCallback((moduleId: string) => {
     const type = MODULE_TYPE_MAPPING[moduleId];
@@ -300,7 +307,7 @@ export default function HomeScreen() {
     if (moduleLevels.length === 0) return null;
 
     // Find the first level not completed
-    const currentLevel = moduleLevels.find(l => !completedLevels.includes(l.id)) || moduleLevels[moduleLevels.length - 1];
+    const currentLevel = moduleLevels.find(l => !effectiveCompletedLevels.includes(l.id)) || moduleLevels[moduleLevels.length - 1];
 
     // Calculate 1-based order within module
     const orderInModule = moduleLevels.indexOf(currentLevel) + 1;
@@ -309,7 +316,7 @@ export default function HomeScreen() {
       name: currentLevel.title,
       order: orderInModule
     };
-  }, [allLevels, completedLevels]);
+  }, [allLevels, effectiveCompletedLevels]);
 
   useEffect(() => {
     if (isLoaded && isSignedIn && user?.id) {
@@ -324,7 +331,7 @@ export default function HomeScreen() {
 
     const type = MODULE_TYPE_MAPPING[item.id];
     const moduleLevels = allLevels?.filter(l => l.type === type) || [];
-    const completedLevelsInModule = moduleLevels.filter(l => completedLevels.includes(l.id)).length;
+    const completedLevelsInModule = moduleLevels.filter(l => effectiveCompletedLevels.includes(l.id)).length;
     const actualProgress = moduleLevels.length > 0 ? Math.round((completedLevelsInModule / moduleLevels.length) * 100) : 0;
 
     return (
@@ -335,7 +342,7 @@ export default function HomeScreen() {
         currentLevelOrder={levelInfo?.order}
       />
     );
-  }, [getModuleLevelInfo, allLevels, completedLevels]);
+  }, [getModuleLevelInfo, allLevels, effectiveCompletedLevels]);
 
   const handleSettingsPress = useCallback(() => {
     setSettingsModalVisible(true);
