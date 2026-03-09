@@ -1,4 +1,4 @@
-import { FileSystem } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const MAX_CACHE_SIZE = 50 * 1024 * 1024; // 50MB
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days

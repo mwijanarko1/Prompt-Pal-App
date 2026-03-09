@@ -189,6 +189,101 @@ export const evaluateCodeSubmission = action({
   },
 });
 
+/** Build LLM judge prompt and parse result for copy lessons with grading.method === "llm_judge" */
+function buildCopyLlmJudgePrompt(
+  userPrompt: string,
+  generatedCopy: string,
+  starterContext: Record<string, unknown> | undefined,
+  criteria: Array< { id: string; description: string; weight: number; required?: boolean } >
+): string {
+  const contextStr = starterContext
+    ? `CONTEXT:\n${JSON.stringify(starterContext, null, 2)}\n\n`
+    : "";
+  const criteriaList = criteria
+    .map((c) => `- ${c.id}: ${c.description} (weight: ${c.weight}, required: ${c.required ?? false})`)
+    .join("\n");
+  return `You are evaluating a copywriting prompt engineering exercise.
+
+${contextStr}USER'S PROMPT (what the user wrote to instruct the AI):
+---
+${userPrompt}
+---
+
+GENERATED COPY (what the AI produced):
+---
+${generatedCopy}
+---
+
+Evaluate each criterion. For each, determine PASS or FAIL based on the description.
+
+CRITERIA:
+${criteriaList}
+
+Respond with a JSON object only, no other text:
+{
+  "results": [
+    { "id": "criterion_id", "pass": true, "reason": "brief explanation" },
+    ...
+  ]
+}`;
+}
+
+function parseLlmJudgeResponse(
+  responseText: string,
+  criteria: Array<{ id: string; weight: number; required?: boolean }>
+): { passed: Record<string, boolean>; reasons: Record<string, string> } {
+  const passed: Record<string, boolean> = {};
+  const reasons: Record<string, string> = {};
+  try {
+    let jsonText = responseText;
+    const backtickMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (backtickMatch?.[1]) jsonText = backtickMatch[1];
+    else {
+      const braceMatch = responseText.match(/\{[\s\S]*\}/);
+      if (braceMatch?.[0]) jsonText = braceMatch[0];
+    }
+    const parsed = JSON.parse(jsonText.trim()) as { results?: Array<{ id: string; pass: boolean; reason?: string }> };
+    const results = parsed.results ?? [];
+    for (const r of results) {
+      passed[r.id] = r.pass === true;
+      if (r.reason) reasons[r.id] = r.reason;
+    }
+    for (const c of criteria) {
+      if (passed[c.id] === undefined) passed[c.id] = false;
+    }
+  } catch {
+    for (const c of criteria) {
+      passed[c.id] = false;
+      reasons[c.id] = "Could not parse evaluation.";
+    }
+  }
+  return { passed, reasons };
+}
+
+function computeLlmJudgeScore(
+  passed: Record<string, boolean>,
+  criteria: Array<{ id: string; weight: number; required?: boolean }>,
+  passingCondition: string
+): { score: number; passed: boolean } {
+  const totalWeight = criteria.reduce((s, c) => s + c.weight, 0);
+  let earnedWeight = 0;
+  for (const c of criteria) {
+    if (passed[c.id]) earnedWeight += c.weight;
+  }
+  const allRequiredPass = criteria.filter((c) => c.required).every((c) => passed[c.id]);
+  const score = totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 0;
+  // Parse passingCondition heuristically: "All required criteria pass" or "total weight score is at least X out of Y"
+  let conditionMet = allRequiredPass;
+  const weightMatch = passingCondition.match(/at least (\d+) out of (\d+)/i);
+  if (weightMatch) {
+    const [, minStr, maxStr] = weightMatch;
+    const minScore = parseInt(minStr ?? "0", 10);
+    const maxScore = parseInt(maxStr ?? "6", 10);
+    conditionMet = conditionMet && earnedWeight >= minScore && maxScore > 0;
+  }
+  return { score, passed: conditionMet };
+}
+
 export const evaluateCopySubmission = action({
   args: {
     levelId: v.string(),
@@ -207,8 +302,59 @@ export const evaluateCopySubmission = action({
     }
 
     const trimmedText = args.text.trim();
-    const limits = level.wordLimit || DEFAULT_COPY_WORD_LIMIT;
     const wordCount = countWords(trimmedText);
+
+    // LLM-judge path for copy lessons with custom grading criteria
+    const grading = level.grading as
+      | { method?: string; criteria?: Array<{ id: string; description: string; weight: number; required?: boolean }>; passingCondition?: string }
+      | undefined;
+    if (grading?.method === "llm_judge" && grading.criteria && grading.criteria.length > 0) {
+      const judgePrompt = buildCopyLlmJudgePrompt(
+        args.userPrompt,
+        trimmedText,
+        level.starterContext as Record<string, unknown> | undefined,
+        grading.criteria
+      );
+      const generated = await generateTextWithQuota(ctx, {
+        userId: identity.subject,
+        prompt: judgePrompt,
+        context: "You are a strict copywriting evaluator. Respond only with valid JSON.",
+      });
+      const { passed, reasons } = parseLlmJudgeResponse(generated.text, grading.criteria);
+      const { score, passed: conditionMet } = computeLlmJudgeScore(
+        passed,
+        grading.criteria,
+        grading.passingCondition ?? "All required criteria pass"
+      );
+      const failState = level.failState as { nudge?: string } | undefined;
+      const successState = level.successState as { feedback?: string } | undefined;
+      const feedbackLines: string[] = [];
+      if (conditionMet && successState?.feedback) {
+        feedbackLines.push(successState.feedback);
+      } else if (!conditionMet && failState?.nudge) {
+        feedbackLines.push(failState.nudge);
+      }
+      for (const c of grading.criteria) {
+        if (!passed[c.id] && reasons[c.id]) {
+          feedbackLines.push(`${c.id}: ${reasons[c.id]}`);
+        }
+      }
+      const metrics = grading.criteria.map((c) => ({
+        name: c.id.replace(/_/g, " "),
+        value: passed[c.id] ? 100 : 0,
+      }));
+      return {
+        score,
+        metrics: metrics.map((m) => ({ label: m.name, value: m.value })),
+        feedback: feedbackLines.length > 0 ? feedbackLines : ["Evaluation complete."],
+        wordCount,
+        withinLimit: true,
+        promptQualityScore: score,
+      };
+    }
+
+    // Legacy metrics-based path
+    const limits = level.wordLimit || DEFAULT_COPY_WORD_LIMIT;
     const withinLimit = isWithinWordLimit(wordCount, limits);
 
     const promptAssessment = assessCopyPromptQuality({

@@ -156,8 +156,16 @@ export default defineSchema({
       expectedOutput: v.any(),
       description: v.optional(v.string()),
     }))),
+    // Onboarding-style code lessons (prompt-for-UI flow)
+    instruction: v.optional(v.string()),
+    starterCode: v.optional(v.string()),
+    grading: v.optional(v.any()),
+    failState: v.optional(v.any()),
+    successState: v.optional(v.any()),
+    lessonTakeaway: v.optional(v.string()),
 
     // Copywriting challenge fields
+    starterContext: v.optional(v.any()), // For llm_judge lessons: brand, audience, originalEmail, etc.
     briefTitle: v.optional(v.string()),
     briefProduct: v.optional(v.string()),
     briefTarget: v.optional(v.string()),

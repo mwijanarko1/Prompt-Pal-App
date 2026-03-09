@@ -184,13 +184,15 @@ export default function LibraryScreen() {
       >
         <UserSummary userSummary={libraryData.userSummary} />
 
-        {libraryData?.categories.map((cat: Category, idx: number) => (
-          <CategorySection
-            key={idx}
-            category={cat}
-            index={idx}
-          />
-        ))}
+        {libraryData?.categories
+          .filter((cat: Category) => cat.category !== 'IMAGE GENERATION')
+          .map((cat: Category, idx: number) => (
+            <CategorySection
+              key={idx}
+              category={cat}
+              index={idx}
+            />
+          ))}
       </ScrollView>
     </SafeAreaView>
   );

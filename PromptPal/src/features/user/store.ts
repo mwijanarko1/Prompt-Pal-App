@@ -13,7 +13,7 @@ const getDefaultLearningModules = (): LearningModule[] => [
     title: 'Coding Logic',
     level: 'Beginner',
     topic: 'Problem Solving',
-    currentLevelName: 'Hello Function',
+    currentLevelName: 'Describe what the user sees',
     currentLevelOrder: 1,
     progress: 0,
     icon: 'code',

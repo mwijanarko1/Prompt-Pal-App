@@ -1,3 +1,4 @@
+import { beforeAll, describe, it } from '@jest/globals';
 import { by, device, expect, element } from 'detox';
 
 describe('Home Screen', () => {

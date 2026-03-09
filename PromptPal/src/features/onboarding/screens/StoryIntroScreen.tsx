@@ -1,97 +1,66 @@
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeInDown, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
+import { ONBOARDING_COLORS } from '../theme';
 
 export function StoryIntroScreen() {
     const { goToNextStep } = useOnboardingStore();
+    const pulseScale = useSharedValue(1);
+
+    React.useEffect(() => {
+        pulseScale.value = withRepeat(
+            withSequence(
+                withTiming(1.05, { duration: 1200 }),
+                withTiming(1, { duration: 1200 })
+            ),
+            -1,
+            true
+        );
+    }, []);
+
+    const buttonPulse = useAnimatedStyle(() => ({
+        transform: [{ scale: pulseScale.value }],
+    }));
 
     const handleContinue = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         goToNextStep();
     };
 
     return (
-        <OnboardingScreenWrapper>
+        <OnboardingScreenWrapper showProgress={true}>
             <View style={styles.container}>
-                <View style={styles.topSpace} />
+                <View style={styles.iconContainer}>
+                    <Animated.View entering={FadeInDown.duration(600).delay(200)}>
+                        <Ionicons name="search" size={64} color={ONBOARDING_COLORS.accent} />
+                    </Animated.View>
+                </View>
 
-                {/* Prompto */}
-                <Animated.View entering={FadeInDown.duration(500).delay(200)}>
-                    <PromptoCharacter state="thinking" size="lg" />
-                </Animated.View>
+                <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.textContainer}>
+                    <Text style={styles.title}>The Secret of Great Prompts</Text>
 
-                {/* Title */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(400)}
-                    style={styles.titleContainer}
-                >
-                    <Text style={styles.title}>The Secret of{'\n'}Great Prompts</Text>
-                </Animated.View>
-
-                {/* Body */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(600)}
-                    style={styles.bodyContainer}
-                >
-                    <Text style={styles.body}>
-                        Every amazing AI creation starts with a great prompt. But what makes
-                        a prompt <Text style={styles.emphasis}>great</Text>?
+                    <Text style={styles.description}>
+                        Every amazing AI creation starts with a great prompt. But what makes a prompt great?
                     </Text>
-                </Animated.View>
 
-                {/* Teaser card */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(800)}
-                    style={styles.teaserCard}
-                >
-                    <Ionicons name="sparkles" size={24} color="#F59E0B" style={{ marginRight: 12 }} />
-                    <Text style={styles.teaserText}>
-                        Let me show you the{'\n'}
-                        <Text style={styles.teaserHighlight}>three magic ingredients</Text>
-                        …
+                    <Text style={styles.highlight}>
+                        Let's discover the three magic ingredients... ✨
                     </Text>
-                </Animated.View>
-
-                {/* Ingredients preview */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(1000)}
-                    style={styles.ingredientPreview}
-                >
-                    {[
-                        { icon: 'locate-outline' as const, label: 'Subject', color: '#FF6B00' },
-                        { icon: 'color-palette-outline' as const, label: 'Style', color: '#BB86FC' },
-                        { icon: 'bulb-outline' as const, label: 'Context', color: '#03DAC6' },
-                    ].map((item) => (
-                        <View
-                            key={item.label}
-                            style={[styles.ingredientChip, { borderColor: item.color + '40' }]}
-                        >
-                            <Ionicons name={item.icon} size={14} color={item.color} style={{ marginRight: 6 }} />
-                            <Text style={[styles.ingredientLabel, { color: item.color }]}>
-                                {item.label}
-                            </Text>
-                        </View>
-                    ))}
                 </Animated.View>
 
                 <View style={styles.spacer} />
 
-                {/* Continue */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(1200)}
-                    style={styles.buttonContainer}
-                >
-                    <TouchableOpacity
-                        style={styles.continueButton}
-                        onPress={handleContinue}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={styles.continueText}>Continue</Text>
-                    </TouchableOpacity>
+                <Animated.View entering={FadeInUp.duration(500).delay(800)} style={styles.buttonContainer}>
+                    <Animated.View style={buttonPulse}>
+                        <TouchableOpacity style={styles.button} onPress={handleContinue} activeOpacity={0.85}>
+                            <Text style={styles.buttonText}>Continue</Text>
+                            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                        </TouchableOpacity>
+                    </Animated.View>
                 </Animated.View>
             </View>
         </OnboardingScreenWrapper>
@@ -103,78 +72,36 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         paddingHorizontal: 32,
+        paddingTop: 40,
     },
-    topSpace: {
-        flex: 0.06,
+    iconContainer: {
+        marginBottom: 40,
+        backgroundColor: 'rgba(187, 134, 252, 0.1)',
+        padding: 30,
+        borderRadius: 60,
     },
-    titleContainer: {
-        marginTop: 20,
+    textContainer: {
         alignItems: 'center',
     },
     title: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: '900',
-        color: '#FFFFFF',
+        color: ONBOARDING_COLORS.textPrimary,
+        marginBottom: 24,
         textAlign: 'center',
-        letterSpacing: -0.5,
-        lineHeight: 38,
     },
-    bodyContainer: {
-        marginTop: 20,
-        alignItems: 'center',
-    },
-    body: {
-        fontSize: 16,
-        color: '#94A3B8',
+    description: {
+        fontSize: 18,
+        color: ONBOARDING_COLORS.textSecondary,
         textAlign: 'center',
-        lineHeight: 24,
-        fontWeight: '500',
+        lineHeight: 28,
+        marginBottom: 32,
     },
-    emphasis: {
-        color: '#FFFFFF',
+    highlight: {
+        fontSize: 18,
+        color: ONBOARDING_COLORS.accent,
         fontWeight: '700',
-    },
-    teaserCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: 20,
-        paddingHorizontal: 24,
-        paddingVertical: 18,
-        marginTop: 28,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-
-    teaserText: {
-        fontSize: 15,
-        color: '#CBD5E1',
-        lineHeight: 22,
-        fontWeight: '500',
-    },
-    teaserHighlight: {
-        color: '#F59E0B',
-        fontWeight: '700',
-    },
-    ingredientPreview: {
-        flexDirection: 'row',
-        gap: 10,
-        marginTop: 24,
-    },
-    ingredientChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderWidth: 1,
-    },
-
-    ingredientLabel: {
-        fontSize: 13,
-        fontWeight: '700',
-        letterSpacing: 0.3,
+        textAlign: 'center',
     },
     spacer: {
         flex: 1,
@@ -183,22 +110,23 @@ const styles = StyleSheet.create({
         width: '100%',
         paddingBottom: 32,
     },
-    continueButton: {
-        backgroundColor: '#FF6B00',
+    button: {
+        backgroundColor: ONBOARDING_COLORS.accent,
         borderRadius: 28,
-        height: 56,
+        height: 60,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#FF6B00',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 14,
-        elevation: 6,
+        shadowColor: ONBOARDING_COLORS.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 8,
     },
-    continueText: {
+    buttonText: {
         color: '#FFFFFF',
-        fontSize: 17,
+        fontSize: 18,
         fontWeight: '800',
-        letterSpacing: 0.3,
+        letterSpacing: 0.5,
     },
 });

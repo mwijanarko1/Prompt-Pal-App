@@ -1,9 +1,5 @@
 {
   "project": "ai-proxy-backend",
   "functions": "convex/",
-  "generateCommonJSApi": true,
-  "storage": {
-    "uploadExpiration": 86400000,
-    "maxFileSize": 10485760
-  }
+  "generateCommonJSApi": true
 }

@@ -72,7 +72,7 @@ const CircularProgress = memo(function CircularProgress({
           />
         </Svg>
         <View style={{ position: 'absolute' }}>
-          <Text className="text-onSurface text-xl font-black">{Math.round(percentage)}%</Text>
+          <Text className="text-onSurface text-xl font-black">{Math.round(safePercentage)}%</Text>
         </View>
       </View>
       <Text className="text-onSurface font-bold mt-3 text-sm">{label}</Text>
@@ -149,7 +149,7 @@ export default function ProfileScreen() {
       }
 
       try {
-        const [nextAchievements, nextResults, nextUsage] = await Promise.all([
+        const [achievementsResult, resultsResult, usageResult] = await Promise.allSettled([
           convexHttpClient.query(api.queries.getUserAchievements, {}),
           convexHttpClient.query(api.queries.getUserResults, { appId: "prompt-pal" }),
           convexHttpClient.query(api.queries.getUserUsage, { appId: "prompt-pal" }),
@@ -159,18 +159,18 @@ export default function ProfileScreen() {
           return;
         }
 
-        setAchievements(nextAchievements ?? []);
-        setUserResults(nextResults ?? { taskResults: [] });
-        setUsage(nextUsage ?? null);
-      } catch (error) {
-        if (isCancelled) {
-          return;
-        }
-
-        console.error('Failed to load profile data:', error);
-        setAchievements([]);
-        setUserResults({ taskResults: [] });
-        setUsage({
+        setAchievements(
+          achievementsResult.status === 'fulfilled' ? (achievementsResult.value ?? []) : []
+        );
+        setUserResults(
+          resultsResult.status === 'fulfilled'
+            ? (resultsResult.value ?? { taskResults: [] })
+            : { taskResults: [] }
+        );
+        setUsage(
+          usageResult.status === 'fulfilled' && usageResult.value
+            ? usageResult.value
+            : {
           tier: 'free',
           used: {
             textCalls: 0,
@@ -184,7 +184,12 @@ export default function ProfileScreen() {
           },
           periodStart: Date.now(),
           periodEnd: Date.now(),
-        });
+        }
+        );
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Failed to load profile data:', error);
+        }
       } finally {
         if (!isCancelled) {
           setIsProfileLoading(false);
@@ -209,8 +214,12 @@ export default function ProfileScreen() {
   }, [userResults]);
 
   // Usage progress calculations
-  const textUsagePercent = usage ? (usage.used.textCalls / usage.limits.textCalls) * 100 : 0;
-  const imageUsagePercent = usage ? (usage.used.imageCalls / usage.limits.imageCalls) * 100 : 0;
+  const textUsagePercent = usage && usage.limits.textCalls > 0
+    ? (usage.used.textCalls / usage.limits.textCalls) * 100
+    : 0;
+  const imageUsagePercent = usage && usage.limits.imageCalls > 0
+    ? (usage.used.imageCalls / usage.limits.imageCalls) * 100
+    : 0;
 
 
   const planName = usage?.tier === 'pro' ? 'Premium Pro' : 'Explorer Free';

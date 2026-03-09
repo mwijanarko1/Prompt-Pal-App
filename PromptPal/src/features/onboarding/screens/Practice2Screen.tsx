@@ -1,339 +1,429 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeInDown, FadeIn, FadeOut } from 'react-native-reanimated';
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
-
-const STYLE_OPTIONS = [
-    { id: 'sunset', label: 'Sunset Photography', icon: 'partly-sunny-outline' as const, color: '#F97316' },
-    { id: 'watercolor', label: 'Watercolor Painting', icon: 'color-palette-outline' as const, color: '#03DAC6' },
-    { id: 'cyberpunk', label: 'Cyberpunk Night', icon: 'flash-outline' as const, color: '#BB86FC' },
-    { id: 'minimalist', label: 'Minimalist Sketch', icon: 'remove-outline' as const, color: '#F59E0B' },
-];
+import { ONBOARDING_COLORS } from '../theme';
+import { delay, evaluatePractice2Prompt } from '../utils/practiceEvaluation';
 
 export function Practice2Screen() {
-    const { goToNextStep, userPrompt, setSelectedStyle, addXp } =
-        useOnboardingStore();
-    const [selected, setSelected] = useState<string | null>(null);
-    const [confirmed, setConfirmed] = useState(false);
+    const { goToNextStep, addBadge } = useOnboardingStore();
+    
+    const [localPrompt, setLocalPrompt] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [generationStep, setGenerationStep] = useState('');
+    const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+    const [feedback, setFeedback] = useState<{ 
+        success: boolean; 
+        text: string; 
+        takeaway?: string;
+        nudge?: string;
+        score?: number;
+    } | null>(null);
+    const [showHint, setShowHint] = useState(false);
 
-    const basePrompt = userPrompt || 'A beach';
+    const runActualCheck = async () => {
+        if (!localPrompt.trim()) return;
+        
+        setIsGenerating(true);
+        setFeedback(null);
+        setGeneratedCode(null);
+        
+        try {
+            setGenerationStep('Analyzing your prompt...');
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            await delay(350);
 
-    const handleSelect = (styleId: string) => {
-        if (confirmed) return;
-        setSelected(styleId);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    };
+            const evaluation = evaluatePractice2Prompt(localPrompt);
+            setGeneratedCode(evaluation.code);
 
-    const handleConfirm = () => {
-        if (!selected) return;
-        const style = STYLE_OPTIONS.find((s) => s.id === selected);
-        if (style) {
-            setSelectedStyle(style.label);
-            setConfirmed(true);
-            addXp(20);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setGenerationStep('Validating interactive behavior...');
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            await delay(350);
+
+            setFeedback({
+                success: evaluation.success,
+                text: evaluation.text,
+                nudge: evaluation.nudge,
+                takeaway: evaluation.takeaway,
+                score: evaluation.score
+            });
+
+            if (evaluation.success) {
+                addBadge('logic-master');
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } else {
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+
+        } catch (error) {
+            console.error(error);
+            setFeedback({
+                success: false,
+                text: "The local onboarding check failed. Let's try again!",
+                nudge: "Make sure your prompt mentions an input field and a button to add the task."
+            });
+        } finally {
+            setIsGenerating(false);
+            setGenerationStep('');
         }
     };
 
-    const handleContinue = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        goToNextStep();
-    };
-
-    const selectedStyle = STYLE_OPTIONS.find((s) => s.id === selected);
-    const combinedPrompt = selectedStyle
-        ? `${basePrompt} in ${selectedStyle.label.toLowerCase()}`
-        : basePrompt;
-
     return (
-        <OnboardingScreenWrapper>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                <View style={styles.topSpace} />
-
-                {/* Prompto */}
-                <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.center}>
-                    <PromptoCharacter
-                        state={confirmed ? 'celebrating' : 'speaking'}
-                        size="sm"
-                    />
-                </Animated.View>
-
-                {/* Title */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(300)}
-                    style={styles.titleContainer}
+        <OnboardingScreenWrapper showProgress={true}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                 >
-                    <Text style={styles.title}>Add Style to Your Prompt</Text>
-                </Animated.View>
+                    <View style={styles.content}>
+                    <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.header}>
+                        <Text style={styles.title}>Make it do something</Text>
+                            <Text style={styles.instruction}>Add a way for users to add tasks to this list.</Text>
+                        </Animated.View>
 
-                {/* Current prompt */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(400)}
-                    style={styles.currentPromptCard}
-                >
-                    <Text style={styles.currentPromptLabel}>Your Current Prompt</Text>
-                    <Text style={styles.currentPromptText}>"{basePrompt}"</Text>
-                </Animated.View>
-
-                {/* Style options */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(600)}
-                    style={styles.optionsContainer}
-                >
-                    <Text style={styles.optionsLabel}>Choose a Style</Text>
-                    <View style={styles.optionGrid}>
-                        {STYLE_OPTIONS.map((style) => (
-                            <TouchableOpacity
-                                key={style.id}
-                                style={[
-                                    styles.optionCard,
-                                    selected === style.id && {
-                                        borderColor: style.color,
-                                        backgroundColor: style.color + '12',
-                                    },
-                                ]}
-                                onPress={() => handleSelect(style.id)}
-                                activeOpacity={0.8}
-                                disabled={confirmed}
-                            >
-                                <Ionicons name={style.icon} size={26} color={selected === style.id ? style.color : '#64748B'} style={{ marginBottom: 8 }} />
-                                <Text
-                                    style={[
-                                        styles.optionLabel,
-                                        selected === style.id && { color: style.color },
-                                    ]}
-                                >
-                                    {style.label}
-                                </Text>
-                                {selected === style.id && (
-                                    <Animated.View entering={ZoomIn.duration(200)} style={styles.checkBadge}>
-                                        <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-                                    </Animated.View>
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </Animated.View>
-
-                {/* Combined prompt preview */}
-                {selected && (
-                    <Animated.View
-                        entering={FadeInUp.duration(400)}
-                        style={styles.previewCard}
-                    >
-                        <Text style={styles.previewLabel}>Your Prompt Becomes</Text>
-                        <Text style={styles.previewText}>"{combinedPrompt}"</Text>
-                    </Animated.View>
-                )}
-
-                {/* Confirm / Continue */}
-                <View style={styles.buttonArea}>
-                    {!confirmed ? (
-                        <TouchableOpacity
-                            style={[
-                                styles.actionButton,
-                                !selected && styles.actionButtonDisabled,
-                            ]}
-                            onPress={handleConfirm}
-                            activeOpacity={0.85}
-                            disabled={!selected}
-                        >
-                            <Text style={styles.actionButtonText}>Apply Style</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <Animated.View entering={FadeInUp.duration(400)}>
-                            <View style={styles.successCard}>
-                                <Ionicons name="sparkles" size={20} color="#F59E0B" />
-                                <Text style={styles.successText}>
-                                    Beautiful! Your prompt now has a clear style.
-                                </Text>
+                        <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.codeContainer}>
+                            <View style={styles.codeHeader}>
+                                <Text style={styles.codeTitle}>Target Logic</Text>
+                                <TouchableOpacity onPress={() => setShowHint(!showHint)}>
+                                    <Text style={styles.hintToggle}>{showHint ? 'Hide Hint' : 'Need a Hint?'}</Text>
+                                </TouchableOpacity>
                             </View>
+                            
+                            <View style={styles.targetPreview}>
+                                <View style={styles.mockList}>
+                                    <View style={styles.mockListItem}><Text style={styles.mockItemText}>Buy groceries</Text></View>
+                                    <View style={styles.mockListItem}><Text style={styles.mockItemText}>Walk the dog</Text></View>
+                                </View>
+                                <Text style={styles.behaviorText}>Task: Add a way for the user to type and add new tasks to this list.</Text>
+                            </View>
+                            
+                            {showHint && (
+                                <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.hintBox}>
+                                    <Text style={styles.hintText}>
+                                        💡 Think about what the user needs to type into, what they click, and where the new task shows up.
+                                    </Text>
+                                </Animated.View>
+                            )}
+                        </Animated.View>
+
+                        <Animated.View entering={FadeInUp.duration(500).delay(600)} style={styles.inputSection}>
+                            <View style={styles.inputContainer}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Describe the behavior - input, button, and adding to list..."
+                                    placeholderTextColor={ONBOARDING_COLORS.textMuted}
+                                    value={localPrompt}
+                                    onChangeText={(text) => {
+                                        setLocalPrompt(text);
+                                        setFeedback(null);
+                                        setGeneratedCode(null);
+                                    }}
+                                    multiline
+                                    numberOfLines={3}
+                                    editable={!isGenerating}
+                                />
+                            </View>
+
+                            {isGenerating && (
+                                <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.loadingContainer}>
+                                    <ActivityIndicator color={ONBOARDING_COLORS.info} size="large" />
+                                    <Text style={styles.loadingText}>{generationStep}</Text>
+                                </Animated.View>
+                            )}
+
+                            {generatedCode && !isGenerating && (
+                                <Animated.View entering={FadeIn} style={styles.generatedCodeSection}>
+                                    <Text style={styles.codeTitle}>Generated Code</Text>
+                                    <View style={[styles.codeBox, { backgroundColor: 'rgba(65, 81, 255, 0.05)', borderColor: 'rgba(65, 81, 255, 0.2)' }]}>
+                                        <Text style={styles.codeText}>{generatedCode}</Text>
+                                    </View>
+                                </Animated.View>
+                            )}
+
+                            {feedback && !isGenerating && (
+                                <Animated.View entering={FadeInUp.duration(300)} style={styles.feedbackContainer}>
+                                    <View style={styles.feedbackHeader}>
+                                        <Ionicons 
+                                            name={feedback.success ? "checkmark-circle" : "alert-circle"} 
+                                            size={24} 
+                                            color={feedback.success ? ONBOARDING_COLORS.success : "#EF4444"} 
+                                        />
+                                        <Text style={[styles.feedbackText, { color: feedback.success ? ONBOARDING_COLORS.success : "#EF4444" }]}>
+                                            {feedback.text}
+                                        </Text>
+                                    </View>
+                                    
+                                    {feedback.nudge && !feedback.success && (
+                                        <Text style={styles.nudgeText}>{feedback.nudge}</Text>
+                                    )}
+                                    
+                                    {feedback.takeaway && feedback.success && (
+                                        <View style={styles.takeawayBox}>
+                                            <Text style={styles.takeawayTitle}>Lesson Takeaway:</Text>
+                                            <Text style={styles.takeawayText}>{feedback.takeaway}</Text>
+                                        </View>
+                                    )}
+                                </Animated.View>
+                            )}
+                        </Animated.View>
+
+                        <View style={styles.spacer} />
+
+                        <Animated.View entering={FadeInUp.duration(500).delay(800)} style={styles.buttonContainer}>
                             <TouchableOpacity
-                                style={styles.continueButton}
-                                onPress={handleContinue}
+                                style={[
+                                    styles.button, 
+                                    (localPrompt.trim().length === 0 || isGenerating) && styles.buttonDisabled,
+                                    feedback?.success && { backgroundColor: ONBOARDING_COLORS.success }
+                                ]}
+                                onPress={feedback?.success ? goToNextStep : runActualCheck}
+                                disabled={localPrompt.trim().length === 0 || isGenerating}
                                 activeOpacity={0.85}
                             >
-                                <Text style={styles.continueText}>Continue</Text>
+                                <Text style={styles.buttonText}>
+                                    {isGenerating ? 'Analyzing...' : feedback?.success ? 'Next Lesson' : 'Test Logic'}
+                                </Text>
+                                {!isGenerating && (
+                                    <Ionicons 
+                                        name={feedback?.success ? "arrow-forward" : "flask"} 
+                                        size={20} 
+                                        color="#FFFFFF" 
+                                        style={{ marginLeft: 8 }} 
+                                    />
+                                )}
                             </TouchableOpacity>
                         </Animated.View>
-                    )}
-                </View>
-
-                <View style={{ height: 32 }} />
-            </ScrollView>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </OnboardingScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
-    scrollView: { flex: 1 },
+    container: {
+        flex: 1,
+    },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 24,
+        paddingTop: 20,
         paddingBottom: 32,
     },
-    topSpace: { height: 8 },
-    center: { alignItems: 'center' },
-    titleContainer: {
+    content: {
+        flex: 1,
+        width: '100%',
+        maxWidth: 520,
+        alignSelf: 'center',
+    },
+    header: {
         alignItems: 'center',
-        marginTop: 12,
+        marginBottom: 24,
     },
     title: {
-        fontSize: 26,
+        fontSize: 28,
         fontWeight: '900',
-        color: '#FFFFFF',
+        color: ONBOARDING_COLORS.textPrimary,
+        marginBottom: 8,
         textAlign: 'center',
     },
-    currentPromptCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 16,
-        padding: 16,
-        marginTop: 16,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-    currentPromptLabel: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#64748B',
-        textTransform: 'uppercase',
-        letterSpacing: 1.5,
-        marginBottom: 6,
-    },
-    currentPromptText: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#E2E8F0',
-        fontStyle: 'italic',
-    },
-    optionsContainer: {
-        marginTop: 20,
-    },
-    optionsLabel: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#64748B',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginBottom: 10,
+    instruction: {
+        fontSize: 16,
+        color: ONBOARDING_COLORS.textSecondary,
         textAlign: 'center',
+        fontWeight: '600',
     },
-    optionGrid: {
+    codeContainer: {
+        width: '100%',
+        marginBottom: 24,
+    },
+    codeHeader: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-    },
-    optionCard: {
-        width: '48%',
-        flexGrow: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 16,
-        padding: 16,
+        justifyContent: 'space-between',
         alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        position: 'relative',
+        marginBottom: 8,
     },
-
-    optionLabel: {
+    codeTitle: {
+        color: ONBOARDING_COLORS.textMuted,
+        textTransform: 'uppercase',
+        fontWeight: '700',
+        fontSize: 12,
+        letterSpacing: 1,
+        marginBottom: 8,
+    },
+    hintToggle: {
+        color: ONBOARDING_COLORS.info,
         fontSize: 12,
         fontWeight: '700',
-        color: '#94A3B8',
-        textAlign: 'center',
     },
-    checkBadge: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: '#22C55E',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    previewCard: {
-        backgroundColor: 'rgba(255, 107, 0, 0.06)',
-        borderRadius: 16,
+    codeBox: {
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
         padding: 16,
-        marginTop: 20,
-        alignItems: 'center',
+        borderRadius: 12,
         borderWidth: 1,
-        borderColor: 'rgba(255, 107, 0, 0.2)',
+        borderColor: 'rgba(0, 0, 0, 0.08)',
     },
-    previewLabel: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#FF6B00',
-        textTransform: 'uppercase',
-        letterSpacing: 1.5,
-        marginBottom: 6,
+    codeText: {
+        color: ONBOARDING_COLORS.textPrimary,
+        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+        fontSize: 11,
     },
-    previewText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#E2E8F0',
-        textAlign: 'center',
-        fontStyle: 'italic',
+    targetPreview: {
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        padding: 20,
+        borderRadius: 20,
+        borderWidth: 1.5,
+        borderColor: 'rgba(0, 0, 0, 0.08)',
     },
-    buttonArea: {
-        marginTop: 24,
-    },
-    actionButton: {
-        backgroundColor: '#4151FF',
-        borderRadius: 28,
-        height: 56,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    actionButtonDisabled: {
-        opacity: 0.4,
-    },
-    actionButtonText: {
-        color: '#FFFFFF',
-        fontSize: 17,
-        fontWeight: '800',
-    },
-    successCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        backgroundColor: 'rgba(34, 197, 94, 0.08)',
-        borderRadius: 16,
-        padding: 14,
+    mockList: {
         marginBottom: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(34, 197, 94, 0.2)',
     },
-    successText: {
-        color: '#CBD5E1',
+    mockListItem: {
+        backgroundColor: '#FFFFFF',
+        padding: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 0, 0, 0.08)',
+        marginBottom: 8,
+    },
+    mockItemText: {
+        color: ONBOARDING_COLORS.textPrimary,
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    behaviorText: {
+        color: ONBOARDING_COLORS.textSecondary,
+        fontSize: 12,
+        fontWeight: '600',
+        fontStyle: 'italic',
+        textAlign: 'center',
+    },
+    hintBox: {
+        marginTop: 12,
+        backgroundColor: 'rgba(65, 81, 255, 0.08)',
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(65, 81, 255, 0.15)',
+    },
+    hintText: {
+        color: ONBOARDING_COLORS.textSecondary,
+        fontSize: 14,
+        lineHeight: 20,
+        fontWeight: '500',
+    },
+    inputSection: {
+        width: '100%',
+    },
+    inputContainer: {
+        width: '100%',
+        marginBottom: 16,
+    },
+    input: {
+        backgroundColor: 'rgba(0,0,0,0.08)',
+        borderRadius: 16,
+        padding: 20,
+        color: ONBOARDING_COLORS.textPrimary,
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.12)',
+        minHeight: 100,
+        textAlignVertical: 'top',
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 20,
+    },
+    loadingText: {
+        marginTop: 12,
+        color: ONBOARDING_COLORS.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
-    continueButton: {
-        backgroundColor: '#FF6B00',
+    generatedCodeSection: {
+        width: '100%',
+        marginBottom: 20,
+    },
+    feedbackContainer: {
+        width: '100%',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.02)',
+        padding: 16,
+        borderRadius: 20,
+    },
+    feedbackHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    feedbackText: {
+        fontSize: 16,
+        fontWeight: '700',
+        textAlign: 'center',
+        flex: 1,
+    },
+    nudgeText: {
+        fontSize: 14,
+        color: ONBOARDING_COLORS.textSecondary,
+        textAlign: 'center',
+        fontStyle: 'italic',
+        marginBottom: 12,
+    },
+    takeawayBox: {
+        width: '100%',
+        backgroundColor: 'rgba(34, 197, 94, 0.08)',
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(34, 197, 94, 0.2)',
+        marginTop: 8,
+    },
+    takeawayTitle: {
+        color: ONBOARDING_COLORS.success,
+        fontWeight: '800',
+        fontSize: 13,
+        marginBottom: 4,
+        textTransform: 'uppercase',
+    },
+    takeawayText: {
+        color: ONBOARDING_COLORS.textPrimary,
+        fontSize: 14,
+        lineHeight: 20,
+        fontWeight: '600',
+    },
+    spacer: {
+        height: 32,
+    },
+    buttonContainer: {
+        width: '100%',
+    },
+    button: {
+        backgroundColor: ONBOARDING_COLORS.accent,
         borderRadius: 28,
-        height: 56,
+        height: 60,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#FF6B00',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 14,
-        elevation: 6,
+        shadowColor: ONBOARDING_COLORS.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 8,
     },
-    continueText: {
+    buttonDisabled: {
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        shadowOpacity: 0,
+    },
+    buttonText: {
         color: '#FFFFFF',
-        fontSize: 17,
+        fontSize: 18,
         fontWeight: '800',
+        letterSpacing: 0.5,
     },
 });

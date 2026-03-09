@@ -38,6 +38,24 @@ interface WinnerProps {
   type: 'gold' | 'silver' | 'bronze';
 }
 
+const toLeaderboardUser = (user: {
+  userId: string;
+  name: string;
+  avatarUrl?: string;
+  totalXp: number;
+  currentLevel: number;
+  globalRank: number;
+  currentStreak?: number;
+}): LeaderboardUser => ({
+  userId: String(user.userId),
+  name: user.name,
+  avatarUrl: user.avatarUrl,
+  totalXp: user.totalXp,
+  currentLevel: user.currentLevel,
+  globalRank: user.globalRank,
+  currentStreak: user.currentStreak,
+});
+
 const WinnerCard = memo(function WinnerCard({ user, type }: WinnerProps) {
   const isGold = type === 'gold';
   const size = isGold ? 120 : type === 'silver' ? 100 : 90;
@@ -179,7 +197,7 @@ export default function RankingScreen() {
         });
 
         // Fetch user rank data
-        let userRankData = null;
+        let userRankData: LeaderboardUser | null = null;
         if (user?.id) {
           const stats = await convexHttpClient.query(api.queries.getMyUserStatistics, {});
           userRankData = {
@@ -194,8 +212,8 @@ export default function RankingScreen() {
         }
 
         // Split into top 3 and rest
-        const top3 = leaderboardData.leaderboard.slice(0, 3);
-        const rest = leaderboardData.leaderboard.slice(3);
+        const top3 = leaderboardData.leaderboard.slice(0, 3).map(toLeaderboardUser);
+        const rest = leaderboardData.leaderboard.slice(3).map(toLeaderboardUser);
 
         setGlobalTopWinners(top3);
         setGlobalRankList(rest);
@@ -274,7 +292,7 @@ export default function RankingScreen() {
           limit: 50,
         });
 
-        let userRankData = null;
+        let userRankData: LeaderboardUser | null = null;
         if (user?.id) {
           const stats = await convexHttpClient.query(api.queries.getMyUserStatistics, {});
           userRankData = {
@@ -288,8 +306,8 @@ export default function RankingScreen() {
           };
         }
 
-        const top3 = leaderboardData.leaderboard.slice(0, 3);
-        const rest = leaderboardData.leaderboard.slice(3);
+        const top3 = leaderboardData.leaderboard.slice(0, 3).map(toLeaderboardUser);
+        const rest = leaderboardData.leaderboard.slice(3).map(toLeaderboardUser);
         setGlobalTopWinners(top3);
         setGlobalRankList(rest);
         setGlobalCurrentUser(userRankData);

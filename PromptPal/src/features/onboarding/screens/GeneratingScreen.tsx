@@ -1,242 +1,353 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-    FadeIn,
-    FadeInUp,
-    useSharedValue,
-    useAnimatedStyle,
-    withTiming,
-    withRepeat,
-    withSequence,
-    Easing,
-} from 'react-native-reanimated';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+import Animated, { FadeInUp, FadeInDown, useSharedValue, useAnimatedStyle, withTiming, Easing, withRepeat } from 'react-native-reanimated';
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
+import { useConvexAI } from '@/hooks/useConvexAI';
 import { ONBOARDING_COLORS } from '../theme';
 
-const GENERATION_DURATION_MS = 9000;
+const ONBOARDING_LEVEL_ID = 'copywriting-1-easy';
+
+const COPY_BRIEF = [
+  'Kill the default voice',
+  '',
+  'Write a one-sentence tagline for Blackout Coffee Co.',
+  'Audience: People who wake up before 5am to train.',
+  'Tone: Raw, no-nonsense, slightly aggressive.',
+  '',
+  'Use the player prompt as the strategic direction for the final copy.',
+  'Return only the final tagline text, with no markdown or explanation.',
+].join('\n');
+
+const HINTS = [
+  'Think about who drinks this coffee and what makes it different',
+  'Specify the feeling the tagline should leave',
+  'Avoid generic words like robust, bold, premium, artisan',
+];
 
 const LOADING_MESSAGES = [
-    'Analyzing your prompt…',
-    'Understanding the subject…',
-    'Applying the style…',
-    'Setting the context…',
-    'Generating your image…',
-    'Almost there…',
+  'Analyzing your prompt...',
+  'Understanding requirements...',
+  'Selecting the best persona...',
+  'Setting technical constraints...',
+  'Generating your creation...',
+  'Polishing the output...',
 ];
 
 export function GeneratingScreen() {
-    const { goToNextStep } = useOnboardingStore();
-    const [messageIndex, setMessageIndex] = useState(0);
-    const progressWidth = useSharedValue(0);
-    const dotOpacity = useSharedValue(0.3);
+  const { goToNextStep, userPrompt, setGeneratedCopy, setCopyFeedback, setScore, goToPreviousStep } = useOnboardingStore();
+  const { generateText, evaluateCopySubmission } = useConvexAI();
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const rotation = useSharedValue(0);
 
-    // Cycle through loading messages
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setMessageIndex((prev) =>
-                prev < LOADING_MESSAGES.length - 1 ? prev + 1 : prev
-            );
-        }, GENERATION_DURATION_MS / LOADING_MESSAGES.length);
+  const runGeneration = async () => {
+    setError(null);
+    setProgress(0);
 
-        return () => clearInterval(interval);
-    }, []);
+    const copySystemPrompt = [
+      'You are a conversion-focused copywriter.',
+      '',
+      'VISIBLE BRIEF:',
+      COPY_BRIEF,
+      '',
+      `VISIBLE GUIDANCE:\n- ${HINTS.join('\n- ')}`,
+      '',
+      'Use the player prompt as the strategic direction for the final copy.',
+      'Return only the final copy text, with no markdown or explanation.',
+    ].join('\n');
 
-    // Animate progress bar
-    useEffect(() => {
-        progressWidth.value = withTiming(100, {
-            duration: GENERATION_DURATION_MS,
-            easing: Easing.bezierFn(0.25, 0.1, 0.25, 1),
-        });
+    try {
+      // Step 1: Generate copy
+      const generateResult = await generateText(userPrompt, copySystemPrompt);
+      const generatedCopyText = generateResult.result || '';
 
-        dotOpacity.value = withRepeat(
-            withSequence(
-                withTiming(1, { duration: 600 }),
-                withTiming(0.3, { duration: 600 })
-            ),
-            -1,
-            true
-        );
-    }, []);
+      if (!generatedCopyText.trim()) {
+        throw new Error('No copy was generated. Try a more specific prompt.');
+      }
 
-    // Auto-advance after animation
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            goToNextStep();
-        }, GENERATION_DURATION_MS);
+      setGeneratedCopy(generatedCopyText);
 
-        return () => clearTimeout(timer);
-    }, []);
+      // Step 2: Evaluate the generated copy
+      const evaluation = await evaluateCopySubmission({
+        levelId: ONBOARDING_LEVEL_ID,
+        text: generatedCopyText,
+        userPrompt,
+        visibleBrief: COPY_BRIEF,
+        visibleHints: HINTS,
+      });
 
-    const progressStyle = useAnimatedStyle(() => ({
-        width: `${progressWidth.value}%`,
-    }));
+      setScore(evaluation.score);
+      setCopyFeedback(evaluation.feedback || []);
+      goToNextStep();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      setError(message);
+      setProgress(0);
+    }
+  };
 
-    const dotStyle = useAnimatedStyle(() => ({
-        opacity: dotOpacity.value,
-    }));
+  useEffect(() => {
+    if (!userPrompt.trim()) {
+      goToPreviousStep();
+      return;
+    }
 
-    return (
-        <OnboardingScreenWrapper>
-            <View style={styles.container}>
-                <View style={styles.topSpace} />
+    runGeneration();
+  }, []);
 
-                {/* Prompto thinking */}
-                <Animated.View entering={FadeIn.duration(500)}>
-                    <PromptoCharacter state="thinking" size="lg" />
-                </Animated.View>
-
-                {/* Title */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(300)}
-                    style={styles.titleContainer}
-                >
-                    <Text style={styles.title}>Generating Your Creation…</Text>
-                    <Animated.View style={[styles.sparkleRow, dotStyle]}>
-                        <Ionicons name="flash" size={22} color={ONBOARDING_COLORS.accent} />
-                    </Animated.View>
-                </Animated.View>
-
-                {/* Loading animation */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(500)}
-                    style={styles.loadingCard}
-                >
-                    <View style={styles.loadingIconRow}>
-                        {(
-                            [
-                                { name: 'locate-outline', color: '#FF6B00' },
-                                { name: 'color-palette-outline', color: ONBOARDING_COLORS.violet },
-                                { name: 'bulb-outline', color: ONBOARDING_COLORS.teal },
-                            ] as const
-                        ).map((icon, i) => (
-                            <Animated.View
-                                key={icon.name}
-                                entering={FadeIn.duration(400).delay(800 + i * 300)}
-                                style={styles.loadingIcon}
-                            >
-                                <Ionicons name={icon.name} size={20} color={icon.color} />
-                            </Animated.View>
-                        ))}
-                    </View>
-
-                    {/* Message */}
-                    <Text style={styles.loadingMessage}>
-                        {LOADING_MESSAGES[messageIndex]}
-                    </Text>
-
-                    {/* Progress bar */}
-                    <View style={styles.progressTrack}>
-                        <Animated.View style={[styles.progressFill, progressStyle]} />
-                    </View>
-                </Animated.View>
-
-                {/* Prompto's message */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(1000)}
-                    style={styles.messageCard}
-                >
-                    <Text style={styles.messageText}>
-                        "The AI is crafting something special…{'\n'}This usually takes a few seconds."
-                    </Text>
-                    <Text style={styles.messageSender}>— Prompto</Text>
-                </Animated.View>
-
-                <View style={styles.spacer} />
-            </View>
-        </OnboardingScreenWrapper>
+  useEffect(() => {
+    rotation.value = withRepeat(
+      withTiming(360, { duration: 2000, easing: Easing.linear }),
+      -1,
+      false
     );
+  }, []);
+
+  useEffect(() => {
+    if (error) return;
+
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) return prev;
+        return prev + Math.random() * 12 + 3;
+      });
+    }, 600);
+
+    const messageInterval = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
+    }, 1500);
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(messageInterval);
+    };
+  }, [error]);
+
+  const handleRetry = () => {
+    setIsRetrying(true);
+    setError(null);
+    runGeneration().finally(() => setIsRetrying(false));
+  };
+
+  const handleBack = () => {
+    goToPreviousStep();
+  };
+
+  const spinnerStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  if (error) {
+    return (
+      <OnboardingScreenWrapper showProgress={true}>
+        <View style={styles.container}>
+          <View style={styles.content}>
+            <Animated.View entering={FadeInDown.duration(600).delay(200)} style={[styles.iconContainer, styles.errorIcon]}>
+              <Ionicons name="alert-circle" size={64} color="#EF4444" />
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.textContainer}>
+              <Text style={styles.title}>Generation Failed</Text>
+              <Text style={styles.errorText}>{error}</Text>
+
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={handleBack}
+                  disabled={isRetrying}
+                >
+                  <Text style={styles.secondaryButtonText}>Go Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.primaryButton]}
+                  onPress={handleRetry}
+                  disabled={isRetrying}
+                >
+                  <Text style={styles.primaryButtonText}>{isRetrying ? 'Retrying...' : 'Try Again'}</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </View>
+      </OnboardingScreenWrapper>
+    );
+  }
+
+  return (
+    <OnboardingScreenWrapper showProgress={true}>
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.iconContainer}>
+            <Ionicons name="flash" size={64} color={ONBOARDING_COLORS.accent} />
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.textContainer}>
+            <Text style={styles.title}>Generating Your Creation... ⚡</Text>
+
+            <View style={styles.loadingBox}>
+              <Animated.View style={[styles.spinner, spinnerStyle]}>
+                <Ionicons name="sync" size={48} color={ONBOARDING_COLORS.accent} />
+              </Animated.View>
+
+              <Animated.Text
+                key={messageIndex}
+                entering={FadeInUp.duration(300)}
+                style={styles.loadingMessage}
+              >
+                {LOADING_MESSAGES[messageIndex]}
+              </Animated.Text>
+            </View>
+
+            <View style={styles.infoCard}>
+              <Ionicons name="information-circle" size={20} color={ONBOARDING_COLORS.accentWarm} />
+              <Text style={styles.infoText}>
+                The AI is thinking... This usually takes 10-30 seconds.
+              </Text>
+            </View>
+
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBarBg}>
+                <Animated.View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+              </View>
+              <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
+            </View>
+          </Animated.View>
+        </View>
+      </View>
+    </OnboardingScreenWrapper>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: 'center',
-        paddingHorizontal: 32,
-    },
-    topSpace: { flex: 0.1 },
-    titleContainer: {
-        alignItems: 'center',
-        marginTop: 24,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: '900',
-        color: ONBOARDING_COLORS.textPrimary,
-        textAlign: 'center',
-    },
-    sparkleRow: {
-        marginTop: 8,
-    },
-
-    loadingCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 24,
-        padding: 28,
-        marginTop: 28,
-        width: '100%',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.06)',
-    },
-    loadingIconRow: {
-        flexDirection: 'row',
-        gap: 20,
-        marginBottom: 20,
-    },
-    loadingIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-
-    loadingMessage: {
-        fontSize: 16,
-        color: ONBOARDING_COLORS.textSecondary,
-        fontWeight: '600',
-        textAlign: 'center',
-        marginBottom: 20,
-        minHeight: 24,
-    },
-    progressTrack: {
-        width: '100%',
-        height: 6,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 3,
-        overflow: 'hidden',
-    },
-    progressFill: {
-        height: '100%',
-        backgroundColor: ONBOARDING_COLORS.accent,
-        borderRadius: 3,
-    },
-    messageCard: {
-        backgroundColor: 'rgba(187, 134, 252, 0.06)',
-        borderRadius: 18,
-        padding: 18,
-        marginTop: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(187, 134, 252, 0.12)',
-        alignItems: 'center',
-    },
-    messageText: {
-        fontSize: 14,
-        color: '#94A3B8',
-        fontStyle: 'italic',
-        textAlign: 'center',
-        lineHeight: 20,
-        fontWeight: '500',
-    },
-    messageSender: {
-        fontSize: 12,
-        color: '#BB86FC',
-        fontWeight: '700',
-        marginTop: 8,
-    },
-    spacer: { flex: 1 },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  content: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+  },
+  iconContainer: {
+    marginBottom: 30,
+    backgroundColor: 'rgba(187, 134, 252, 0.1)',
+    padding: 24,
+    borderRadius: 50,
+  },
+  errorIcon: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  textContainer: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: ONBOARDING_COLORS.textPrimary,
+    marginBottom: 30,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: ONBOARDING_COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  loadingBox: {
+    width: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    padding: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+    marginBottom: 24,
+  },
+  spinner: {
+    marginBottom: 24,
+  },
+  loadingMessage: {
+    color: ONBOARDING_COLORS.textSecondary,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.15)',
+    marginBottom: 40,
+  },
+  infoText: {
+    color: ONBOARDING_COLORS.textPrimary,
+    marginLeft: 12,
+    flex: 1,
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  progressContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  progressBarBg: {
+    width: '100%',
+    height: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: ONBOARDING_COLORS.accent,
+    borderRadius: 6,
+  },
+  progressText: {
+    color: ONBOARDING_COLORS.textMuted,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 16,
+    width: '100%',
+    marginTop: 8,
+  },
+  button: {
+    flex: 1,
+    borderRadius: 28,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    backgroundColor: ONBOARDING_COLORS.accent,
+  },
+  secondaryButton: {
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.12)',
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryButtonText: {
+    color: ONBOARDING_COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

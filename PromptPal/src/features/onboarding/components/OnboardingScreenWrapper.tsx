@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
+    FadeIn,
     FadeOut,
-    SlideInRight,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { ProgressBar } from '@/components/ui';
@@ -76,7 +76,7 @@ export function OnboardingScreenWrapper({
             </View>
 
             <Animated.View
-                entering={SlideInRight.duration(350).springify().damping(20)}
+                entering={FadeIn.duration(350)}
                 exiting={FadeOut.duration(200)}
                 style={styles.content}
                 key={currentStep}

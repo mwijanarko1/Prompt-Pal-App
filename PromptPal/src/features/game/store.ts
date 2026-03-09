@@ -9,7 +9,7 @@ export type ChallengeType = 'image' | 'code' | 'copywriting';
 
 // Data-only version of GameState for backend communication
 export interface GameStateData {
-  currentLevelId: string | null;
+  currentLevelId?: string;
   lives: number;
   score: number;
   isPlaying: boolean;
@@ -42,8 +42,16 @@ export interface Level {
   functionName?: string;
   testCases?: { id: string; name: string; input?: any; expectedOutput?: any; description?: string; passed?: boolean }[];
   promptChecklist?: string[];
+  // Onboarding-style code lessons (prompt-for-UI)
+  instruction?: string;
+  starterCode?: string;
+  grading?: { method?: string; criteria?: unknown[]; passingCondition?: string; perfectScore?: string };
+  failState?: { condition?: string; nudge?: string };
+  successState?: { condition?: string; feedback?: string };
+  lessonTakeaway?: string;
 
   // Copywriting Challenge specific
+  starterContext?: Record<string, unknown>; // For llm_judge lessons
   briefTitle?: string;
   briefProduct?: string;
   briefTarget?: string;
@@ -314,7 +322,7 @@ export const useGameStore = create<GameState>()(
         const state = get();
         // Return only the data fields, not the action functions
         return {
-          currentLevelId: state.currentLevelId,
+          currentLevelId: state.currentLevelId ?? undefined,
           lives: state.lives,
           score: state.score,
           isPlaying: state.isPlaying,

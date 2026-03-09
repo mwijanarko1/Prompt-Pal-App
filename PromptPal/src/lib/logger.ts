@@ -69,8 +69,13 @@ function redactSensitiveData(data: unknown): unknown {
 /**
  * Check if running in production environment
  */
+function getDevFlag(): boolean | undefined {
+  return (globalThis as { __DEV__?: boolean }).__DEV__;
+}
+
 function isProduction(): boolean {
-  return !__DEV__;
+  const devFlag = getDevFlag();
+  return devFlag !== undefined ? !devFlag : process.env.NODE_ENV === 'production';
 }
 
 export const logger = {
@@ -132,7 +137,7 @@ export const logger = {
    * @param additionalData - Optional additional data to log
    */
   debug: (context: string, message: string, additionalData?: Record<string, unknown>) => {
-    if (__DEV__) {
+    if (getDevFlag() ?? process.env.NODE_ENV !== 'production') {
       const redactedData = additionalData ? redactSensitiveData(additionalData) : undefined;
       console.debug(`[DEBUG][${context}]`, message, redactedData || '');
     }

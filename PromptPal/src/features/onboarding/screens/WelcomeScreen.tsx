@@ -11,7 +11,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
 
@@ -45,10 +45,6 @@ export function WelcomeScreen() {
                 {/* Top space */}
                 <View style={styles.topSpace} />
 
-                {/* Prompto character */}
-                <Animated.View entering={FadeInDown.duration(600).delay(200)}>
-                    <PromptoCharacter state="waving" size="lg" />
-                </Animated.View>
 
                 {/* Title */}
                 <Animated.View
@@ -70,7 +66,7 @@ export function WelcomeScreen() {
                     style={styles.descriptionContainer}
                 >
                     <Text style={styles.description}>
-                        I'm <Text style={styles.highlight}>Prompto</Text>, your AI mentor.{'\n'}
+                        <Text style={styles.highlight}>Welcome</Text> to your AI training.{'\n'}
                         Together, we'll master the art{'\n'}
                         of crafting perfect prompts.
                     </Text>
@@ -132,7 +128,7 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#64748B',
+        color: '#475569',
         textTransform: 'uppercase',
         letterSpacing: 3,
         marginTop: 8,
@@ -143,7 +139,7 @@ const styles = StyleSheet.create({
     },
     description: {
         fontSize: 17,
-        color: '#CBD5E1',
+        color: '#334155',
         lineHeight: 26,
         textAlign: 'center',
         fontWeight: '500',

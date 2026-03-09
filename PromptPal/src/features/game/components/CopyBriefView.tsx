@@ -166,7 +166,7 @@ export function CopyBriefView({ level }: CopyBriefViewProps) {
             </Text>
             <View className="rounded-xl overflow-hidden bg-surfaceVariant">
               <Image
-                source={{ uri: level.targetImageUrl }}
+                source={typeof level.targetImageUrl === 'string' ? { uri: level.targetImageUrl } : level.targetImageUrl}
                 className="w-full h-48"
                 resizeMode="cover"
               />

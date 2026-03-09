@@ -3,8 +3,8 @@ import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchLevelsFromApi, getLevelsByModuleId } from '@/features/levels/data';
-import { Card, Badge, ProgressBar } from '@/components/ui';
+import { fetchLevelsFromApi } from '@/features/levels/data';
+import { Card, ProgressBar } from '@/components/ui';
 import { useGameStore } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
 import { Level } from '@/features/game/store';
@@ -48,18 +48,17 @@ export default function LevelsScreen() {
       setError(null);
       try {
         const apiLevels = await fetchLevelsFromApi();
-        const sourceLevels = apiLevels.length > 0 ? apiLevels : getLevelsByModuleId(moduleId as string);
 
-        if (sourceLevels.length > 0) {
+        if (apiLevels.length > 0) {
           // Filter levels by module type - try moduleId first, fallback to type mapping
-          let moduleLevels = sourceLevels.filter(level => level.moduleId === moduleId);
+          let moduleLevels = apiLevels.filter(level => level.moduleId === moduleId);
 
           // If no levels found by moduleId, try filtering by type
           if (moduleLevels.length === 0) {
             const expectedType = moduleId === 'image-generation' ? 'image' :
               moduleId === 'coding-logic' ? 'code' :
                 moduleId === 'copywriting' ? 'copywriting' : moduleId;
-            moduleLevels = sourceLevels.filter(level => level.type === expectedType);
+            moduleLevels = apiLevels.filter(level => level.type === expectedType);
           }
 
           if (moduleLevels.length === 0) {
@@ -69,7 +68,8 @@ export default function LevelsScreen() {
 
           setLevels(moduleLevels as Level[]);
         } else {
-          setError('No levels available from the server');
+          setLevels([]);
+          setError('No levels available. Run the seed to populate the database.');
         }
       } catch (error) {
         logger.error('LevelsScreen', error, { operation: 'loadLevels', moduleId });
@@ -118,14 +118,7 @@ export default function LevelsScreen() {
           </View>
 
           <View className="flex-1">
-            <View className="flex-row items-center mb-1">
-              <Text className="text-onSurface text-base font-black mr-2">{level.title}</Text>
-              <Badge
-                label={level.difficulty}
-                variant={level.difficulty === 'beginner' ? 'success' : level.difficulty === 'intermediate' ? 'primary' : 'error'}
-                className="px-2 py-0.5"
-              />
-            </View>
+            <Text className="text-onSurface text-base font-black mb-1">{level.title}</Text>
             <Text className="text-onSurfaceVariant text-xs uppercase tracking-widest font-bold">
               {level.type} Challenge • {level.passingScore}% to pass
             </Text>

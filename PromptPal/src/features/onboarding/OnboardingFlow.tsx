@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { useOnboardingStore } from './store';
+import { ONBOARDING_COLORS } from './theme';
 
 // Screens
 import { WelcomeScreen } from './screens/WelcomeScreen';
@@ -71,7 +72,7 @@ export function OnboardingFlow() {
 const styles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#0B1220',
+        backgroundColor: ONBOARDING_COLORS.background,
         zIndex: 50,
     },
 });

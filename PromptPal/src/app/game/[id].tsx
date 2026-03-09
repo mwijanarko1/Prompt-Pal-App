@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Card, Badge, ProgressBar, ResultModal } from '@/components/ui';
-import { getLevelById as getLocalLevelById, fetchLevelsFromApi, getLevelsByModuleId } from '@/features/levels/data';
+import { fetchLevelsFromApi, processApiLevelsWithLocalAssets } from '@/features/levels/data';
 import { useGameStore, Level, ChallengeType } from '@/features/game/store';
 import { useUserProgressStore } from '@/features/user/store';
 import { useConvexAI } from '@/hooks/useConvexAI';
@@ -16,6 +16,8 @@ import { useUser } from '@clerk/clerk-expo';
 import { CodeExecutionView } from '@/features/game/components/CodeExecutionView';
 import type { CodeExecutionResult } from '@/features/game/components/CodeExecutionView';
 import { CopyAnalysisView } from '@/features/game/components/CopyAnalysisView';
+import { PracticeStyleChallenge, type PracticeStyleSection } from '@/features/game/components/PracticeStyleChallenge';
+import type { CodeTestResult } from '@/lib/scoring/codeScoring';
 import type { CopyScoringResult } from '@/lib/scoring/copyScoring';
 
 const { width, height: screenHeight } = Dimensions.get('window');
@@ -52,6 +54,35 @@ const extractCodeFromResponse = (text: string): string => {
   return (match?.[1] || text).trim();
 };
 
+/** Format starterContext for display in copy brief (llm_judge lessons) */
+function formatStarterContext(ctx: Record<string, unknown> | undefined): string {
+  if (!ctx || typeof ctx !== 'object') return '';
+  return Object.entries(ctx)
+    .map(([k, v]) => {
+      const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()).trim();
+      if (Array.isArray(v)) {
+        return `${label}:\n${v.map((item) => (typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item))).join('\n')}`;
+      }
+      if (typeof v === 'object' && v !== null) {
+        return `${label}:\n${JSON.stringify(v, null, 2)}`;
+      }
+      return `${label}: ${String(v)}`;
+    })
+    .join('\n\n');
+}
+
+const normalizeCodeTestResults = (results?: any[]): CodeTestResult[] =>
+  (results ?? []).map((result: any, index: number) => ({
+    id: result.id || `test-${index + 1}`,
+    name: result.name || `Hidden Test ${index + 1}`,
+    passed: Boolean(result.passed),
+    error: result.error,
+    output: result.output,
+    expectedOutput: result.expectedOutput,
+    actualOutput: result.actualOutput,
+    executionTime: result.executionTime || 0,
+  }));
+
 export default function GameScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -65,8 +96,6 @@ export default function GameScreen() {
   const [codeExecutionResult, setCodeExecutionResult] = useState<CodeExecutionResult | null>(null);
   const [copyScoringResult, setCopyScoringResult] = useState<CopyScoringResult | null>(null);
   const [activeTab, setActiveTab] = useState<'target' | 'attempt'>('target');
-  const [activeCodeTab, setActiveCodeTab] = useState<'instructions' | 'attempt'>('instructions');
-  const [activeCopyTab, setActiveCopyTab] = useState<'brief' | 'attempt'>('brief');
   const [showResult, setShowResult] = useState(false);
   const [lastScore, setLastScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string[]>([]);
@@ -86,10 +115,15 @@ export default function GameScreen() {
     () => [level?.moduleTitle, level?.description].filter(Boolean).join('\n\n'),
     [level?.description, level?.moduleTitle]
   );
-  const copyVisibleBrief = useMemo(
-    () => [level?.briefTitle, level?.description].filter(Boolean).join('\n\n'),
-    [level?.briefTitle, level?.description]
-  );
+  const copyVisibleBrief = useMemo(() => {
+    const parts = [level?.description].filter((part): part is string => Boolean(part));
+    if (level?.briefTitle) parts.unshift(level.briefTitle);
+    const ctx = level?.starterContext as Record<string, unknown> | undefined;
+    if (ctx && Object.keys(ctx).length > 0) {
+      parts.push(formatStarterContext(ctx));
+    }
+    return parts.join('\n\n');
+  }, [level?.briefTitle, level?.description, level?.starterContext]);
 
   // Hint system state
   const [hints, setHints] = useState<string[]>([]);
@@ -146,15 +180,9 @@ export default function GameScreen() {
         const apiLevel = await convexHttpClient.query(api.queries.getLevelById, { id: id as string });
 
         if (apiLevel) {
-          // Process with local assets if available (for images only)
-          const localLevel = getLocalLevelById(id as string);
           const processedLevel = {
-            ...apiLevel,
-            // Use local asset for display, API URL for evaluation
-            targetImageUrl: localLevel?.targetImageUrl ?? apiLevel.targetImageUrl,
-            // Use API-provided Convex storage URL for evaluation (ensure it's a string)
+            ...processApiLevelsWithLocalAssets([apiLevel as Level])[0],
             targetImageUrlForEvaluation: typeof apiLevel.targetImageUrl === 'string' ? apiLevel.targetImageUrl : undefined,
-            hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
           };
 
           setLevel(processedLevel);
@@ -167,15 +195,17 @@ export default function GameScreen() {
           try {
             const apiLevels = await fetchLevelsFromApi();
             const currentModuleId = processedLevel.moduleId || getModuleIdFromLevelType(processedLevel.type || 'image');
-            const sourceLevels = apiLevels.length > 0 ? apiLevels : getLevelsByModuleId(currentModuleId);
+            const expectedType = currentModuleId === 'image-generation' ? 'image' : currentModuleId === 'coding-logic' ? 'code' : currentModuleId === 'copywriting' ? 'copywriting' : null;
+            const moduleLevelsList = apiLevels.length > 0 && expectedType
+              ? apiLevels.filter((l: Level) => l.moduleId === currentModuleId || l.type === expectedType)
+              : [];
 
-            if (sourceLevels && sourceLevels.length > 0) {
-              setModuleLevels(sourceLevels);
+            if (moduleLevelsList.length > 0) {
+              setModuleLevels(moduleLevelsList);
             }
           } catch (levelsError) {
             logger.warn('GameScreen', 'Failed to load all levels for progress', { error: levelsError });
-            const currentModuleId = processedLevel.moduleId || getModuleIdFromLevelType(processedLevel.type || 'image');
-            setModuleLevels(getLevelsByModuleId(currentModuleId));
+            setModuleLevels([]);
           }
 
           // Fetch attempt history for this level
@@ -199,12 +229,13 @@ export default function GameScreen() {
                   setGeneratedCode(latestAttempt.code);
                 }
                 if (latestAttempt.testResults) {
+                  const testResults = normalizeCodeTestResults(latestAttempt.testResults);
                   setCodeExecutionResult({
                     code: latestAttempt.code || '',
-                    testResults: latestAttempt.testResults,
+                    testResults,
                     output: latestAttempt.feedback?.join('\n') || '',
                     success: (latestAttempt.score || 0) >= processedLevel.passingScore,
-                    error: latestAttempt.testResults.find((result: any) => !result.passed)?.error,
+                    error: testResults.find((result) => !result.passed)?.error,
                     score: latestAttempt.score,
                     passingScore: processedLevel.passingScore,
                   });
@@ -474,7 +505,6 @@ export default function GameScreen() {
         }
 
         setGeneratedCode(generatedCodeText);
-        setActiveCodeTab('attempt');
 
         const evaluation = await evaluateCodeSubmission({
           levelId: level.id,
@@ -490,17 +520,10 @@ export default function GameScreen() {
 
         setLastScore(finalScore);
         setFeedback(evaluation.feedback || []);
+        const testResults = normalizeCodeTestResults(evaluation.testResults);
         setCodeExecutionResult({
           code: generatedCodeText,
-          testResults: (evaluation.testResults || []).map((result: any, index: number) => ({
-            id: result.id || `test-${index + 1}`,
-            name: result.name || `Hidden Test ${index + 1}`,
-            passed: result.passed || false,
-            error: result.error,
-            expectedOutput: result.expectedOutput,
-            actualOutput: result.actualOutput,
-            executionTime: result.executionTime || 0,
-          })) as CodeTestResult[],
+          testResults,
           output: (evaluation.feedback || []).join('\n'),
           success: userPassed,
           error: evaluation.testResults?.find((r: any) => !r.passed)?.error,
@@ -586,7 +609,6 @@ export default function GameScreen() {
         }
 
         setGeneratedCopy(generatedCopyText);
-        setActiveCopyTab('attempt');
 
         // Step 2: Evaluate the generated copy
         const copyScoringResult = await evaluateCopySubmission({
@@ -766,317 +788,244 @@ export default function GameScreen() {
     );
   };
 
-  const renderCodeChallenge = () => {
-    const hasCode = generatedCode && generatedCode.trim().length > 0;
+  const renderHintsPanel = () => {
+    if (!level || hints.length === 0) return null;
 
     return (
-      <View className="px-6 pt-4 pb-6">
-        {level.description && (
-          <View className="mb-4">
-            <Text className="text-onSurface text-base font-black leading-6 text-center">
-              {level.description}
+      <TouchableOpacity
+        onPress={() => setShowHints(!showHints)}
+        activeOpacity={0.9}
+      >
+        <Card className={`p-4 rounded-[24px] border border-secondary/30 bg-secondary/5 ${showHints ? '' : 'overflow-hidden'}`}>
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-row items-center">
+              <Text className="text-secondary text-sm mr-2">💡</Text>
+              <Text className="text-secondary text-xs font-black uppercase tracking-widest">
+                Hints ({hints.length})
+              </Text>
+            </View>
+            <Text className="text-onSurfaceVariant text-xs">
+              {showHints ? '▲ Hide' : '▼ Show'}
             </Text>
           </View>
-        )}
-
-        <Card className="p-0 overflow-hidden rounded-[40px] border-0" variant="elevated">
-          {/* Tab Content */}
-          <View className="min-h-[400px] bg-surface">
-            {activeCodeTab === 'instructions' ? (
-              <View className="p-6">
-                {/* Header */}
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="code-slash-outline" size={18} color="#FF6B00" />
-                  <Text className="text-primary text-[11px] font-black uppercase tracking-[3px] ml-2">Algorithm Challenge</Text>
+          {showHints && (
+            <View className="mt-2">
+              {hints.map((hint, index) => (
+                <View key={index} className="flex-row mb-2">
+                  <Text className="text-secondary text-xs mr-2">{index + 1}.</Text>
+                  <Text className="text-onSurface text-sm flex-1">{hint}</Text>
                 </View>
-
-                <Text className="text-onSurface text-[26px] font-black mb-6 leading-8">{level.title}</Text>
-
-                {/* Mission Card — left accent border */}
-                <View className="flex-row mb-5 bg-surfaceVariant/25 rounded-2xl overflow-hidden">
-                  <View className="w-1 bg-onSurfaceVariant/40 rounded-l-2xl" />
-                  <View className="flex-1 p-4 pl-4">
-                    <View className="flex-row items-center mb-2">
-                      <Ionicons name="flag-outline" size={14} color="#6B7280" />
-                      <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[3px] ml-1.5">Mission</Text>
-                    </View>
-                    <Text className="text-onSurface text-[15px] leading-[22px]">
-                      {level.description || 'Write a prompt that guides the model to solve this challenge.'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Focus Area Card — warm accent */}
-                {level.moduleTitle && (
-                  <View className="flex-row mb-5 bg-primary/8 rounded-2xl overflow-hidden">
-                    <View className="w-1 bg-primary rounded-l-2xl" />
-                    <View className="flex-1 p-4 pl-4">
-                      <View className="flex-row items-center mb-1.5">
-                        <Ionicons name="compass-outline" size={14} color="#FF6B00" />
-                        <Text className="text-primary text-[10px] font-black uppercase tracking-[3px] ml-1.5">Focus Area</Text>
-                      </View>
-                      <Text className="text-onSurface text-lg font-black">{level.moduleTitle}</Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* How You Are Judged */}
-                <View className="mb-5">
-                  <View className="flex-row items-center mb-3">
-                    <Ionicons name="analytics-outline" size={16} color="#6B7280" />
-                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[3px] ml-1.5">How You Are Judged</Text>
-                  </View>
-                  <View className="pl-1">
-                    <View className="flex-row items-start mb-2.5">
-                      <View className="w-1.5 h-1.5 rounded-full bg-onSurfaceVariant/40 mt-1.5 mr-3" />
-                      <Text className="text-onSurface text-[13px] leading-5 flex-1">Your prompt must lead the model to working JavaScript.</Text>
-                    </View>
-                    <View className="flex-row items-start mb-2.5">
-                      <View className="w-1.5 h-1.5 rounded-full bg-onSurfaceVariant/40 mt-1.5 mr-3" />
-                      <Text className="text-onSurface text-[13px] leading-5 flex-1">Repeating the brief is not enough.</Text>
-                    </View>
-                    <View className="flex-row items-start">
-                      <View className="w-1.5 h-1.5 rounded-full bg-onSurfaceVariant/40 mt-1.5 mr-3" />
-                      <Text className="text-onSurface text-[13px] leading-5 flex-1">Strong prompts add constraints, output expectations, and edge-case guidance.</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Prompt Signals To Consider */}
-                {visibleHints.length > 0 && (
-                  <View className="mb-4">
-                    <View className="flex-row items-center mb-3">
-                      <Ionicons name="bulb-outline" size={16} color="#F59E0B" />
-                      <Text className="text-warning text-[10px] font-black uppercase tracking-[3px] ml-1.5">Prompt Signals To Consider</Text>
-                    </View>
-                    {visibleHints.map((hint, index) => (
-                      <View key={`${level.id}-code-hint-${index}`} className="flex-row bg-warning/5 rounded-xl p-4 mb-2.5 border border-warning/15">
-                        <View className="w-6 h-6 rounded-full bg-warning/15 items-center justify-center mr-3 mt-0.5">
-                          <Text className="text-warning text-[10px] font-black">{index + 1}</Text>
-                        </View>
-                        <Text className="text-onSurface text-[14px] leading-[22px] flex-1">{hint}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View className="p-6">
-                <CodeExecutionView
-                  code={generatedCode || ''}
-                  executionResult={codeExecutionResult}
-                  language={level.language || 'javascript'}
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Tab Switcher */}
-          <View className="flex-row bg-surfaceVariant/50 p-2 m-4 rounded-full">
-            <TouchableOpacity
-              onPress={() => setActiveCodeTab('instructions')}
-              className={`flex-1 py-3 rounded-full items-center ${activeCodeTab === 'instructions' ? 'bg-surface' : ''}`}
-            >
-              <Text className={`font-bold ${activeCodeTab === 'instructions' ? 'text-onSurface' : 'text-onSurfaceVariant'}`}>Instructions</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setActiveCodeTab('attempt')}
-              className={`flex-1 py-3 rounded-full items-center ${activeCodeTab === 'attempt' ? 'bg-surface' : ''}`}
-              disabled={!hasCode}
-            >
-              <Text className={`font-bold ${activeCodeTab === 'attempt' ? 'text-onSurface' : !hasCode ? 'text-onSurfaceVariant/40' : 'text-onSurfaceVariant'}`}>Your Attempt</Text>
-            </TouchableOpacity>
-          </View>
+              ))}
+              <Text className="text-onSurfaceVariant text-[10px] mt-2 italic">
+                {NanoAssistant.getNextHintPenaltyDescription(level.id, level.difficulty)}
+              </Text>
+            </View>
+          )}
         </Card>
-      </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderCodeChallenge = () => {
+    const isOnboardingStyle = !!(level as { instruction?: string }).instruction;
+    const missionText = (level as { instruction?: string }).instruction || level.description || 'Write a prompt that guides the model to solve this challenge.';
+    const focusText = (level as { lessonTakeaway?: string }).lessonTakeaway || (level as { moduleTitle?: string }).moduleTitle;
+    const hintsUsed = NanoAssistant.getHintsUsed(level.id);
+    const hintsRemaining = NanoAssistant.getHintsRemaining(level.id, level.difficulty);
+    const maxHints = NanoAssistant.getMaxHintsPerLevel(level.difficulty);
+    const noHintsLeft = hintsRemaining === 0;
+    const charCount = prompt.length;
+
+    const gradingItems = (level as { grading?: { passingCondition?: string; criteria?: { description: string }[] } }).grading;
+    const sections: PracticeStyleSection[] = [
+      {
+        title: 'Mission',
+        icon: 'flag-outline',
+        tone: 'neutral',
+        body: missionText,
+      },
+      ...(level.starterCode ? [{
+        title: 'Starter Code',
+        icon: 'code-outline',
+        tone: 'neutral' as const,
+        code: level.starterCode,
+      }] : []),
+      ...(focusText ? [{
+        title: isOnboardingStyle ? 'Takeaway' : 'Focus Area',
+        icon: 'compass-outline',
+        tone: 'accent' as const,
+        body: focusText,
+      }] : []),
+      {
+        title: 'How You Are Judged',
+        icon: 'analytics-outline',
+        tone: 'neutral',
+        items: gradingItems?.passingCondition
+          ? [
+            gradingItems.passingCondition,
+            ...(gradingItems.criteria?.slice(0, 3).map((criterion) => criterion.description) ?? []),
+          ]
+          : [
+            'Your prompt must lead the model to working JavaScript.',
+            'Repeating the brief is not enough.',
+            'Strong prompts add constraints, output expectations, and edge-case guidance.',
+          ],
+      },
+      ...(visibleHints.length > 0 ? [{
+        title: 'Prompt Signals To Consider',
+        icon: 'bulb-outline',
+        tone: 'warning' as const,
+        items: visibleHints,
+      }] : []),
+    ];
+
+    return (
+      <PracticeStyleChallenge
+        title={level.title || 'Code Challenge'}
+        subtitle={isOnboardingStyle ? 'Use the prototype details below to guide a precise prompt.' : (level.description || focusText)}
+        previewLabel={isOnboardingStyle ? 'Target Logic' : 'Challenge Brief'}
+        sections={sections}
+        promptLabel="Your Prompt"
+        prompt={prompt}
+        onChangePrompt={setPrompt}
+        promptPlaceholder="Describe the behavior, output, and constraints you want from the model..."
+        charCount={charCount}
+        tokenCount={tokenCount}
+        inputAccessoryViewID={Platform.OS === 'ios' ? inputAccessoryId : undefined}
+        hintActionLabel={
+          noHintsLeft ? 'No hints left' : hintCooldown > 0 ? `${hintCooldown}s` : isLoadingHint ? 'Loading…' : hintsUsed === 0 ? 'Need a Hint?' : `Hint (${hintsRemaining}/${maxHints})`
+        }
+        onPressHint={handleGetHint}
+        hintActionDisabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
+        hintPanel={renderHintsPanel()}
+        onSubmit={handleGenerate}
+        submitLabel="Generate"
+        submitIcon="flash-outline"
+        submitDisabled={prompt.trim().length === 0 || isGenerating}
+        isSubmitting={isGenerating}
+        attemptTitle={generatedCode ? 'Your Attempt' : undefined}
+        attemptView={generatedCode ? (
+          <CodeExecutionView
+            code={generatedCode || ''}
+            executionResult={codeExecutionResult}
+            language={level.language || 'javascript'}
+          />
+        ) : undefined}
+      />
     );
   };
 
   const renderCopywritingChallenge = () => {
-    const hasCopy = generatedCopy && generatedCopy.trim().length > 0;
+    const hintsUsed = NanoAssistant.getHintsUsed(level.id);
+    const hintsRemaining = NanoAssistant.getHintsRemaining(level.id, level.difficulty);
+    const maxHints = NanoAssistant.getMaxHintsPerLevel(level.difficulty);
+    const noHintsLeft = hintsRemaining === 0;
+    const wordCount = prompt.trim().split(/\s+/).filter(word => word.length > 0).length;
+    const charCount = prompt.length;
+    const minWords = level.wordLimit?.min ?? 0;
+    const maxWords = level.wordLimit?.max ?? 500;
+    const wordProgress = level.wordLimit ? Math.min((wordCount / Math.max(maxWords, 1)) * 100, 100) : undefined;
+    const isWordOverLimit = level.wordLimit ? wordCount > maxWords : false;
+    const isWordUnderLimit = level.wordLimit ? wordCount < minWords : false;
+
+    const sections: PracticeStyleSection[] = [
+      {
+        title: 'Visible Brief',
+        icon: 'document-text-outline',
+        tone: 'neutral',
+        body: copyVisibleBrief || 'Write a prompt that steers the model toward stronger copy.',
+      },
+      ...(level.briefTitle ? [{
+        title: 'Deliverable',
+        icon: 'gift-outline',
+        tone: 'accent' as const,
+        body: level.briefTitle,
+      }] : []),
+      ...(level.wordLimit ? [{
+        title: 'Word Limit',
+        icon: 'text-outline',
+        tone: 'secondary' as const,
+        badge: `${minWords}-${maxWords} words`,
+      }] : []),
+      {
+        title: 'How You Are Judged',
+        icon: 'analytics-outline',
+        tone: 'neutral',
+        items: [
+          'Your prompt needs strategy, not just a restatement of the brief.',
+          'Strong prompts shape audience, tone, structure, and CTA.',
+          'Weak prompts that only paraphrase the brief score lower.',
+        ],
+      },
+      ...(level.requiredElements && level.requiredElements.length > 0 ? [{
+        title: 'Required Elements',
+        icon: 'checkmark-done-outline',
+        tone: 'accent' as const,
+        items: level.requiredElements,
+      }] : []),
+      ...(visibleHints.length > 0 ? [{
+        title: 'Prompt Signals To Consider',
+        icon: 'bulb-outline',
+        tone: 'warning' as const,
+        items: visibleHints,
+      }] : []),
+    ];
 
     return (
-      <View className="px-6 pt-4 pb-6">
-        {level.description && (
-          <View className="mb-4">
-            <Text className="text-onSurface text-base font-black leading-6 text-center">
-              {level.description}
-            </Text>
-          </View>
-        )}
-
-        <Card className="p-0 overflow-hidden rounded-[40px] border-0" variant="elevated">
-          {/* Tab Content */}
-          <View className="min-h-[400px] bg-surface">
-            {activeCopyTab === 'brief' ? (
-              <View className="p-6">
-                {/* Header */}
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="create-outline" size={18} color="#FF6B00" />
-                  <Text className="text-primary text-[11px] font-black uppercase tracking-[3px] ml-2">Copywriting Challenge</Text>
-                </View>
-
-                <Text className="text-onSurface text-[26px] font-black mb-6 leading-8">{level.title}</Text>
-
-                {/* Visible Brief Card — left accent border */}
-                <View className="flex-row mb-5 bg-surfaceVariant/25 rounded-2xl overflow-hidden">
-                  <View className="w-1 bg-onSurfaceVariant/40 rounded-l-2xl" />
-                  <View className="flex-1 p-4 pl-4">
-                    <View className="flex-row items-center mb-2">
-                      <Ionicons name="document-text-outline" size={14} color="#6B7280" />
-                      <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[3px] ml-1.5">Visible Brief</Text>
-                    </View>
-                    <Text className="text-onSurface text-[15px] leading-[22px]">
-                      {level.description || 'Write a prompt that steers the model toward stronger copy.'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Deliverable Card — warm accent */}
-                {level.briefTitle && (
-                  <View className="flex-row mb-5 bg-primary/8 rounded-2xl overflow-hidden">
-                    <View className="w-1 bg-primary rounded-l-2xl" />
-                    <View className="flex-1 p-4 pl-4">
-                      <View className="flex-row items-center mb-1.5">
-                        <Ionicons name="gift-outline" size={14} color="#FF6B00" />
-                        <Text className="text-primary text-[10px] font-black uppercase tracking-[3px] ml-1.5">Deliverable</Text>
-                      </View>
-                      <Text className="text-onSurface text-lg font-black">{level.briefTitle}</Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Word Limit */}
-                {level.wordLimit && (
-                  <View className="flex-row items-center mb-5 bg-secondary/5 rounded-xl px-4 py-3 border border-secondary/15">
-                    <Ionicons name="text-outline" size={14} color="#4151FF" />
-                    <Text className="text-onSurfaceVariant text-xs font-bold ml-2 mr-2">Word Limit:</Text>
-                    <View className="bg-secondary/15 px-3 py-1 rounded-full">
-                      <Text className="text-secondary text-[11px] font-black">{level.wordLimit.min || 0}–{level.wordLimit.max || 500} words</Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* How You Are Judged */}
-                <View className="mb-5">
-                  <View className="flex-row items-center mb-3">
-                    <Ionicons name="analytics-outline" size={16} color="#6B7280" />
-                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[3px] ml-1.5">How You Are Judged</Text>
-                  </View>
-                  <View className="pl-1">
-                    <View className="flex-row items-start mb-2.5">
-                      <View className="w-1.5 h-1.5 rounded-full bg-onSurfaceVariant/40 mt-1.5 mr-3" />
-                      <Text className="text-onSurface text-[13px] leading-5 flex-1">Your prompt needs strategy, not just a restatement of the brief.</Text>
-                    </View>
-                    <View className="flex-row items-start mb-2.5">
-                      <View className="w-1.5 h-1.5 rounded-full bg-onSurfaceVariant/40 mt-1.5 mr-3" />
-                      <Text className="text-onSurface text-[13px] leading-5 flex-1">Strong prompts shape audience, tone, structure, and CTA.</Text>
-                    </View>
-                    <View className="flex-row items-start">
-                      <View className="w-1.5 h-1.5 rounded-full bg-onSurfaceVariant/40 mt-1.5 mr-3" />
-                      <Text className="text-onSurface text-[13px] leading-5 flex-1">Weak prompts that only paraphrase the brief score lower.</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Prompt Signals To Consider */}
-                {visibleHints.length > 0 && (
-                  <View className="mb-4">
-                    <View className="flex-row items-center mb-3">
-                      <Ionicons name="bulb-outline" size={16} color="#F59E0B" />
-                      <Text className="text-warning text-[10px] font-black uppercase tracking-[3px] ml-1.5">Prompt Signals To Consider</Text>
-                    </View>
-                    {visibleHints.map((hint, index) => (
-                      <View key={`${level.id}-copy-hint-${index}`} className="flex-row bg-warning/5 rounded-xl p-4 mb-2.5 border border-warning/15">
-                        <View className="w-6 h-6 rounded-full bg-warning/15 items-center justify-center mr-3 mt-0.5">
-                          <Text className="text-warning text-[10px] font-black">{index + 1}</Text>
-                        </View>
-                        <Text className="text-onSurface text-[14px] leading-[22px] flex-1">{hint}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {level.requiredElements && level.requiredElements.length > 0 && (
-                  <View className="mb-4">
-                    <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mb-2">
-                      Required Elements
-                    </Text>
-                    <View className="bg-surfaceVariant/30 rounded-2xl p-4">
-                      {level.requiredElements.map((element, index) => (
-                        <View key={`${level.id}-required-${index}`} className="flex-row items-center mb-2 last:mb-0">
-                          <View className="w-4 h-4 rounded-full bg-primary/20 items-center justify-center mr-3">
-                            <Text className="text-primary text-xs font-bold">✓</Text>
-                          </View>
-                          <Text className="text-onSurface text-sm flex-1">{element}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {level.wordLimit && (
-                  <View className="mt-4 flex-row items-center">
-                    <Text className="text-onSurfaceVariant text-xs mr-2">Word Limit:</Text>
-                    <Badge
-                      label={`${level.wordLimit.min || 0}-${level.wordLimit.max || 500} words`}
-                      variant="surface"
-                      className="bg-surfaceVariant border-0"
-                    />
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View className="p-6">
-                <CopyAnalysisView
-                  copy={generatedCopy || ''}
-                  scoringResult={copyScoringResult}
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Tab Switcher */}
-          <View className="flex-row bg-surfaceVariant/50 p-2 m-4 rounded-full">
-            <TouchableOpacity
-              onPress={() => setActiveCopyTab('brief')}
-              className={`flex-1 py-3 rounded-full items-center ${activeCopyTab === 'brief' ? 'bg-surface' : ''}`}
-            >
-              <Text className={`font-bold ${activeCopyTab === 'brief' ? 'text-onSurface' : 'text-onSurfaceVariant'}`}>Brief</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setActiveCopyTab('attempt')}
-              className={`flex-1 py-3 rounded-full items-center ${activeCopyTab === 'attempt' ? 'bg-surface' : ''}`}
-              disabled={!hasCopy}
-            >
-              <Text className={`font-bold ${activeCopyTab === 'attempt' ? 'text-onSurface' : !hasCopy ? 'text-onSurfaceVariant/40' : 'text-onSurfaceVariant'}`}>Your Attempt</Text>
-            </TouchableOpacity>
-          </View>
-        </Card>
-      </View>
+      <PracticeStyleChallenge
+        title={level.title || 'Copywriting Challenge'}
+        subtitle={level.description}
+        previewLabel="Target Brief"
+        sections={sections}
+        promptLabel="Craft Your Prompt"
+        prompt={prompt}
+        onChangePrompt={setPrompt}
+        promptPlaceholder="Describe the audience, tone, structure, and output you want..."
+        charCount={charCount}
+        tokenCount={tokenCount}
+        wordCountLabel={level.wordLimit ? `${wordCount} / ${minWords}-${maxWords}` : undefined}
+        wordProgress={wordProgress}
+        wordProgressTone={isWordOverLimit ? 'error' : isWordUnderLimit ? 'warning' : 'success'}
+        inputAccessoryViewID={Platform.OS === 'ios' ? inputAccessoryId : undefined}
+        hintActionLabel={
+          noHintsLeft ? 'No hints left' : hintCooldown > 0 ? `${hintCooldown}s` : isLoadingHint ? 'Loading…' : hintsUsed === 0 ? 'Need a Hint?' : `Hint (${hintsRemaining}/${maxHints})`
+        }
+        onPressHint={handleGetHint}
+        hintActionDisabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
+        hintPanel={renderHintsPanel()}
+        onSubmit={handleGenerate}
+        submitLabel="Generate"
+        submitIcon="create-outline"
+        submitDisabled={prompt.trim().length === 0 || isGenerating}
+        isSubmitting={isGenerating}
+        attemptTitle={generatedCopy ? 'Your Attempt' : undefined}
+        attemptView={generatedCopy ? (
+          <CopyAnalysisView
+            copy={generatedCopy || ''}
+            scoringResult={copyScoringResult}
+            requirements={level.requiredElements}
+          />
+        ) : undefined}
+      />
     );
   };
 
   const renderPromptSection = () => {
+    if (level.type !== 'image') {
+      return null;
+    }
+
     const hintsUsed = level ? NanoAssistant.getHintsUsed(level.id) : 0;
     const hintsRemaining = level ? NanoAssistant.getHintsRemaining(level.id, level.difficulty) : 0;
     const maxHints = level ? NanoAssistant.getMaxHintsPerLevel(level.difficulty) : 4;
     const noHintsLeft = hintsRemaining === 0;
 
-    // Word and character counting for copywriting
-    const wordCount = level?.type === 'copywriting' ? prompt.trim().split(/\s+/).filter(word => word.length > 0).length : 0;
     const charCount = prompt.length;
-    const wordLimit = level?.wordLimit;
-    const wordProgress = wordLimit ? Math.min((wordCount / wordLimit.max) * 100, 100) : 0;
-    const isWordOverLimit = wordLimit && wordCount > wordLimit.max;
-    const isWordUnderLimit = wordLimit && wordCount < wordLimit.min;
 
     return (
       <View className="px-6 pb-8">
         <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">
-            {level.type === 'image' ? 'YOUR PROMPT' : level.type === 'code' ? 'YOUR PROMPT EDITOR' : 'CRAFT YOUR PROMPT'}
-          </Text>
+          <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">YOUR PROMPT</Text>
           <TouchableOpacity
             onPress={handleGetHint}
             disabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
@@ -1096,94 +1045,26 @@ export default function GameScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Hints Display */}
-        {hints.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setShowHints(!showHints)}
-            className="mb-4"
-          >
-            <Card className={`p-4 rounded-[24px] border border-secondary/30 bg-secondary/5 ${showHints ? '' : 'overflow-hidden'}`}>
-              <View className="flex-row items-center justify-between mb-2">
-                <View className="flex-row items-center">
-                  <Text className="text-secondary text-sm mr-2">💡</Text>
-                  <Text className="text-secondary text-xs font-black uppercase tracking-widest">
-                    Hints ({hints.length})
-                  </Text>
-                </View>
-                <Text className="text-onSurfaceVariant text-xs">
-                  {showHints ? '▲ Hide' : '▼ Show'}
-                </Text>
-              </View>
-              {showHints && (
-                <View className="mt-2">
-                  {hints.map((hint, index) => (
-                    <View key={index} className="flex-row mb-2">
-                      <Text className="text-secondary text-xs mr-2">{index + 1}.</Text>
-                      <Text className="text-onSurface text-sm flex-1">{hint}</Text>
-                    </View>
-                  ))}
-                  <Text className="text-onSurfaceVariant text-[10px] mt-2 italic">
-                    {NanoAssistant.getNextHintPenaltyDescription(level.id, level.difficulty)}
-                  </Text>
-                </View>
-              )}
-            </Card>
-          </TouchableOpacity>
-        )}
+        {renderHintsPanel()}
 
         <View ref={inputRef}>
           <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20 mb-4">
             <Input
               value={prompt}
               onChangeText={setPrompt}
-              placeholder={level.type === 'image' ? "Describe the floating islands, the nebula sky..." : "Enter your prompt here..."}
+              placeholder="Describe the floating islands, the nebula sky..."
               multiline
               className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
               inputAccessoryViewID={Platform.OS === 'ios' ? inputAccessoryId : undefined}
             />
 
-            {level.type === 'copywriting' ? (
-              <View className="space-y-3">
-                {/* Word Count with Progress Bar */}
-                {wordLimit && (
-                  <View>
-                    <View className="flex-row justify-between items-center mb-2">
-                      <Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">
-                        Word Count
-                      </Text>
-                      <Text className={`text-xs font-bold ${isWordOverLimit ? 'text-error' : isWordUnderLimit ? 'text-warning' : 'text-success'}`}>
-                        {wordCount} / {wordLimit.min}-{wordLimit.max}
-                      </Text>
-                    </View>
-                    <View className="h-2 bg-surfaceVariant rounded-full overflow-hidden">
-                      <View
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          isWordOverLimit ? 'bg-error' : isWordUnderLimit ? 'bg-warning' : 'bg-success'
-                        }`}
-                        style={{ width: `${wordProgress}%` }}
-                      />
-                    </View>
-                  </View>
-                )}
-
-                {/* Character and Token Counts */}
-                <View className="flex-row items-center">
-                  <View className="flex-row">
-                    <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-                    <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-                    {level.type === 'image' && <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-3" />}
-                  </View>
-                </View>
+            <View className="flex-row items-center">
+              <View className="flex-row">
+                <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
+                <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
+                <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-3" />
               </View>
-            ) : (
-              <View className="flex-row items-center">
-                <View className="flex-row">
-                  <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-                  <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-                  {level.type === 'image' && <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-3" />}
-                </View>
-              </View>
-            )}
+            </View>
           </Card>
         </View>
 
@@ -1332,14 +1213,9 @@ export default function GameScreen() {
                 try {
                   const apiLevel = await convexHttpClient.query(api.queries.getLevelById, { id: id as string });
                   if (apiLevel) {
-                    const localLevel = getLocalLevelById(id as string);
                     const processedLevel = {
-                      ...apiLevel,
-                      // Use local asset for display, API URL for evaluation
-                      targetImageUrl: localLevel?.targetImageUrl ?? apiLevel.targetImageUrl,
-                      // Use API-provided Convex storage URL for evaluation (ensure it's a string)
+                      ...processApiLevelsWithLocalAssets([apiLevel as Level])[0],
                       targetImageUrlForEvaluation: typeof apiLevel.targetImageUrl === 'string' ? apiLevel.targetImageUrl : undefined,
-                      hiddenPromptKeywords: apiLevel.hiddenPromptKeywords || localLevel?.hiddenPromptKeywords || [],
                     };
                     setLevel(processedLevel);
                     startLevel(processedLevel.id);

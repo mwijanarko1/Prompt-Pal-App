@@ -36,8 +36,10 @@ function toPublicLevel(level: any) {
     hiddenPromptKeywords: level.hiddenPromptKeywords,
     style: level.style,
     moduleTitle: level.moduleTitle,
+    requirementBrief: level.requirementBrief,
     language: level.language,
     briefTitle: level.briefTitle,
+    starterContext: level.starterContext,
     wordLimit: level.wordLimit,
     metrics: level.metrics,
     hints: level.hints,
@@ -46,6 +48,13 @@ function toPublicLevel(level: any) {
     tags: level.tags,
     learningObjectives: level.learningObjectives,
     prerequisites: level.prerequisites,
+    // Onboarding-style code lessons
+    instruction: level.instruction,
+    starterCode: level.starterCode,
+    grading: level.grading,
+    failState: level.failState,
+    successState: level.successState,
+    lessonTakeaway: level.lessonTakeaway,
     createdAt: level.createdAt,
     updatedAt: level.updatedAt,
   };
@@ -774,6 +783,12 @@ export const getLevelEvaluationData = internalQuery({
       metrics: level.metrics,
       hints: level.hints,
       promptChecklist: level.promptChecklist,
+      // For llm_judge copy lessons
+      grading: level.grading,
+      failState: level.failState,
+      successState: level.successState,
+      lessonTakeaway: level.lessonTakeaway,
+      starterContext: level.starterContext,
     };
   },
 });
@@ -1278,11 +1293,16 @@ export const internalGetUserAchievements = internalQuery({
 export const getUserAchievements = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthenticatedUserId(ctx);
-    if (!userId) {
+    try {
+      const userId = await getAuthenticatedUserId(ctx);
+      if (!userId) {
+        return [];
+      }
+
+      return listUserAchievements(ctx, userId);
+    } catch {
       return [];
     }
-    return listUserAchievements(ctx, userId);
   },
 });
 

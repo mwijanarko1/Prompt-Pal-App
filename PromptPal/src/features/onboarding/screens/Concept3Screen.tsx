@@ -1,251 +1,178 @@
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
-
-const CONTEXT_TYPES = [
-    { icon: 'time-outline' as const, label: 'Time of Day', example: 'at sunset' },
-    { icon: 'cloud-outline' as const, label: 'Weather / Atmosphere', example: 'on a misty morning' },
-    { icon: 'happy-outline' as const, label: 'Emotions / Mood', example: 'feeling peaceful' },
-    { icon: 'camera-outline' as const, label: 'Camera / Composition', example: 'close-up shot' },
-];
+import { ONBOARDING_COLORS } from '../theme';
 
 export function Concept3Screen() {
-    const { goToNextStep, addBadge, addXp } = useOnboardingStore();
+    const { goToNextStep } = useOnboardingStore();
 
     const handleContinue = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        addBadge('context-master');
-        addXp(15);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         goToNextStep();
     };
 
     return (
-        <OnboardingScreenWrapper>
+        <OnboardingScreenWrapper showProgress={true}>
             <ScrollView
-                style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.topSpace} />
+                <View style={styles.container}>
+                    <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.iconContainer}>
+                        <Ionicons name="bug" size={64} color="#FFD700" />
+                    </Animated.View>
 
-                {/* Prompto */}
-                <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.center}>
-                    <PromptoCharacter state="speaking" size="md" />
-                </Animated.View>
+                    <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.textContainer}>
+                        <Text style={styles.title}>Ingredient 3: Guardrails</Text>
 
-                {/* Title */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(300)}
-                    style={styles.titleContainer}
-                >
-                    <View style={styles.ingredientBadge}>
-                        <Text style={styles.ingredientNumber}>3</Text>
-                    </View>
-                    <Text style={styles.title}>Context</Text>
-                </Animated.View>
-
-                {/* Explanation */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(500)}
-                    style={styles.explanationContainer}
-                >
-                    <Text style={styles.explanation}>
-                        Context brings your prompt to life{'\n'}with{' '}
-                        <Text style={styles.bold}>rich details and atmosphere</Text>
-                    </Text>
-                </Animated.View>
-
-                {/* Context types */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(700)}
-                    style={styles.typesContainer}
-                >
-                    {CONTEXT_TYPES.map((type, index) => (
-                        <Animated.View
-                            key={type.label}
-                            entering={FadeInUp.duration(400).delay(700 + index * 100)}
-                            style={styles.typeCard}
-                        >
-                            <Ionicons name={type.icon} size={22} color="#03DAC6" />
-                            <View style={styles.typeContent}>
-                                <Text style={styles.typeLabel}>{type.label}</Text>
-                                <Text style={styles.typeExample}>e.g., "{type.example}"</Text>
-                            </View>
-                        </Animated.View>
-                    ))}
-                </Animated.View>
-
-                {/* Progressive example */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(1100)}
-                    style={styles.progressionCard}
-                >
-                    <Text style={styles.progressionTitle}>See the Difference</Text>
-                    <View style={styles.progressionStep}>
-                        <View style={[styles.dot, { backgroundColor: '#FF6B00' }]} />
-                        <Text style={styles.progressionText}>"A cat in watercolor"</Text>
-                    </View>
-                    <Ionicons name="arrow-down" size={16} color="#475569" style={{ alignSelf: 'center', marginVertical: 4 }} />
-                    <View style={styles.progressionStep}>
-                        <View style={[styles.dot, { backgroundColor: '#03DAC6' }]} />
-                        <Text style={[styles.progressionText, styles.progressionHighlight]}>
-                            "A cat in watercolor, at sunset, feeling peaceful"
+                        <Text style={styles.description}>
+                            Fixing bugs requires precise instructions and "guardrails" to prevent breaking existing code.
                         </Text>
-                    </View>
-                </Animated.View>
 
-                {/* Continue */}
-                <View style={styles.buttonContainer}>
-                    <TouchableOpacity
-                        style={styles.continueButton}
-                        onPress={handleContinue}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={styles.continueText}>Let's Try It!</Text>
-                    </TouchableOpacity>
+                        <View style={styles.bulletPoints}>
+                            <View style={styles.bulletRow}>
+                                <Ionicons name="search" size={24} color={ONBOARDING_COLORS.success} />
+                                <Text style={styles.bulletText}>Precision: Where is the bug?</Text>
+                            </View>
+                            <View style={styles.bulletRow}>
+                                <Ionicons name="shield-checkmark" size={24} color={ONBOARDING_COLORS.success} />
+                                <Text style={styles.bulletText}>Guardrails: What should stay the same?</Text>
+                            </View>
+                            <View style={styles.bulletRow}>
+                                <Ionicons name="git-compare" size={24} color={ONBOARDING_COLORS.success} />
+                                <Text style={styles.bulletText}>Expected: What is the fix?</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.exampleBox}>
+                            <Text style={styles.exampleTitle}>Hard Level Goal</Text>
+                            <Text style={styles.exampleGood}>"Fix the add button to block empty inputs, but keep the current styling exactly as is."</Text>
+                        </View>
+                    </Animated.View>
+
+                    <View style={styles.spacer} />
+
+                    <Animated.View entering={FadeInUp.duration(500).delay(800)} style={styles.buttonContainer}>
+                        <TouchableOpacity style={styles.button} onPress={handleContinue} activeOpacity={0.85}>
+                            <Text style={styles.buttonText}>Try Hard Level</Text>
+                            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                        </TouchableOpacity>
+                    </Animated.View>
                 </View>
-
-                <View style={{ height: 32 }} />
             </ScrollView>
         </OnboardingScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
-    scrollView: { flex: 1 },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 24,
+        paddingTop: 20,
         paddingBottom: 32,
     },
-    topSpace: { height: 8 },
-    center: { alignItems: 'center' },
-    titleContainer: {
-        flexDirection: 'row',
+    container: {
+        flex: 1,
+        width: '100%',
+        maxWidth: 520,
+        alignSelf: 'center',
         alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 12,
-        gap: 10,
     },
-    ingredientBadge: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#03DAC6',
+    iconContainer: {
+        marginBottom: 24,
+        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+        padding: 24,
+        borderRadius: 50,
+    },
+    textContainer: {
         alignItems: 'center',
-        justifyContent: 'center',
-    },
-    ingredientNumber: {
-        color: '#0B1220',
-        fontSize: 14,
-        fontWeight: '900',
+        width: '100%',
     },
     title: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: '900',
-        color: '#FFFFFF',
-        letterSpacing: -0.5,
+        color: ONBOARDING_COLORS.textPrimary,
+        marginBottom: 16,
+        textAlign: 'center',
     },
-
-    explanationContainer: {
-        marginTop: 16,
-        alignItems: 'center',
+    description: {
+        fontSize: 18,
+        color: ONBOARDING_COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 28,
+        marginBottom: 24,
     },
-    explanation: {
+    bulletPoints: {
+        width: '100%',
+        marginBottom: 30,
+    },
+    bulletRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: 16,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        padding: 12,
+        borderRadius: 12,
+    },
+    bulletText: {
+        flex: 1,
+        color: ONBOARDING_COLORS.textPrimary,
         fontSize: 16,
-        color: '#94A3B8',
-        textAlign: 'center',
-        lineHeight: 24,
+        lineHeight: 22,
+        marginLeft: 12,
         fontWeight: '500',
     },
-    bold: { color: '#FFFFFF', fontWeight: '700' },
-    typesContainer: {
-        marginTop: 20,
-        gap: 10,
-    },
-    typeCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 14,
-        padding: 14,
+    exampleBox: {
+        width: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        padding: 20,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.06)',
-        gap: 12,
+        borderColor: 'rgba(0, 0, 0, 0.08)',
     },
-
-    typeContent: { flex: 1 },
-    typeLabel: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#E2E8F0',
-    },
-    typeExample: {
-        fontSize: 12,
-        color: '#64748B',
-        fontWeight: '500',
-        marginTop: 2,
-        fontStyle: 'italic',
-    },
-    progressionCard: {
-        backgroundColor: 'rgba(3, 218, 198, 0.06)',
-        borderRadius: 18,
-        padding: 18,
-        marginTop: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(3, 218, 198, 0.15)',
-    },
-    progressionTitle: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#03DAC6',
+    exampleTitle: {
+        color: ONBOARDING_COLORS.textMuted,
         textTransform: 'uppercase',
-        letterSpacing: 1.5,
-        textAlign: 'center',
+        fontWeight: '700',
+        fontSize: 12,
         marginBottom: 12,
+        letterSpacing: 1,
     },
-    progressionStep: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
+    exampleGood: {
+        color: ONBOARDING_COLORS.success,
+        fontSize: 18,
+        lineHeight: 26,
+        fontWeight: '600',
+        marginBottom: 8,
     },
-    dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    progressionText: {
-        fontSize: 14,
-        color: '#94A3B8',
-        fontWeight: '500',
-        fontStyle: 'italic',
+    spacer: {
         flex: 1,
     },
-    progressionHighlight: {
-        color: '#E2E8F0',
-        fontWeight: '600',
-    },
     buttonContainer: {
-        marginTop: 28,
+        width: '100%',
+        paddingTop: 24,
     },
-    continueButton: {
-        backgroundColor: '#FF6B00',
+    button: {
+        backgroundColor: ONBOARDING_COLORS.accent,
         borderRadius: 28,
-        height: 56,
+        height: 60,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#FF6B00',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 14,
-        elevation: 6,
+        shadowColor: ONBOARDING_COLORS.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 8,
     },
-    continueText: {
+    buttonText: {
         color: '#FFFFFF',
-        fontSize: 17,
+        fontSize: 18,
         fontWeight: '800',
+        letterSpacing: 0.5,
     },
 });

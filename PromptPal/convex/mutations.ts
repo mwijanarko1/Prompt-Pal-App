@@ -18,27 +18,7 @@ const INITIAL_USAGE_VALUES = {
 
 const getIsoDateString = (date: Date): string => date.toISOString().split("T")[0];
 
-const DAILY_QUEST_TYPES = ["code", "copywriting"] as const;
-type DailyQuestType = typeof DAILY_QUEST_TYPES[number];
-type DailyQuestTemplate = {
-  title: string;
-  description: string;
-  difficulty: "easy" | "medium" | "hard";
-  xpReward: number;
-};
-
-const DAILY_QUEST_TEMPLATES: Record<DailyQuestType, DailyQuestTemplate[]> = {
-  code: [
-    { title: "Sort Algorithm", description: "Write a prompt for a function that sorts an array of objects by a specific key.", difficulty: "easy", xpReward: 50 },
-    { title: "RegEx Master", description: "Generate a regular expression that validates complex password requirements.", difficulty: "medium", xpReward: 100 },
-    { title: "Data Transformer", description: "Create a function that flattens a nested JSON structure.", difficulty: "hard", xpReward: 200 },
-  ],
-  copywriting: [
-    { title: "SaaS Tagline", description: "Write 5 catchy taglines for a new AI-powered productivity tool.", difficulty: "easy", xpReward: 50 },
-    { title: "Event Invitation", description: "Draft a persuasive email invitation for a high-end tech conference.", difficulty: "medium", xpReward: 100 },
-    { title: "Product Benefits", description: "Translate technical specifications into emotional user benefits for a luxury watch.", difficulty: "hard", xpReward: 200 },
-  ],
-};
+import { questLevelsData } from "./quest_levels_data";
 
 const pickRandom = <T,>(items: readonly T[]): T => {
   return items[Math.floor(Math.random() * items.length)];
@@ -1228,7 +1208,14 @@ export const createLevel = internalMutation({
       expectedOutput: v.any(),
       description: v.optional(v.string()),
     }))),
+    instruction: v.optional(v.string()),
+    starterCode: v.optional(v.string()),
+    grading: v.optional(v.any()),
+    failState: v.optional(v.any()),
+    successState: v.optional(v.any()),
+    lessonTakeaway: v.optional(v.string()),
     // Copywriting level fields
+    starterContext: v.optional(v.any()),
     briefTitle: v.optional(v.string()),
     briefProduct: v.optional(v.string()),
     briefTarget: v.optional(v.string()),
@@ -1296,7 +1283,14 @@ export const updateLevel = internalMutation({
       expectedOutput: v.any(),
       description: v.optional(v.string()),
     }))),
+    instruction: v.optional(v.string()),
+    starterCode: v.optional(v.string()),
+    grading: v.optional(v.any()),
+    failState: v.optional(v.any()),
+    successState: v.optional(v.any()),
+    lessonTakeaway: v.optional(v.string()),
     // Copywriting level fields
+    starterContext: v.optional(v.any()),
     briefTitle: v.optional(v.string()),
     briefProduct: v.optional(v.string()),
     briefTarget: v.optional(v.string()),
@@ -1338,6 +1332,160 @@ export const updateLevel = internalMutation({
       ...updateData,
       updatedAt: Date.now(),
     });
+  },
+});
+
+/**
+ * Deactivate levels by id prefix (for replacing coding module content)
+ */
+export const deactivateLevelsByIdPrefix = internalMutation({
+  args: {
+    appId: v.string(),
+    idPrefix: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const levels = await ctx.db
+      .query("levels")
+      .withIndex("by_app_order", (q) => q.eq("appId", args.appId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    let count = 0;
+    for (const level of levels) {
+      if (level.id.startsWith(args.idPrefix)) {
+        await ctx.db.patch(level._id, { isActive: false, updatedAt: Date.now() });
+        count++;
+      }
+    }
+    return count;
+  },
+});
+
+/**
+ * Deactivate active levels by prefix unless they are part of the current seed set.
+ */
+export const deactivateLevelsByIdPrefixExcept = internalMutation({
+  args: {
+    appId: v.string(),
+    idPrefix: v.string(),
+    keepIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const keepIds = new Set(args.keepIds);
+    const levels = await ctx.db
+      .query("levels")
+      .withIndex("by_app_order", (q) => q.eq("appId", args.appId))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    let count = 0;
+    for (const level of levels) {
+      if (level.id.startsWith(args.idPrefix) && !keepIds.has(level.id)) {
+        await ctx.db.patch(level._id, { isActive: false, updatedAt: Date.now() });
+        count++;
+      }
+    }
+
+    return count;
+  },
+});
+
+/**
+ * Delete levels by prefix unless they are part of the current seed set.
+ * Use for one-off cleanup of obsolete seeded rows.
+ */
+export const deleteLevelsByIdPrefixExcept = internalMutation({
+  args: {
+    appId: v.optional(v.string()),
+    idPrefix: v.string(),
+    keepIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const keepIds = new Set(args.keepIds);
+    const levels = args.appId
+      ? await ctx.db
+          .query("levels")
+          .withIndex("by_app_order", (q) => q.eq("appId", args.appId!))
+          .collect()
+      : await ctx.db
+          .query("levels")
+          .collect();
+
+    let count = 0;
+    for (const level of levels) {
+      if (level.id.startsWith(args.idPrefix) && !keepIds.has(level.id)) {
+        await ctx.db.delete(level._id);
+        count++;
+      }
+    }
+
+    return count;
+  },
+});
+
+/**
+ * Delete all levels for an app whose id is not in the keepIds set.
+ * Use to remove stale/obsolete levels before seeding.
+ */
+export const deleteLevelsNotInSet = internalMutation({
+  args: {
+    appId: v.string(),
+    keepIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const keepIdsSet = new Set(args.keepIds);
+    const levels = await ctx.db
+      .query("levels")
+      .withIndex("by_app_order", (q) => q.eq("appId", args.appId))
+      .collect();
+
+    let count = 0;
+    for (const level of levels) {
+      if (!keepIdsSet.has(level.id)) {
+        await ctx.db.delete(level._id);
+        count++;
+      }
+    }
+
+    return count;
+  },
+});
+
+/**
+ * Delete duplicate levels (same id). Keeps the one with highest updatedAt.
+ */
+export const deleteDuplicateLevels = internalMutation({
+  args: {
+    appId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const levels = await ctx.db
+      .query("levels")
+      .withIndex("by_app_order", (q) => q.eq("appId", args.appId))
+      .collect();
+
+    const byId = new Map<string, typeof levels>();
+    for (const level of levels) {
+      const existing = byId.get(level.id);
+      if (!existing) {
+        byId.set(level.id, [level]);
+      } else {
+        existing.push(level);
+      }
+    }
+
+    let count = 0;
+    for (const [, group] of byId) {
+      if (group.length > 1) {
+        const sorted = [...group].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+        for (let i = 1; i < sorted.length; i++) {
+          await ctx.db.delete(sorted[i]._id);
+          count++;
+        }
+      }
+    }
+
+    return count;
   },
 });
 
@@ -1497,7 +1645,11 @@ export const generateDailyQuestPool = internalMutation({
     const { appId } = args;
     const now = Date.now();
     const today = getIsoDateString(new Date(now));
-    const expiresAt = now + MS_PER_DAY;
+    // Expire at midnight UTC (12am) so the countdown shows time left until day reset
+    const tomorrow = new Date(now);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    tomorrow.setUTCHours(0, 0, 0, 0);
+    const expiresAt = tomorrow.getTime();
 
     // Delete all image quests to ensure they are fully removed from the pool
     const imageQuests = await ctx.db
@@ -1523,54 +1675,43 @@ export const generateDailyQuestPool = internalMutation({
       )
     );
 
-    // Get all active levels to pick as quest targets
-    const activeLevels = await ctx.db
-      .query("levels")
-      .filter((q) => q.eq(q.field("isActive"), true))
-      .collect();
+    // Pick one random quest from the combined pool (coding + copywriting)
+    const questLevel = pickRandom(questLevelsData);
+    const id = `daily-${today}-quest`;
 
-    for (const type of DAILY_QUEST_TYPES) {
-      const template = pickRandom(DAILY_QUEST_TEMPLATES[type]);
-      const id = `daily-${today}-${type}`;
+    const existing = await ctx.db
+      .query("dailyQuests")
+      .filter((q) => q.eq(q.field("id"), id))
+      .first();
 
-      // Pick random level of this type
-      const relevantLevels = activeLevels.filter(l => l.type === type);
-      const randomLevel = relevantLevels.length > 0 ? pickRandom(relevantLevels) : null;
+    const questData = {
+      id,
+      appId,
+      title: questLevel.title,
+      description: questLevel.description ?? questLevel.instruction ?? questLevel.title,
+      xpReward: questLevel.points,
+      questType: questLevel.type,
+      levelId: questLevel.id,
+      type: questLevel.type,
+      category: "Combined",
+      requirements: {
+        difficulty: questLevel.difficulty,
+        topic: "Combined",
+        levelId: questLevel.id,
+      },
+      difficulty: questLevel.difficulty,
+      isActive: true,
+      expiresAt,
+      updatedAt: now,
+    };
 
-      const existing = await ctx.db
-        .query("dailyQuests")
-        .filter((q) => q.eq(q.field("id"), id))
-        .first();
-
-      const questData = {
-        id,
-        appId,
-        title: template.title,
-        description: template.description,
-        xpReward: template.xpReward,
-        questType: type,
-        levelId: randomLevel?.id,
-        type,
-        category: type.toUpperCase(),
-        requirements: {
-          difficulty: template.difficulty,
-          topic: type,
-          levelId: randomLevel?.id,
-        },
-        difficulty: template.difficulty,
-        isActive: true,
-        expiresAt,
-        updatedAt: now,
-      };
-
-      if (existing) {
-        await ctx.db.patch(existing._id, questData);
-      } else {
-        await ctx.db.insert("dailyQuests", {
-          ...questData,
-          createdAt: now,
-        });
-      }
+    if (existing) {
+      await ctx.db.patch(existing._id, questData);
+    } else {
+      await ctx.db.insert("dailyQuests", {
+        ...questData,
+        createdAt: now,
+      });
     }
   },
 });

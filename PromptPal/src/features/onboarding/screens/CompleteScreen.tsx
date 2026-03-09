@@ -12,7 +12,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
 import { ONBOARDING_COLORS } from '../theme';
@@ -23,6 +23,7 @@ const BADGE_ICON_MAP: Record<string, { icon: keyof typeof Ionicons.glyphMap; lab
     subject: { icon: 'locate-outline', label: 'Subject' },
     style: { icon: 'color-palette-outline', label: 'Style' },
     context: { icon: 'bulb-outline', label: 'Context' },
+    coding: { icon: 'code-slash-outline', label: 'Code Prompt' },
 };
 
 export function CompleteScreen() {
@@ -67,10 +68,6 @@ export function CompleteScreen() {
                     <Ionicons name="star" size={24} color={ONBOARDING_COLORS.accentWarm} />
                 </Animated.View>
 
-                {/* Prompto celebrating */}
-                <Animated.View entering={FadeInDown.duration(600).delay(400)} style={styles.center}>
-                    <PromptoCharacter state="celebrating" size="lg" />
-                </Animated.View>
 
                 {/* Title */}
                 <Animated.View
@@ -132,16 +129,16 @@ export function CompleteScreen() {
                     </View>
                 </Animated.View>
 
-                {/* Prompto farewell */}
+                {/* farewell */}
                 <Animated.View
                     entering={FadeInUp.duration(500).delay(1500)}
                     style={styles.messageCard}
                 >
                     <Text style={styles.messageText}>
-                        "I'll be here whenever you need help.{'\n'}Let's master prompts
+                        "We'll be here whenever you need help.{'\n'}Let's master prompts
                         together!"
                     </Text>
-                    <Text style={styles.messageSender}>— Prompto</Text>
+                    <Text style={styles.messageSender}>— The PromptPal Team</Text>
                 </Animated.View>
 
                 <View style={styles.spacer} />
@@ -159,7 +156,7 @@ export function CompleteScreen() {
                             accessibilityRole="button"
                             accessibilityLabel="Finish onboarding and start playing"
                         >
-                            <Ionicons name="game-controller" size={22} color={ONBOARDING_COLORS.textPrimary} />
+                            <Ionicons name="game-controller" size={22} color={ONBOARDING_COLORS.textOnAccent} />
                             <Text style={styles.startText}>Start Playing</Text>
                         </TouchableOpacity>
                     </Animated.View>
@@ -202,13 +199,13 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     statsCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        backgroundColor: 'rgba(0, 0, 0, 0.04)',
         borderRadius: 22,
         padding: 20,
         marginTop: 20,
         width: '100%',
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: 'rgba(0, 0, 0, 0.12)',
     },
     statsTitle: {
         fontSize: 12,
@@ -243,7 +240,7 @@ const styles = StyleSheet.create({
     statDivider: {
         width: 1,
         height: 40,
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        backgroundColor: 'rgba(0, 0, 0, 0.06)',
     },
     badgesContainer: {
         marginTop: 18,
@@ -283,7 +280,7 @@ const styles = StyleSheet.create({
     },
     messageText: {
         fontSize: 14,
-        color: '#CBD5E1',
+        color: ONBOARDING_COLORS.textSecondary,
         fontStyle: 'italic',
         textAlign: 'center',
         lineHeight: 20,

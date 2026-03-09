@@ -1,6 +1,45 @@
-import * as Notifications from 'expo-notifications';
+import { logger } from '@/lib/logger';
+
+type NotificationsModule = {
+  AndroidImportance: {
+    HIGH: number;
+  };
+  setNotificationChannelAsync: (channelId: string, channel: {
+    name: string;
+    importance: number;
+    vibrationPattern: number[];
+    lightColor: string;
+  }) => Promise<void>;
+  scheduleNotificationAsync: (request: {
+    content: {
+      title: string;
+      body: string;
+      sound: boolean;
+    };
+    trigger: {
+      hour: number;
+      minute: number;
+      repeats: boolean;
+      type: 'daily';
+    };
+  }) => Promise<void>;
+  requestPermissionsAsync: () => Promise<{ status: string }>;
+  cancelAllScheduledNotificationsAsync: () => Promise<void>;
+};
+
+function getNotificationsModule(): NotificationsModule | null {
+  try {
+    return require('expo-notifications') as NotificationsModule;
+  } catch (error) {
+    logger.warn('Notifications', 'expo-notifications is not installed', { error });
+    return null;
+  }
+}
 
 export async function setupNotificationChannels() {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
+
   await Notifications.setNotificationChannelAsync('daily-quests', {
     name: 'Daily Quests',
     importance: Notifications.AndroidImportance.HIGH,
@@ -10,7 +49,10 @@ export async function setupNotificationChannels() {
 }
 
 export async function scheduleDailyQuestReminder() {
-  await setupNotificationChannels(); // Add this
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
+
+  await setupNotificationChannels();
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'Daily Quest Available!',
@@ -22,10 +64,16 @@ export async function scheduleDailyQuestReminder() {
 }
 
 export async function requestNotificationPermissions() {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return false;
+
   const { status } = await Notifications.requestPermissionsAsync();
   return status === 'granted';
 }
 
 export async function cancelAllNotifications() {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return;
+
   await Notifications.cancelAllScheduledNotificationsAsync();
 }

@@ -44,7 +44,7 @@ const createSafeSandbox = () => {
       keys: Object.keys,
       values: Object.values,
       create: Object.create,
-      hasOwn: Object.hasOwn,
+      hasOwn: (target: unknown, property: PropertyKey) => Object.prototype.hasOwnProperty.call(Object(target), property),
       defineProperty: Object.defineProperty,
       getOwnPropertyNames: Object.getOwnPropertyNames,
     }),
@@ -177,7 +177,8 @@ function buildRunner(code: string, functionName: string, timeoutMs: number): { r
     'const process = undefined;',
     'const require = undefined;',
     'const Function = undefined;',
-    'const eval = undefined;',
+    '// Sandbox destructuring - only safe globals',
+    'const { Math, JSON, Array, Object, String, Number, Boolean, RegExp, Date, Map, Set, BigInt, Symbol, parseInt, parseFloat, isNaN, isFinite, console } = __sandbox;',
     '// Timeout checking',
     'const __startTime = Date.now();',
     `const __timeoutMs = ${Math.max(1, timeoutMs)};`,
@@ -188,8 +189,6 @@ function buildRunner(code: string, functionName: string, timeoutMs: number): { r
     '    throw err;',
     '  }',
     '};',
-    '// Sandbox destructuring - only safe globals',
-    'const { Math, JSON, Array, Object, String, Number, Boolean, RegExp, Date, Map, Set, BigInt, Symbol, parseInt, parseFloat, isNaN, isFinite, console } = __sandbox;',
   ];
 
   const prefix = `${preludeLines.join('\n')}\n`;

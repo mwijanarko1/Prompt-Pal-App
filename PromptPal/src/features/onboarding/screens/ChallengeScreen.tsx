@@ -1,384 +1,293 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
+import { ONBOARDING_COLORS } from '../theme';
 
 export function ChallengeScreen() {
-    const { goToNextStep, setUserPrompt, setScore } = useOnboardingStore();
-    const [prompt, setPrompt] = useState('');
-    const [validation, setValidation] = useState<{
+    const { goToNextStep, setUserPrompt } = useOnboardingStore();
+    const [localPrompt, setLocalPrompt] = useState('');
+    const [feedback, setFeedback] = useState<{
         hasSubject: boolean;
         hasStyle: boolean;
         hasContext: boolean;
+        text: string;
     } | null>(null);
 
-    const validatePrompt = () => {
-        const p = prompt.trim().toLowerCase();
+    const checkPrompt = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-        // Subject: mentions the product or brand
-        const hasSubject =
-            /\b(coffee|café|brand|product|company|drink|beverage|blend|roast|espresso|latte|brew|startup)\b/i.test(p) ||
-            p.length > 10;
-        // Style: mentions tone, voice, or writing style
-        const hasStyle =
-            /\b(tone|style|voice|friendly|professional|bold|witty|playful|inspirational|luxury|casual|formal|conversational|persuasive|energetic|warm|minimalist)\b/i.test(p);
-        // Context: mentions audience, goal, or setting
-        const hasContext =
-            /\b(audience|target|customer|users|readers|goal|purpose|campaign|ad|landing page|social media|email|slogan|tagline|millennials|gen z|morning|busy|entrepreneur|students|professionals)\b/i.test(p);
+        const lower = localPrompt.toLowerCase();
+        const hasSubject = /tagline|headline|text|copy|title|coffee/i.test(lower);
+        const hasStyle = /professional|funny|catchy|minimalist|modern|expert/i.test(lower);
+        const hasGuardrail = /keep|don't change|without breaking|exactly as|only fix/i.test(lower);
 
-        setValidation({ hasSubject, hasStyle, hasContext });
+        const missing = [];
+        if (!hasSubject) missing.push("subject (what to write)");
+        if (!hasStyle) missing.push("style (tone/specs)");
+        if (!hasGuardrail) missing.push("guardrail (what to protect)");
 
-        if (hasSubject && hasStyle && hasContext) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (missing.length > 0) {
+            setFeedback({
+                hasSubject,
+                hasStyle,
+                hasContext: hasGuardrail,
+                text: `You're missing: ${missing.join(", ")}. Add them to complete your prompt!`
+            });
         } else {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            setFeedback({
+                hasSubject: true,
+                hasStyle: true,
+                hasContext: true,
+                text: "Excellent! You've combined Subject, Specificity, and Guardrails! 🚀"
+            });
+            setUserPrompt(localPrompt);
+            setTimeout(() => {
+                goToNextStep();
+            }, 1500);
         }
     };
 
-    const handleGenerate = () => {
-        setUserPrompt(prompt.trim());
-
-        // Calculate a mock score based on prompt quality
-        const p = prompt.trim().toLowerCase();
-        let score = 40; // base
-        if (validation?.hasSubject) score += 20;
-        if (validation?.hasStyle) score += 20;
-        if (validation?.hasContext) score += 15;
-        if (p.length > 30) score += 5;
-        score = Math.min(score, 98);
-
-        setScore(score);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        goToNextStep();
-    };
-
-    const allValid =
-        validation?.hasSubject && validation?.hasStyle && validation?.hasContext;
-
     return (
-        <OnboardingScreenWrapper>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-            >
-                <View style={styles.topSpace} />
+        <OnboardingScreenWrapper showProgress={true}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                    <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.iconContainer}>
+                        <Ionicons name="trophy" size={64} color="#FFD700" />
+                    </Animated.View>
 
-                {/* Prompto */}
-                <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.center}>
-                    <PromptoCharacter
-                        state={allValid ? 'excited' : 'speaking'}
-                        size="sm"
-                    />
-                </Animated.View>
+                    <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.textContainer}>
+                        <Text style={styles.title}>The Final Challenge!</Text>
 
-                {/* Title */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(300)}
-                    style={styles.titleContainer}
-                >
-                    <Text style={styles.title}>Your First Challenge</Text>
-                    <Text style={styles.subtitle}>
-                        Put all three ingredients together{'\n'}to craft the perfect prompt
-                    </Text>
-                </Animated.View>
+                        <Text style={styles.description}>
+                            Put it all together! Use a clear subject, specific style, and a guardrail.
+                        </Text>
 
-                {/* Target brief */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(500)}
-                    style={styles.targetCard}
-                >
-                    <View style={styles.targetImageContainer}>
-                        <Ionicons name="create-outline" size={48} color="#BB86FC" style={{ marginBottom: 8 }} />
-                        <Text style={styles.targetScene}>Copywriting Brief</Text>
-                    </View>
-                    <Text style={styles.targetHint}>
-                        Write a prompt to generate marketing copy{'\n'}for a new coffee brand
-                    </Text>
-                </Animated.View>
-
-                {/* Checklist */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(600)}
-                    style={styles.checklist}
-                >
-                    {[
-                        {
-                            label: 'Subject',
-                            hint: 'What product or brand?',
-                            valid: validation?.hasSubject,
-                            icon: 'cafe-outline' as const,
-                        },
-                        {
-                            label: 'Style',
-                            hint: 'What tone or voice?',
-                            valid: validation?.hasStyle,
-                            icon: 'mic-outline' as const,
-                        },
-                        {
-                            label: 'Context',
-                            hint: 'Who is the audience?',
-                            valid: validation?.hasContext,
-                            icon: 'people-outline' as const,
-                        },
-                    ].map((item) => (
-                        <View key={item.label} style={styles.checkItem}>
-                            {validation ? (
-                                <Ionicons
-                                    name={item.valid ? 'checkmark-circle' : 'ellipse-outline'}
-                                    size={20}
-                                    color={item.valid ? '#22C55E' : '#475569'}
-                                />
-                            ) : (
-                                <Ionicons name={item.icon} size={20} color="#64748B" />
-                            )}
-                            <Text
-                                style={[
-                                    styles.checkLabel,
-                                    validation && item.valid && styles.checkLabelValid,
-                                ]}
-                            >
-                                {item.label}
-                            </Text>
-                            <Text style={styles.checkHint}>{item.hint}</Text>
+                        <View style={styles.targetCard}>
+                            <Ionicons name="megaphone" size={32} color={ONBOARDING_COLORS.accent} />
+                            <Text style={styles.targetTitle}>TASK:</Text>
+                            <Text style={styles.targetText}>"Write a one-sentence tagline for Blackout Coffee Co."</Text>
                         </View>
-                    ))}
-                </Animated.View>
 
-                {/* Prompt input */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(800)}
-                    style={styles.inputContainer}
-                >
-                    <Text style={styles.inputLabel}>Your Prompt</Text>
-                    <TextInput
-                        style={styles.textInput}
-                        placeholder="Write copy for a bold coffee brand targeting busy professionals…"
-                        placeholderTextColor="#475569"
-                        value={prompt}
-                        onChangeText={(text) => {
-                            setPrompt(text);
-                            if (validation) setValidation(null);
-                        }}
-                        multiline
-                        maxLength={200}
-                        textAlignVertical="top"
-                    />
-                    <Text style={styles.charCount}>{prompt.length}/200</Text>
-                </Animated.View>
+                        <View style={styles.requirementsBox}>
+                            <Text style={styles.reqTitle}>Your prompt should include:</Text>
+                            <View style={styles.reqRow}>
+                                <Ionicons name={feedback?.hasSubject ? "checkbox" : "square-outline"} size={20} color={feedback?.hasSubject ? ONBOARDING_COLORS.success : ONBOARDING_COLORS.textMuted} />
+                                <Text style={[styles.reqText, feedback?.hasSubject && styles.reqTextMet]}>Subject (e.g. ...tagline for a coffee brand.)</Text>
+                            </View>
+                            <View style={styles.reqRow}>
+                                <Ionicons name={feedback?.hasStyle ? "checkbox" : "square-outline"} size={20} color={feedback?.hasStyle ? ONBOARDING_COLORS.success : ONBOARDING_COLORS.textMuted} />
+                                <Text style={[styles.reqText, feedback?.hasStyle && styles.reqTextMet]}>Style (e.g. ...write a professional...)</Text>
+                            </View>
+                            <View style={styles.reqRow}>
+                                <Ionicons name={feedback?.hasContext ? "checkbox" : "square-outline"} size={20} color={feedback?.hasContext ? ONBOARDING_COLORS.success : ONBOARDING_COLORS.textMuted} />
+                                <Text style={[styles.reqText, feedback?.hasContext && styles.reqTextMet]}>Guardrail (e.g. ...keep it under 5 words.)</Text>
+                            </View>
+                        </View>
 
-                {/* Tip */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(900)}
-                    style={styles.tipCard}
-                >
-                    <Ionicons name="bulb" size={16} color="#F59E0B" />
-                    <Text style={styles.tipText}>
-                        Start with the subject, then add style and context!
-                    </Text>
-                </Animated.View>
+                        <View style={styles.inputContainer}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Describe your prompt here..."
+                                placeholderTextColor={ONBOARDING_COLORS.textMuted}
+                                value={localPrompt}
+                                onChangeText={(text) => {
+                                    setLocalPrompt(text);
+                                    setFeedback(null);
+                                }}
+                                multiline
+                                numberOfLines={3}
+                            />
+                        </View>
 
-                {/* Actions */}
-                <View style={styles.buttonArea}>
-                    {!allValid ? (
+                        {feedback && (
+                            <Animated.View entering={FadeInUp.duration(300)} style={styles.feedbackContainer}>
+                                <Text style={[styles.feedbackText, { color: feedback.hasSubject && feedback.hasStyle && feedback.hasContext ? ONBOARDING_COLORS.success : "#EF4444" }]}>
+                                    {feedback.text}
+                                </Text>
+                            </Animated.View>
+                        )}
+
+                        <View style={styles.tipCard}>
+                            <Ionicons name="bulb" size={20} color="#FFEB3B" />
+                            <Text style={styles.tipText}>
+                                Tip: "Write a [Style] [Subject], but [Guardrail]."
+                            </Text>
+                        </View>
+
+                    </Animated.View>
+
+                    <View style={styles.buttonContainer}>
                         <TouchableOpacity
-                            style={[
-                                styles.checkButton,
-                                prompt.trim().length < 5 && styles.buttonDisabled,
-                            ]}
-                            onPress={validatePrompt}
+                            style={[styles.button, localPrompt.trim().length === 0 && styles.buttonDisabled]}
+                            onPress={checkPrompt}
+                            disabled={localPrompt.trim().length === 0 || (feedback?.hasSubject && feedback?.hasStyle && feedback?.hasContext)}
                             activeOpacity={0.85}
-                            disabled={prompt.trim().length < 5}
                         >
-                            <Text style={styles.buttonText}>Check My Prompt</Text>
+                            <Text style={styles.buttonText}>Finish Training</Text>
+                            <Ionicons name="sparkles" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
                         </TouchableOpacity>
-                    ) : (
-                        <Animated.View entering={FadeInUp.duration(400)}>
-                            <TouchableOpacity
-                                style={styles.generateButton}
-                                onPress={handleGenerate}
-                                activeOpacity={0.85}
-                            >
-                                <Ionicons name="sparkles" size={20} color="#FFFFFF" />
-                                <Text style={styles.generateText}>Generate My Creation</Text>
-                            </TouchableOpacity>
-                        </Animated.View>
-                    )}
-                </View>
-
-                <View style={{ height: 32 }} />
-            </ScrollView>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </OnboardingScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
-    scrollView: { flex: 1 },
-    scrollContent: {
-        paddingHorizontal: 24,
-        paddingBottom: 32,
+    container: {
+        flex: 1,
     },
-    topSpace: { height: 8 },
-    center: { alignItems: 'center' },
-    titleContainer: {
+    scrollContent: {
         alignItems: 'center',
-        marginTop: 12,
+        paddingHorizontal: 32,
+        paddingTop: 40,
+        paddingBottom: 40,
+    },
+    iconContainer: {
+        marginBottom: 20,
+        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+        padding: 24,
+        borderRadius: 50,
+    },
+    textContainer: {
+        alignItems: 'center',
+        width: '100%',
     },
     title: {
-        fontSize: 26,
+        fontSize: 28,
         fontWeight: '900',
-        color: '#FFFFFF',
+        color: ONBOARDING_COLORS.textPrimary,
+        marginBottom: 16,
         textAlign: 'center',
     },
-    subtitle: {
-        fontSize: 14,
-        color: '#94A3B8',
+    description: {
+        fontSize: 16,
+        color: ONBOARDING_COLORS.textSecondary,
         textAlign: 'center',
-        lineHeight: 20,
-        marginTop: 6,
-        fontWeight: '500',
+        lineHeight: 24,
+        marginBottom: 24,
     },
     targetCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 20,
-        overflow: 'hidden',
-        marginTop: 16,
+        width: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        padding: 20,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-    targetImageContainer: {
-        backgroundColor: 'rgba(187, 134, 252, 0.08)',
-        padding: 24,
+        borderColor: 'rgba(0, 0, 0, 0.08)',
         alignItems: 'center',
+        marginBottom: 24,
     },
-
-    targetScene: {
-        fontSize: 14,
+    targetTitle: {
+        color: ONBOARDING_COLORS.textMuted,
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 1,
+        marginTop: 12,
+        marginBottom: 4,
+    },
+    targetText: {
+        color: ONBOARDING_COLORS.textPrimary,
+        fontSize: 18,
         fontWeight: '700',
-        color: '#BB86FC',
-        textTransform: 'uppercase',
-        letterSpacing: 1.5,
-    },
-    targetHint: {
-        fontSize: 13,
-        color: '#94A3B8',
         textAlign: 'center',
-        padding: 12,
-        fontWeight: '500',
     },
-    checklist: {
-        marginTop: 16,
-        gap: 8,
+    requirementsBox: {
+        width: '100%',
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 20,
     },
-    checkItem: {
+    reqTitle: {
+        color: ONBOARDING_COLORS.textPrimary,
+        fontWeight: '700',
+        marginBottom: 12,
+        fontSize: 15,
+    },
+    reqRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
-        paddingVertical: 4,
+        marginBottom: 8,
     },
-
-    checkLabel: {
+    reqText: {
+        color: ONBOARDING_COLORS.textSecondary,
+        marginLeft: 10,
         fontSize: 15,
-        fontWeight: '700',
-        color: '#94A3B8',
-        minWidth: 70,
     },
-    checkLabelValid: {
-        color: '#22C55E',
-    },
-    checkHint: {
-        fontSize: 13,
-        color: '#475569',
-        fontWeight: '500',
+    reqTextMet: {
+        color: ONBOARDING_COLORS.textPrimary,
+        textDecorationLine: 'line-through',
     },
     inputContainer: {
-        marginTop: 16,
+        width: '100%',
+        marginBottom: 16,
     },
-    inputLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#64748B',
-        textTransform: 'uppercase',
-        letterSpacing: 1.5,
-        marginBottom: 8,
-        marginLeft: 4,
-    },
-    textInput: {
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    input: {
+        backgroundColor: 'rgba(0,0,0,0.08)',
         borderRadius: 16,
         padding: 16,
-        color: '#E2E8F0',
+        color: ONBOARDING_COLORS.textPrimary,
         fontSize: 16,
-        fontWeight: '500',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.12)',
         minHeight: 100,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        textAlignVertical: 'top',
     },
-    charCount: {
-        fontSize: 11,
-        color: '#475569',
-        textAlign: 'right',
-        marginTop: 4,
+    feedbackContainer: {
+        marginBottom: 16,
+    },
+    feedbackText: {
+        fontSize: 15,
         fontWeight: '600',
+        textAlign: 'center',
     },
     tipCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+        backgroundColor: 'rgba(255, 235, 59, 0.1)',
+        padding: 16,
         borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        marginTop: 12,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.15)',
+        borderColor: 'rgba(255, 235, 59, 0.2)',
+        width: '100%',
+        marginBottom: 24,
     },
     tipText: {
-        fontSize: 13,
-        color: '#CBD5E1',
-        fontWeight: '500',
+        color: ONBOARDING_COLORS.textPrimary,
+        fontSize: 14,
+        fontStyle: 'italic',
+        marginLeft: 12,
         flex: 1,
     },
-    buttonArea: {
-        marginTop: 20,
+    buttonContainer: {
+        width: '100%',
+        marginTop: 16,
     },
-    checkButton: {
-        backgroundColor: '#4151FF',
+    button: {
+        backgroundColor: ONBOARDING_COLORS.accent,
         borderRadius: 28,
-        height: 56,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    buttonDisabled: {
-        opacity: 0.4,
-    },
-    buttonText: {
-        color: '#FFFFFF',
-        fontSize: 17,
-        fontWeight: '800',
-    },
-    generateButton: {
-        backgroundColor: '#FF6B00',
-        borderRadius: 28,
-        height: 56,
+        height: 60,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        shadowColor: '#FF6B00',
+        shadowColor: ONBOARDING_COLORS.accent,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.4,
         shadowRadius: 16,
         elevation: 8,
     },
-    generateText: {
+    buttonDisabled: {
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        shadowOpacity: 0,
+    },
+    buttonText: {
         color: '#FFFFFF',
-        fontSize: 17,
+        fontSize: 18,
         fontWeight: '800',
+        letterSpacing: 0.5,
     },
 });

@@ -373,6 +373,25 @@ export const seedLearningResources = action({
 export const seedLevels = action({
   args: {},
   handler: async (ctx) => {
+    const canonicalIds = allLevels.map((level) => level.id);
+
+    // Remove duplicate levels (keep one per id, newest first)
+    const duplicatesRemoved = await ctx.runMutation(internal.mutations.deleteDuplicateLevels, {
+      appId: "prompt-pal",
+    });
+    if (duplicatesRemoved > 0) {
+      logSeed(`Deleted ${duplicatesRemoved} duplicate levels`);
+    }
+
+    // Delete all levels not in current seed (lesson_*, stale code/copy/image, etc.)
+    const staleRemoved = await ctx.runMutation(internal.mutations.deleteLevelsNotInSet, {
+      appId: "prompt-pal",
+      keepIds: canonicalIds,
+    });
+    if (staleRemoved > 0) {
+      logSeed(`Deleted ${staleRemoved} stale levels`);
+    }
+
     for (const level of allLevels) {
       const existing = await ctx.runQuery(api.queries.getLevelById, { id: level.id });
       if (!existing) {
@@ -395,7 +414,48 @@ export const seedLevels = action({
       }
     }
 
-    logSeed("Levels seeding completed - 30 levels created/updated");
+    logSeed("Levels seeding completed - 40 levels created/updated");
+  },
+});
+
+export const cleanupStaleCodeLevels = action({
+  args: {},
+  handler: async (ctx): Promise<null> => {
+    const currentCodeLevelIds = allLevels
+      .filter((level) => level.id.startsWith("code-"))
+      .map((level) => level.id);
+
+    const deleted: number = await ctx.runMutation(
+      internal.mutations.deleteLevelsByIdPrefixExcept,
+      {
+        appId: "prompt-pal",
+        idPrefix: "code-",
+        keepIds: currentCodeLevelIds,
+      },
+    );
+
+    logSeed(`Deleted ${deleted} stale code-* levels`);
+    return null;
+  },
+});
+
+export const cleanupStaleCodeLevelsEverywhere = action({
+  args: {},
+  handler: async (ctx): Promise<null> => {
+    const currentCodeLevelIds = allLevels
+      .filter((level) => level.id.startsWith("code-"))
+      .map((level) => level.id);
+
+    const deleted: number = await ctx.runMutation(
+      internal.mutations.deleteLevelsByIdPrefixExcept,
+      {
+        idPrefix: "code-",
+        keepIds: currentCodeLevelIds,
+      },
+    );
+
+    logSeed(`Deleted ${deleted} stale code-* levels across all apps`);
+    return null;
   },
 });
 

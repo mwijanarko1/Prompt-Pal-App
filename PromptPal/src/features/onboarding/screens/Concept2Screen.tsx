@@ -1,338 +1,178 @@
-import { useState } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
-
-const STYLE_MATCHES = [
-    { style: 'Cyberpunk', description: 'Futuristic, neon', icon: 'flash-outline' as const, color: '#BB86FC' },
-    { style: 'Watercolor', description: 'Soft, painted', icon: 'color-palette-outline' as const, color: '#03DAC6' },
-    { style: 'Minimalist', description: 'Clean, simple', icon: 'remove-outline' as const, color: '#F59E0B' },
-];
+import { ONBOARDING_COLORS } from '../theme';
 
 export function Concept2Screen() {
-    const { goToNextStep, addBadge, addXp } = useOnboardingStore();
-    const [matched, setMatched] = useState<Record<string, boolean>>({});
-    const allMatched = Object.keys(matched).length === STYLE_MATCHES.length;
-
-    const handleMatch = (styleName: string) => {
-        if (matched[styleName]) return;
-
-        setMatched((prev) => ({ ...prev, [styleName]: true }));
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-        if (Object.keys(matched).length + 1 === STYLE_MATCHES.length) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            addXp(15);
-        }
-    };
+    const { goToNextStep } = useOnboardingStore();
 
     const handleContinue = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        addBadge('style-master');
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         goToNextStep();
     };
 
     return (
-        <OnboardingScreenWrapper>
+        <OnboardingScreenWrapper showProgress={true}>
             <ScrollView
-                style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.topSpace} />
+                <View style={styles.container}>
+                    <Animated.View entering={FadeInDown.duration(600).delay(200)} style={styles.iconContainer}>
+                        <Ionicons name="construct" size={64} color={ONBOARDING_COLORS.info} />
+                    </Animated.View>
 
-                {/* Prompto */}
-                <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.center}>
-                    <PromptoCharacter
-                        state={allMatched ? 'excited' : 'speaking'}
-                        size="md"
-                    />
-                </Animated.View>
+                    <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.textContainer}>
+                        <Text style={styles.title}>Ingredient 2: Specificity</Text>
 
-                {/* Title */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(300)}
-                    style={styles.titleContainer}
-                >
-                    <View style={styles.ingredientBadge}>
-                        <Text style={styles.ingredientNumber}>2</Text>
-                    </View>
-                    <Text style={styles.title}>Style</Text>
-                </Animated.View>
-
-                {/* Explanation */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(500)}
-                    style={styles.explanationContainer}
-                >
-                    <Text style={styles.explanation}>
-                        Style gives your creation its{'\n'}
-                        <Text style={styles.bold}>unique look and feel</Text>:
-                    </Text>
-                    <View style={styles.bulletList}>
-                        {['Art medium (painting, photo)', 'Artistic style (cyberpunk, etc.)', 'Color palette'].map(
-                            (item) => (
-                                <View key={item} style={styles.bulletRow}>
-                                    <View style={styles.bulletDot} />
-                                    <Text style={styles.bulletText}>{item}</Text>
-                                </View>
-                            )
-                        )}
-                    </View>
-                </Animated.View>
-
-                {/* Before / After */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(600)}
-                    style={styles.transformRow}
-                >
-                    <View style={styles.transformCard}>
-                        <Text style={styles.transformLabel}>Before</Text>
-                        <Text style={styles.transformText}>"A cat"</Text>
-                    </View>
-                    <Ionicons name="arrow-forward" size={20} color="#FF6B00" />
-                    <View style={[styles.transformCard, styles.transformCardHighlight]}>
-                        <Text style={styles.transformLabel}>After</Text>
-                        <Text style={styles.transformText}>"A cat in watercolor"</Text>
-                    </View>
-                </Animated.View>
-
-                {/* Interactive matching */}
-                <Animated.View
-                    entering={FadeInUp.duration(500).delay(800)}
-                    style={styles.matchContainer}
-                >
-                    <Text style={styles.matchTitle}>Tap to match the style</Text>
-
-                    {STYLE_MATCHES.map((item) => (
-                        <TouchableOpacity
-                            key={item.style}
-                            style={[
-                                styles.matchCard,
-                                matched[item.style] && { borderColor: item.color, backgroundColor: item.color + '10' },
-                            ]}
-                            onPress={() => handleMatch(item.style)}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name={item.icon} size={22} color={matched[item.style] ? item.color : '#64748B'} />
-                            <View style={styles.matchContent}>
-                                <Text style={[styles.matchStyle, matched[item.style] && { color: item.color }]}>
-                                    {item.style}
-                                </Text>
-                                <Text style={styles.matchDescription}>{item.description}</Text>
-                            </View>
-                            {matched[item.style] && (
-                                <Animated.View entering={ZoomIn.duration(300)}>
-                                    <Ionicons name="checkmark-circle" size={22} color={item.color} />
-                                </Animated.View>
-                            )}
-                        </TouchableOpacity>
-                    ))}
-                </Animated.View>
-
-                {/* Feedback */}
-                {allMatched && (
-                    <Animated.View entering={FadeInUp.duration(400)} style={styles.feedbackCard}>
-                        <Text style={styles.feedbackText}>
-                            You're getting it! Style transforms a simple prompt into something extraordinary.
+                        <Text style={styles.description}>
+                            Details help AI understand exactly how an interactive feature should work.
                         </Text>
-                    </Animated.View>
-                )}
 
-                {/* Continue */}
-                {allMatched && (
-                    <Animated.View entering={FadeInUp.duration(500)} style={styles.buttonContainer}>
-                        <TouchableOpacity
-                            style={styles.continueButton}
-                            onPress={handleContinue}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={styles.continueText}>Let's Try It!</Text>
+                        <View style={styles.bulletPoints}>
+                            <View style={styles.bulletRow}>
+                                <Ionicons name="radio-button-on" size={24} color={ONBOARDING_COLORS.success} />
+                                <Text style={styles.bulletText}>Input: What does the user type?</Text>
+                            </View>
+                            <View style={styles.bulletRow}>
+                                <Ionicons name="flash" size={24} color={ONBOARDING_COLORS.success} />
+                                <Text style={styles.bulletText}>Action: What triggers the logic?</Text>
+                            </View>
+                            <View style={styles.bulletRow}>
+                                <Ionicons name="list" size={24} color={ONBOARDING_COLORS.success} />
+                                <Text style={styles.bulletText}>Result: Where does the data go?</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.exampleBox}>
+                            <Text style={styles.exampleTitle}>Medium Level Goal</Text>
+                            <Text style={styles.exampleGood}>"Add a text input and an 'Add' button that appends new items to the list."</Text>
+                        </View>
+                    </Animated.View>
+
+                    <View style={styles.spacer} />
+
+                    <Animated.View entering={FadeInUp.duration(500).delay(800)} style={styles.buttonContainer}>
+                        <TouchableOpacity style={styles.button} onPress={handleContinue} activeOpacity={0.85}>
+                            <Text style={styles.buttonText}>Try Medium Level</Text>
+                            <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
                         </TouchableOpacity>
                     </Animated.View>
-                )}
-
-                <View style={{ height: 32 }} />
+                </View>
             </ScrollView>
         </OnboardingScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
-    scrollView: { flex: 1 },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 24,
+        paddingTop: 20,
         paddingBottom: 32,
     },
-    topSpace: { height: 8 },
-    center: { alignItems: 'center' },
-    titleContainer: {
-        flexDirection: 'row',
+    container: {
+        flex: 1,
+        width: '100%',
+        maxWidth: 520,
+        alignSelf: 'center',
         alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 12,
-        gap: 10,
     },
-    ingredientBadge: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#BB86FC',
+    iconContainer: {
+        marginBottom: 24,
+        backgroundColor: 'rgba(65, 81, 255, 0.1)',
+        padding: 24,
+        borderRadius: 50,
+    },
+    textContainer: {
         alignItems: 'center',
-        justifyContent: 'center',
-    },
-    ingredientNumber: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '900',
+        width: '100%',
     },
     title: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: '900',
-        color: '#FFFFFF',
-        letterSpacing: -0.5,
-    },
-
-    explanationContainer: {
-        marginTop: 16,
-        alignItems: 'center',
-    },
-    explanation: {
-        fontSize: 16,
-        color: '#94A3B8',
+        color: ONBOARDING_COLORS.textPrimary,
+        marginBottom: 16,
         textAlign: 'center',
-        lineHeight: 24,
-        fontWeight: '500',
     },
-    bold: { color: '#FFFFFF', fontWeight: '700' },
-    bulletList: {
-        marginTop: 12,
-        alignSelf: 'stretch',
-        paddingLeft: 16,
+    description: {
+        fontSize: 18,
+        color: ONBOARDING_COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 28,
+        marginBottom: 24,
+    },
+    bulletPoints: {
+        width: '100%',
+        marginBottom: 30,
     },
     bulletRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 6,
-    },
-    bulletDot: {
-        width: 5,
-        height: 5,
-        borderRadius: 3,
-        backgroundColor: '#BB86FC',
-        marginRight: 10,
+        alignItems: 'flex-start',
+        marginBottom: 16,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        padding: 12,
+        borderRadius: 12,
     },
     bulletText: {
-        fontSize: 14,
-        color: '#94A3B8',
-        fontWeight: '500',
-    },
-    transformRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        marginTop: 20,
-        width: '100%',
-    },
-    transformCard: {
         flex: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 14,
-        padding: 14,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-    transformCardHighlight: {
-        borderColor: 'rgba(255, 107, 0, 0.3)',
-        backgroundColor: 'rgba(255, 107, 0, 0.06)',
-    },
-    transformLabel: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#64748B',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginBottom: 4,
-    },
-    transformText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#E2E8F0',
-        textAlign: 'center',
-    },
-    matchContainer: {
-        marginTop: 24,
-        gap: 10,
-    },
-    matchTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#E2E8F0',
-        textAlign: 'center',
-        marginBottom: 4,
-    },
-    matchCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        gap: 12,
-    },
-
-    matchContent: { flex: 1 },
-    matchStyle: {
+        color: ONBOARDING_COLORS.textPrimary,
         fontSize: 16,
-        fontWeight: '700',
-        color: '#E2E8F0',
-    },
-    matchDescription: {
-        fontSize: 13,
-        color: '#64748B',
+        lineHeight: 22,
+        marginLeft: 12,
         fontWeight: '500',
-        marginTop: 2,
     },
-    feedbackCard: {
+    exampleBox: {
+        width: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        padding: 20,
         borderRadius: 16,
-        padding: 16,
-        marginTop: 16,
-        backgroundColor: 'rgba(34, 197, 94, 0.08)',
         borderWidth: 1,
-        borderColor: 'rgba(34, 197, 94, 0.2)',
+        borderColor: 'rgba(0, 0, 0, 0.08)',
     },
-    feedbackText: {
-        color: '#CBD5E1',
-        fontSize: 14,
-        lineHeight: 20,
-        textAlign: 'center',
-        fontWeight: '500',
+    exampleTitle: {
+        color: ONBOARDING_COLORS.textMuted,
+        textTransform: 'uppercase',
+        fontWeight: '700',
+        fontSize: 12,
+        marginBottom: 12,
+        letterSpacing: 1,
+    },
+    exampleGood: {
+        color: ONBOARDING_COLORS.success,
+        fontSize: 18,
+        lineHeight: 26,
+        fontWeight: '600',
+        marginBottom: 8,
+    },
+    spacer: {
+        flex: 1,
     },
     buttonContainer: {
-        marginTop: 20,
+        width: '100%',
+        paddingTop: 24,
     },
-    continueButton: {
-        backgroundColor: '#FF6B00',
+    button: {
+        backgroundColor: ONBOARDING_COLORS.accent,
         borderRadius: 28,
-        height: 56,
+        height: 60,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#FF6B00',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 14,
-        elevation: 6,
+        shadowColor: ONBOARDING_COLORS.accent,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 8,
     },
-    continueText: {
+    buttonText: {
         color: '#FFFFFF',
-        fontSize: 17,
+        fontSize: 18,
         fontWeight: '800',
+        letterSpacing: 0.5,
     },
 });

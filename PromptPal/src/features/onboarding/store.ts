@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 export type OnboardingStep =
@@ -28,7 +29,9 @@ export interface OnboardingState {
   selectedContext: string[];
   selectedModule: string | null;
 
-  // Challenge results
+  // Challenge results (copywriting flow)
+  generatedCopy: string | null;
+  copyFeedback: string[];
   generatedImageUrl: string | null;
   score: number | null;
 
@@ -49,6 +52,8 @@ export interface OnboardingState {
   setSelectedStyle: (style: string) => void;
   setSelectedModule: (moduleId: string | null) => void;
   toggleContext: (context: string) => void;
+  setGeneratedCopy: (copy: string | null) => void;
+  setCopyFeedback: (feedback: string[]) => void;
   setGeneratedImage: (url: string | null) => void;
   setScore: (score: number) => void;
   addBadge: (badge: string) => void;
@@ -74,9 +79,13 @@ const STEP_ORDER: OnboardingStep[] = [
   'complete',
 ];
 
+// Use SecureStore on native, localStorage on web (expo-secure-store is not available on web)
 const secureStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        return window.localStorage.getItem(name);
+      }
       return await SecureStore.getItemAsync(name);
     } catch {
       return null;
@@ -84,12 +93,20 @@ const secureStorage = {
   },
   setItem: async (name: string, value: string): Promise<void> => {
     try {
-      await SecureStore.setItemAsync(name, value);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.localStorage.setItem(name, value);
+      } else {
+        await SecureStore.setItemAsync(name, value);
+      }
     } catch { }
   },
   removeItem: async (name: string): Promise<void> => {
     try {
-      await SecureStore.deleteItemAsync(name);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.localStorage.removeItem(name);
+      } else {
+        await SecureStore.deleteItemAsync(name);
+      }
     } catch { }
   },
 };
@@ -103,6 +120,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       selectedStyle: '',
       selectedContext: [],
       selectedModule: null,
+      generatedCopy: null,
+      copyFeedback: [],
       generatedImageUrl: null,
       score: null,
       badges: [],
@@ -142,6 +161,8 @@ export const useOnboardingStore = create<OnboardingState>()(
             : [...state.selectedContext, context],
         })),
 
+      setGeneratedCopy: (copy) => set({ generatedCopy: copy }),
+      setCopyFeedback: (feedback) => set({ copyFeedback: feedback }),
       setGeneratedImage: (url) => set({ generatedImageUrl: url }),
       setScore: (score) => set({ score }),
 
@@ -170,6 +191,8 @@ export const useOnboardingStore = create<OnboardingState>()(
           selectedStyle: '',
           selectedContext: [],
           selectedModule: null,
+          generatedCopy: null,
+          copyFeedback: [],
           generatedImageUrl: null,
           score: null,
           badges: [],

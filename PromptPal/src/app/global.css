@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ensure root elements have height for React Native Web flex layout */
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  overflow: hidden;
+}
+#root {
+  display: flex;
+  height: 100%;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

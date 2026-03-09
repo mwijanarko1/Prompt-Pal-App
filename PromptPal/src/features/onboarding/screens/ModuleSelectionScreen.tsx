@@ -4,7 +4,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../../../convex/_generated/api';
 import { convexHttpClient } from '@/lib/convex-client';
-import { PromptoCharacter } from '../components/PromptoCharacter';
+
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
 import { ONBOARDING_COLORS } from '../theme';
@@ -64,10 +64,7 @@ export function ModuleSelectionScreen() {
             >
                 <View style={styles.topSpace} />
 
-                {/* Prompto */}
-                <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.center}>
-                    <PromptoCharacter state="speaking" size="md" />
-                </Animated.View>
+
 
                 {/* Title */}
                 <Animated.View
@@ -116,14 +113,14 @@ export function ModuleSelectionScreen() {
 
                                 <View style={[styles.moduleButton, { backgroundColor: module.color }]}>
                                     <Text style={styles.moduleButtonText}>Start Module</Text>
-                                    <Ionicons name="arrow-forward" size={16} color={ONBOARDING_COLORS.textPrimary} />
+                                    <Ionicons name="arrow-forward" size={16} color={ONBOARDING_COLORS.textOnAccent} />
                                 </View>
                             </TouchableOpacity>
                         </Animated.View>
                     ))}
                 </View>
 
-                {/* Prompto's tip */}
+                {/* Tip */}
                 <Animated.View
                     entering={FadeInUp.duration(500).delay(1200)}
                     style={styles.tipCard}
@@ -211,7 +208,7 @@ const styles = StyleSheet.create({
         height: 42,
     },
     moduleButtonText: {
-        color: ONBOARDING_COLORS.textPrimary,
+        color: ONBOARDING_COLORS.textOnAccent,
         fontSize: 14,
         fontWeight: '800',
     },

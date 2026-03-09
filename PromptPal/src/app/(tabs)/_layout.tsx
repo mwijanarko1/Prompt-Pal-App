@@ -80,6 +80,7 @@ function TabsNavigator() {
       <Tabs.Screen
         name="library"
         options={{
+          href: null,
           title: 'Library',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
