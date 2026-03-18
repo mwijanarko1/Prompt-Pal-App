@@ -163,7 +163,7 @@ export default function SignUpScreen() {
   const handleOAuthSignUp = React.useCallback(async () => {
     if (isOAuthLoading || !startSSOFlow) return
 
-    setIsOAuthLoading(provider)
+    setIsOAuthLoading('google')
     setErrors({})
 
     try {

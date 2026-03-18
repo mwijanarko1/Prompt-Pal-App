@@ -349,7 +349,11 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView
+      collapsable={false}
+      className="flex-1 bg-background"
+      edges={['top', 'left', 'right']}
+    >
       {/* Fixed Header */}
       <View className="px-6 pt-4 pb-4 flex-row justify-between items-center">
         <View className="flex-row items-center">

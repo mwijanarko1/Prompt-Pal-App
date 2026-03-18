@@ -279,15 +279,23 @@ export default function ProfileScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
+      <SafeAreaView
+        collapsable={false}
+        className="flex-1 bg-background items-center justify-center"
+        edges={['top', 'left', 'right']}
+      >
         <ActivityIndicator color="#FF6B00" size="large" />
         <Text className="text-onSurface mt-4 font-black">Scanning your trajectory…</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView
+      collapsable={false}
+      className="flex-1 bg-background"
+      edges={['top', 'left', 'right']}
+    >
       {/* Fixed Header */}
       <View className="flex-row justify-center items-center px-6 pt-4 pb-4">
         <Text className="text-onSurface text-lg font-black uppercase tracking-[3px]">Profile</Text>

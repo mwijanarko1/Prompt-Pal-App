@@ -933,12 +933,14 @@ export default function GameScreen() {
       }] : []),
     ];
 
+    const previewHtml = generatedCode ?? starterCode ?? '';
+
     return (
       <PracticeStyleChallenge
         title={level.title || 'Code Challenge'}
         subtitle={level.description}
         previewLabel="Target"
-        targetPreview={(generatedCode || starterCode) ? <HtmlPreview html={generatedCode || starterCode} height={220} /> : undefined}
+        targetPreview={previewHtml ? <HtmlPreview html={previewHtml} height={220} /> : undefined}
         sections={sections}
         promptLabel="Your Prompt"
         prompt={prompt}

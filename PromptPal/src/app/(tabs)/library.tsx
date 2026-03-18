@@ -137,7 +137,11 @@ export default function LibraryScreen() {
 
   if (!isLoaded || (isSignedIn && libraryData === undefined)) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center" edges={['top']}>
+      <SafeAreaView
+        collapsable={false}
+        className="flex-1 bg-background items-center justify-center"
+        edges={['top', 'left', 'right']}
+      >
         <ActivityIndicator size="large" color="#FF6B00" />
         <Text className="text-onSurface mt-4 font-black">Curating your library…</Text>
       </SafeAreaView>
@@ -146,7 +150,11 @@ export default function LibraryScreen() {
 
   if (!isSignedIn || !libraryData) {
     return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center px-6" edges={['top']}>
+      <SafeAreaView
+        collapsable={false}
+        className="flex-1 bg-background items-center justify-center px-6"
+        edges={['top', 'left', 'right']}
+      >
         <Ionicons name="book-outline" size={64} color="#6B7280" />
         <Text className="text-onSurface text-xl font-black mt-4 mb-2">Library unavailable</Text>
         <Text className="text-onSurfaceVariant text-center">Sign in to view your resources.</Text>
@@ -163,7 +171,11 @@ export default function LibraryScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView
+      collapsable={false}
+      className="flex-1 bg-background"
+      edges={['top', 'left', 'right']}
+    >
       {/* Fixed Header */}
       <View className="px-6 pt-4 pb-2">
         <View className="flex-row justify-between items-center mb-6">

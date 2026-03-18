@@ -1,6 +1,6 @@
 import { Redirect } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
-import { View, Text, ActivityIndicator, Platform } from "react-native";
+import { View, Text, ActivityIndicator } from "react-native";
 
 function IndexWithAuth() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -11,7 +11,6 @@ function IndexWithAuth() {
       <View
         style={{
           flex: 1,
-          minHeight: Platform.OS === "web" ? "100vh" : undefined,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "#0B1220",

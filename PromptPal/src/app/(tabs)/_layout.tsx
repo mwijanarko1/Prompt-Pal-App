@@ -1,132 +1,126 @@
-import { Redirect, Tabs } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Redirect } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
-import { Platform, StyleSheet, useColorScheme } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, DynamicColorIOS, Platform, Text, useColorScheme, View } from 'react-native';
 import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
 import { useOnboardingStore } from '@/features/onboarding/store';
 
-const BRAND = '#FF6B00';
-const MARGIN_H = 72;
+const TAB_CONTENT_STYLE = { backgroundColor: 'transparent' } as const;
+
+function iosDynamicColor(light: string, dark: string) {
+  if (Platform.OS !== 'ios') {
+    return undefined;
+  }
+
+  return DynamicColorIOS({ light, dark });
+}
+
+function TabShellFallback({ message }: { message: string }) {
+  return (
+    <View className="flex-1 items-center justify-center bg-background px-6">
+      <View className="mb-6 flex-row items-center">
+        <Text className="text-primary text-4xl font-bold">Prompt</Text>
+        <Text className="text-secondary text-4xl font-bold">Pal</Text>
+      </View>
+      <ActivityIndicator size="large" color="#FF6B00" />
+      <Text className="mt-4 text-center text-base text-onSurfaceVariant">{message}</Text>
+    </View>
+  );
+}
+
+function NativeTabShell() {
+  const scheme = useColorScheme();
+  const navigationTheme = scheme === 'dark' ? DarkTheme : DefaultTheme;
+
+  return (
+    <ThemeProvider value={navigationTheme}>
+      <NativeTabs
+        backgroundColor="transparent"
+        tintColor={iosDynamicColor('#111827', '#FFFFFF')}
+        labelStyle={{
+          default: {
+            color: iosDynamicColor('#6B7280', '#94A3B8'),
+            fontSize: 12,
+          },
+          selected: {
+            color: iosDynamicColor('#111827', '#F9FAFB'),
+            fontSize: 12,
+            fontWeight: '600',
+          },
+        }}
+      >
+        <NativeTabs.Trigger name="index" contentStyle={TAB_CONTENT_STYLE}>
+          <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: 'house', selected: 'house.fill' }}
+            md="home"
+          />
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="library" hidden contentStyle={TAB_CONTENT_STYLE}>
+          <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: 'book', selected: 'book.fill' }}
+            md="menu_book"
+          />
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="ranking" hidden contentStyle={TAB_CONTENT_STYLE}>
+          <NativeTabs.Trigger.Label>Ranking</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: 'trophy', selected: 'trophy.fill' }}
+            md="emoji_events"
+          />
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="profile" contentStyle={TAB_CONTENT_STYLE}>
+          <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: 'person', selected: 'person.fill' }}
+            md="person"
+          />
+        </NativeTabs.Trigger>
+      </NativeTabs>
+    </ThemeProvider>
+  );
+}
 
 function TabsNavigator() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const insets = useSafeAreaInsets();
-  const { hasCompletedOnboarding } = useOnboardingStore();
+  const hasCompletedOnboarding = useOnboardingStore((state) => state.hasCompletedOnboarding);
+  const [hasHydrated, setHasHydrated] = useState(() => useOnboardingStore.persist.hasHydrated());
 
-  const bgColor = '#FFFFFF';
-  const inactiveColor = '#64748B';
-  const activeColor = BRAND;
-  const bottomOffset =
-    Platform.OS === 'ios' ? Math.max(insets.bottom + 4, 28) : 24;
+  useEffect(() => {
+    const syncHydrationState = () => {
+      setHasHydrated(useOnboardingStore.persist.hasHydrated());
+    };
 
-  // Show onboarding flow fullscreen if not completed
+    syncHydrationState();
+    const unsubscribe = useOnboardingStore.persist.onFinishHydration(syncHydrationState);
+
+    return unsubscribe;
+  }, []);
+
+  if (!hasHydrated) {
+    return <TabShellFallback message="Restoring your learning space..." />;
+  }
+
   if (!hasCompletedOnboarding) {
     return <OnboardingFlow />;
   }
 
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        sceneStyle: isDark ? styles.sceneDark : styles.sceneLight,
-        tabBarActiveTintColor: activeColor,
-        tabBarInactiveTintColor: inactiveColor,
-        tabBarShowLabel: true,
-        tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '600',
-          letterSpacing: 0.2,
-        },
-        tabBarStyle: {
-          position: 'absolute',
-          bottom: bottomOffset,
-          marginHorizontal: MARGIN_H,
-          height: 64,
-          borderRadius: 32,
-          backgroundColor: bgColor,
-          borderWidth: 1.5,
-          borderTopWidth: 1.5,
-          borderColor: activeColor,
-          borderTopColor: activeColor, // Force top color consistency
-          paddingTop: 6,
-          paddingBottom: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: isDark ? 0.35 : 0.1,
-          shadowRadius: 20,
-          elevation: 10,
-        },
-        tabBarItemStyle: {
-          height: 50,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'home' : 'home-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="library"
-        options={{
-          href: null,
-          title: 'Library',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'book' : 'book-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="ranking"
-        options={{
-          href: null,
-          title: 'Ranking',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'trophy' : 'trophy-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'person' : 'person-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
-    </Tabs>
-  );
+  return <NativeTabShell />;
 }
 
 function TabLayoutWithAuth() {
   const { isSignedIn, isLoaded } = useAuth();
-  if (isLoaded && !isSignedIn) {
+
+  if (!isLoaded) {
+    return <TabShellFallback message="Checking your account..." />;
+  }
+
+  if (!isSignedIn) {
     return <Redirect href="/(auth)/sign-in" />;
   }
+
   return <TabsNavigator />;
 }
 
@@ -134,11 +128,5 @@ export default function TabLayout() {
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const isClerkConfigured =
     !!publishableKey && publishableKey !== 'your_clerk_publishable_key_here';
-  if (!isClerkConfigured) return <TabsNavigator />;
-  return <TabLayoutWithAuth />;
+  return !isClerkConfigured ? <TabsNavigator /> : <TabLayoutWithAuth />;
 }
-
-const styles = StyleSheet.create({
-  sceneDark: { backgroundColor: '#0B1220' },
-  sceneLight: { backgroundColor: '#F7F7FB' },
-});
