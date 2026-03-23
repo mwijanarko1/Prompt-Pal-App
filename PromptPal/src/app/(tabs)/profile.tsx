@@ -15,6 +15,7 @@ import { api } from '../../../convex/_generated/api.js';
 import Svg, { Circle } from 'react-native-svg';
 import { StatCard } from '@/components/ui';
 import type { UsageStats } from '@/lib/usage';
+import { useSubscriptionStore } from '@/features/subscription/store';
 
 const { width } = Dimensions.get('window');
 
@@ -127,6 +128,7 @@ export default function ProfileScreen() {
   const [userResults, setUserResults] = useState<{ taskResults: Array<{ score?: number }> }>({ taskResults: [] });
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const localIsPro = useSubscriptionStore((state) => state.isPro);
 
   useEffect(() => {
     if (!canQueryProfile) {
@@ -222,8 +224,9 @@ export default function ProfileScreen() {
     : 0;
 
 
-  const planName = usage?.tier === 'pro' ? 'Premium Pro' : 'Explorer Free';
-  const tierTitle = usage?.tier === 'pro' ? 'PROMPT MASTER' : 'PROMPT NOVICE';
+  const isPro = usage?.tier === 'pro' || localIsPro;
+  const planName = isPro ? 'Premium Pro' : 'Explorer Free';
+  const tierTitle = isPro ? 'PROMPT MASTER' : 'PROMPT NOVICE';
 
   const renderAchievementItem = useCallback(({ item }: { item: any }) => (
     <AchievementBadge
@@ -338,6 +341,27 @@ export default function ProfileScreen() {
           </Text>
 
           {/* Premium Card - Hidden for free plan */}
+          <View className="w-full mt-8 mb-6 rounded-3xl border border-primary/30 bg-primary/10 p-5">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-4">
+                <Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-1">Current Plan</Text>
+                <Text className="text-onSurface text-lg font-black">{planName}</Text>
+                <Text className="text-onSurfaceVariant text-xs mt-1">
+                  {isPro
+                    ? 'Manage your subscription and restore purchases.'
+                    : 'Start a 7-day free trial and unlock full access.'}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => router.push('/paywall')}
+                className="h-11 rounded-full bg-primary px-5 items-center justify-center"
+              >
+                <Text className="text-white text-[10px] font-black uppercase tracking-widest">
+                  {isPro ? 'Manage' : 'Upgrade'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
 
           {/* Usage Quota Section */}
           <View className="w-full mb-10 mt-10">

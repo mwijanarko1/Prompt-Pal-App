@@ -9,6 +9,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { ConvexProvider, ConvexReactClient } from 'convex/react';
 import { refreshAuth } from '@/lib/convex-client';
+import { configureRevenueCat } from '@/lib/subscriptions';
+import { useSubscriptionStore } from '@/features/subscription/store';
 import "../app/global.css";
 
 // Initialize Convex client
@@ -48,7 +50,8 @@ function ConvexProviderWrapper({ children }: { children: React.ReactNode }) {
  * Component that handles app initialization after Clerk provider is set up
  */
 function AppInitializer() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, userId } = useAuth();
+  const syncFromRevenueCat = useSubscriptionStore((state) => state.syncFromRevenueCat);
 
   // Handle non-reactive Convex client authentication
   useEffect(() => {
@@ -56,6 +59,16 @@ function AppInitializer() {
       refreshAuth().catch(err => console.error('Failed to refresh Convex auth', err));
     }
   }, [isSignedIn]);
+
+  useEffect(() => {
+    configureRevenueCat(userId).then((configured) => {
+      if (configured) {
+        void syncFromRevenueCat();
+      }
+    }).catch((error) => {
+      console.warn('[RevenueCat] Configure failed', error);
+    });
+  }, [syncFromRevenueCat, userId]);
 
   // Validate environment variables on app startup (non-blocking in development)
   useEffect(() => {
@@ -78,6 +91,7 @@ function AppInitializer() {
         >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
+          <Stack.Screen name="paywall" />
           <Stack.Screen name="game" />
           <Stack.Screen name="library/[resourceId]" />
         </Stack>
