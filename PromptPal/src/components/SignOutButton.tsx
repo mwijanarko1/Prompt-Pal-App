@@ -1,6 +1,7 @@
 import { useClerk } from '@clerk/clerk-expo'
 import * as Linking from 'expo-linking'
 import { Text, TouchableOpacity, Alert } from 'react-native'
+import { clearAuth } from '@/lib/convex-client'
 
 interface SignOutButtonProps {
   className?: string;
@@ -25,6 +26,7 @@ export const SignOutButton = ({
           onPress: async () => {
             try {
               await signOut()
+              clearAuth()
               Linking.openURL(Linking.createURL('/'))
             } catch (err) {
               console.error(JSON.stringify(err, null, 2))

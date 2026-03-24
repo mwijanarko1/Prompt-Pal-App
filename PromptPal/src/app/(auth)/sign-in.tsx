@@ -1,10 +1,11 @@
-import { useAuth, useSignIn, useSSO } from '@clerk/clerk-expo'
+import { useAuth, useSignIn, useSSO, useSignInWithApple } from '@clerk/clerk-expo'
 import { Link, Redirect, useRouter } from 'expo-router'
-import { Text, View, KeyboardAvoidingView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { Text, View, KeyboardAvoidingView, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import React, { useState, useCallback, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { GoogleIcon } from '@/components/GoogleIcon'
+import { AuthField } from '@/components/auth/AuthField'
 import * as WebBrowser from 'expo-web-browser'
 import { logger } from '@/lib/logger'
 import { getClerkErrorMessage, getOAuthRedirectCandidates } from '@/lib/oauthRedirect'
@@ -25,6 +26,7 @@ export default function SignInScreen() {
   const { isSignedIn, isLoaded: isAuthLoaded } = useAuth()
   const { signIn, setActive, isLoaded } = useSignIn()
   const { startSSOFlow } = useSSO()
+  const { startAppleAuthenticationFlow } = useSignInWithApple()
   const router = useRouter()
 
   useWarmUpBrowser()
@@ -106,7 +108,7 @@ export default function SignInScreen() {
     }
   }
 
-  // Handle OAuth sign in (Google only)
+  // Handle OAuth sign in with Google
   const handleOAuthSignIn = useCallback(async () => {
     if (isOAuthLoading || !startSSOFlow) return
 
@@ -168,132 +170,210 @@ export default function SignInScreen() {
     }
   }, [startSSOFlow, isOAuthLoading])
 
+  const handleAppleSignIn = useCallback(async () => {
+    if (isOAuthLoading) return
+
+    setIsOAuthLoading('apple')
+    setErrors({})
+
+    try {
+      if (Platform.OS === 'ios') {
+        const appleAttempt = await startAppleAuthenticationFlow()
+
+        if (appleAttempt.createdSessionId && appleAttempt.setActive) {
+          await appleAttempt.setActive({ session: appleAttempt.createdSessionId })
+          setTimeout(() => router.replace('/(tabs)'), 500)
+        }
+
+        return
+      }
+
+      const redirectCandidates = getOAuthRedirectCandidates()
+      let lastError: unknown = null
+
+      for (const redirectUrl of redirectCandidates) {
+        try {
+          const ssoAttempt = await startSSOFlow({
+            strategy: 'oauth_apple',
+            redirectUrl,
+          })
+          const createdSessionId =
+            ssoAttempt.createdSessionId ??
+            ssoAttempt.signIn?.createdSessionId ??
+            ssoAttempt.signUp?.createdSessionId
+
+          if (createdSessionId) {
+            await ssoAttempt.setActive?.({ session: createdSessionId })
+            setTimeout(() => router.replace('/(tabs)'), 500)
+            return
+          }
+
+          const completionStatus = ssoAttempt.signIn?.status || ssoAttempt.signUp?.status
+          if (completionStatus) {
+            lastError = new Error(
+              `Apple authentication did not complete (status: ${completionStatus}).`
+            )
+            break
+          }
+        } catch (attemptError) {
+          lastError = attemptError
+        }
+      }
+
+      let errorMessage = getClerkErrorMessage(lastError, 'Failed to sign in with Apple')
+      if (errorMessage.includes('Missing external verification redirect URL for SSO flow')) {
+        const primaryRedirect = redirectCandidates[0] || 'promptpal://sso-callback'
+        errorMessage = `Apple SSO redirect is not configured in Clerk. Add ${primaryRedirect} to Clerk redirect URLs.`
+      }
+
+      logger.error('AppleSignIn', lastError, {
+        provider: 'apple',
+        redirectCandidates,
+      })
+      setErrors({ general: errorMessage })
+    } catch (err: unknown) {
+      const errorMessage = getClerkErrorMessage(err, 'Failed to sign in with Apple')
+      setErrors({ general: errorMessage })
+    } finally {
+      setIsOAuthLoading(null)
+    }
+  }, [isOAuthLoading, router, startAppleAuthenticationFlow, startSSOFlow])
+
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <KeyboardAvoidingView
-        behavior="padding"
-        className="flex-1"
-      >
-        <View className="flex-1 px-6 justify-center">
+      <KeyboardAvoidingView behavior="padding" className="flex-1">
+        <View className="flex-1 justify-center px-6">
           {/* Header */}
-          <View className="items-center mb-4">
-            <View className="flex-row items-center mb-2">
+          <View className="mb-6 items-center">
+            <View className="mb-2 flex-row items-center">
               <Text className="text-primary text-4xl font-black tracking-tighter">Prompt</Text>
               <Text className="text-secondary text-4xl font-black tracking-tighter">Pal</Text>
             </View>
-            <Text className="text-onSurfaceVariant text-center text-[10px] font-black uppercase tracking-[3px] leading-4">
+            <Text className="px-8 text-center text-[11px] font-semibold uppercase tracking-[2px] leading-5 text-onSurfaceVariant">
               Enter your credentials to continue{'\n'}your engineering journey
             </Text>
           </View>
 
           {/* Sign In Form */}
-          <View className="bg-surface border border-outline/20 rounded-[32px] p-5 shadow-2xl shadow-black/50 mb-4">
-            <Text className="text-onSurface text-xl font-black mb-4 text-center tracking-tight">
+          <View className="mb-4 w-full self-center rounded-[28px] border border-outline/15 bg-surface px-6 py-7 shadow-2xl shadow-black/30">
+            <Text className="mb-2 text-center text-[28px] font-black tracking-tight text-onSurface">
               Welcome Back
+            </Text>
+            <Text className="mb-6 text-center text-sm leading-5 text-onSurfaceVariant">
+              Sign in to pick up your next prompt challenge.
             </Text>
 
             {errors.general && (
-              <View className="bg-error/10 border border-error/30 rounded-2xl p-3 mb-4">
-                <Text className="text-error text-[10px] text-center font-black uppercase tracking-widest">
+              <View className="mb-5 rounded-[18px] border border-error/25 bg-error/8 px-4 py-3">
+                <Text className="text-center text-[11px] font-semibold leading-4 text-error">
                   {errors.general}
                 </Text>
               </View>
             )}
 
-            <View className="gap-3">
-              <View>
-                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-1.5 ml-1 tracking-[2px]">Email Address</Text>
-                <View className={`bg-surfaceVariant/50 border ${errors.email ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-3 flex-row items-center`}>
-                  <Ionicons name="mail-outline" size={20} color={errors.email ? "#EF4444" : "#9CA3AF"} />
-                  <TextInput
-                    className="flex-1 ml-3 text-onSurface text-base font-bold"
-                    value={emailAddress}
-                    onChangeText={(text) => {
-                      setEmailAddress(text)
-                      if (errors.email) setErrors({ ...errors, email: undefined })
-                    }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    spellCheck={false}
-                    autoComplete="email"
-                    textContentType="emailAddress"
-                  />
-                </View>
-                {errors.email && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.email}</Text>}
-              </View>
+            <View className="gap-4">
+              <AuthField
+                label="Email address"
+                icon="mail-outline"
+                value={emailAddress}
+                onChangeText={(text) => {
+                  setEmailAddress(text)
+                  if (errors.email) setErrors({ ...errors, email: undefined })
+                }}
+                error={errors.email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                placeholder="name@example.com"
+              />
 
-              <View>
-                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase mb-1.5 ml-1 tracking-[2px]">Password</Text>
-                <View className={`bg-surfaceVariant/50 border ${errors.password ? 'border-error' : 'border-outline/30'} rounded-2xl px-4 py-3 flex-row items-center`}>
-                  <Ionicons name="key-outline" size={20} color={errors.password ? "#EF4444" : "#9CA3AF"} />
-                  <TextInput
-                    className="flex-1 ml-3 text-onSurface text-base font-bold"
-                    value={password}
-                    onChangeText={(text) => {
-                      setPassword(text)
-                      if (errors.password) setErrors({ ...errors, password: undefined })
-                    }}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    spellCheck={false}
-                    autoComplete="current-password"
-                    textContentType="password"
-                  />
-                </View>
-                {errors.password && <Text className="text-error text-[10px] mt-1.5 ml-1 font-black uppercase tracking-widest">{errors.password}</Text>}
-              </View>
+              <AuthField
+                label="Password"
+                icon="key-outline"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text)
+                  if (errors.password) setErrors({ ...errors, password: undefined })
+                }}
+                error={errors.password}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                autoComplete="current-password"
+                textContentType="password"
+                placeholder="Enter your password"
+              />
             </View>
 
-            {/* OAuth - Google only */}
-            <View className="mt-4">
-              <View className="flex-row items-center mb-3">
+            {/* Social auth */}
+            <View className="mt-6">
+              <View className="mb-4 flex-row items-center">
                 <View className="flex-1 h-px bg-outline/30" />
-                <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest mx-4">or continue with</Text>
+                <Text className="mx-4 text-[10px] font-semibold uppercase tracking-[1.8px] text-onSurfaceVariant">or continue with</Text>
                 <View className="flex-1 h-px bg-outline/30" />
               </View>
 
               <TouchableOpacity
                 onPress={() => handleOAuthSignIn()}
                 disabled={!!isOAuthLoading}
-                className={`bg-white border border-outline/30 h-12 rounded-2xl items-center justify-center flex-row shadow-lg ${isOAuthLoading ? 'opacity-70' : ''}`}
+                className={`h-14 flex-row items-center justify-center rounded-[18px] border border-outline/25 bg-white shadow-lg ${isOAuthLoading ? 'opacity-70' : ''}`}
               >
-                {isOAuthLoading ? (
+                {isOAuthLoading === 'google' ? (
                   <ActivityIndicator color="#4285F4" size="small" />
                 ) : (
                   <>
                     <GoogleIcon size={20} />
-                    <Text className="text-gray-700 font-black text-xs uppercase tracking-widest ml-3">Google</Text>
+                    <Text className="ml-3 text-xs font-bold uppercase tracking-[1.8px] text-gray-700">Google</Text>
                   </>
                 )}
               </TouchableOpacity>
+
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  onPress={handleAppleSignIn}
+                  disabled={!!isOAuthLoading}
+                  className={`mt-3 h-14 flex-row items-center justify-center rounded-[18px] border border-white/10 bg-black shadow-lg ${isOAuthLoading ? 'opacity-70' : ''}`}
+                >
+                  {isOAuthLoading === 'apple' ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+                      <Text className="ml-3 text-xs font-bold uppercase tracking-[1.8px] text-white">Apple</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
 
             <TouchableOpacity
               onPress={onSignInPress}
               disabled={isLoading}
-              className={`bg-primary h-14 rounded-full items-center justify-center mt-4 shadow-lg shadow-primary/20 ${isLoading ? 'opacity-70' : ''}`}
+              className={`mt-6 h-14 items-center justify-center rounded-[18px] bg-primary shadow-lg shadow-primary/20 ${isLoading ? 'opacity-70' : ''}`}
             >
               {isLoading ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="text-white font-black text-lg uppercase tracking-widest">Sign In</Text>
+                <Text className="text-base font-black uppercase tracking-[2px] text-white">Sign In</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity className="mt-4 self-center">
-              <Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-widest">Forgot Password?</Text>
+              <Text className="text-[11px] font-semibold tracking-[0.2px] text-onSurfaceVariant">Forgot password?</Text>
             </TouchableOpacity>
           </View>
 
           {/* Sign Up Link */}
-          <View className="flex-row justify-center items-center mt-4 mb-2">
-            <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">
+          <View className="mb-2 mt-4 flex-row items-center justify-center">
+            <Text className="text-sm font-medium text-onSurfaceVariant">
               Don't have an account?
             </Text>
             <Link href="/(auth)/sign-up" className="ml-2">
-              <Text className="text-primary text-xs font-black uppercase tracking-widest">
+              <Text className="text-sm font-bold text-primary">
                 Create Account
               </Text>
             </Link>
