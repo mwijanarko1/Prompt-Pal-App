@@ -6,10 +6,33 @@ import Animated, { FadeInUp, FadeInDown, FadeIn, FadeOut } from 'react-native-re
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
 import { ONBOARDING_COLORS } from '../theme';
-import { delay, evaluatePractice1Prompt } from '../utils/practiceEvaluation';
+import { useConvexAI } from '@/hooks/useConvexAI';
+import { getAIErrorPresentation } from '@/lib/aiErrors';
+import { delay } from '../utils/practiceEvaluation';
+
+const ONBOARDING_CODE_LEVEL_ID = 'code-4-easy';
+const PASSING_SCORE = 70;
+
+const TARGET_BRIEF =
+  "Target Design: A button labeled 'Say Hello' styled with an orange color and rounded corners. Action: when clicked, it shows an alert with the message 'Hello!'.";
+
+const VISIBLE_HINTS = [
+  "Include the button label 'Say Hello'.",
+  "Describe the click behavior: show an alert with 'Hello!'.",
+  "Include visual details like orange and rounded corners.",
+];
+
+const LOCAL_TAKEAWAY =
+  'Combining structure (what it looks like) and behavior (what it does) is what makes a prompt actionable.';
+
+function extractCodeFromResponse(text: string): string {
+  const match = text.match(/```(?:[a-z]+)?\s*([\s\S]*?)\s*```/i);
+  return (match?.[1] || text).trim();
+}
 
 export function Practice1Screen() {
     const { goToNextStep, addBadge } = useOnboardingStore();
+    const { generateText, evaluateCodeSubmission } = useConvexAI();
     
     const [localPrompt, setLocalPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -36,33 +59,71 @@ export function Practice1Screen() {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             await delay(350);
 
-            const evaluation = evaluatePractice1Prompt(localPrompt);
-            setGeneratedCode(evaluation.code);
+            const codeSystemPrompt = [
+              'You are a strict frontend code generator.',
+              '',
+              'The user will provide a prompt describing a small UI and its behavior.',
+              '',
+              'Return a complete, runnable HTML document with any necessary inline JavaScript.',
+              '- Return ONLY code.',
+              '- No markdown code fences.',
+              '- No explanations.',
+              '',
+              'VISIBLE CHALLENGE:',
+              TARGET_BRIEF,
+              '',
+              `VISIBLE GUIDANCE:\n- ${VISIBLE_HINTS.join('\n- ')}`,
+            ].join('\n');
+
+            setGenerationStep('Generating code...');
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            await delay(350);
+
+            const generateResult = await generateText(localPrompt, codeSystemPrompt);
+            const generatedCodeText = extractCodeFromResponse(generateResult.result || '');
+
+            if (!generatedCodeText.trim()) {
+              throw new Error('AI returned empty code. Try a more specific prompt.');
+            }
+
+            setGeneratedCode(generatedCodeText);
 
             setGenerationStep('Checking behavior & intent...');
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             await delay(350);
 
-            setFeedback({
-                success: evaluation.success,
-                text: evaluation.text,
-                nudge: evaluation.nudge,
-                takeaway: evaluation.takeaway,
-                score: evaluation.score
+            const evaluation = await evaluateCodeSubmission({
+              levelId: ONBOARDING_CODE_LEVEL_ID,
+              code: generatedCodeText,
+              userPrompt: localPrompt,
+              visibleBrief: TARGET_BRIEF,
+              visibleHints: VISIBLE_HINTS,
             });
 
-            if (evaluation.success) {
-                addBadge('coding');
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            const passed = typeof evaluation.score === 'number' ? evaluation.score >= PASSING_SCORE : false;
+            const feedbackLines: string[] = Array.isArray(evaluation.feedback) ? evaluation.feedback : [];
+
+            setFeedback({
+              success: passed,
+              text: feedbackLines[0] || (passed ? 'Nice work.' : 'Your prompt needs more detail.'),
+              nudge: passed ? undefined : feedbackLines.join(' ') || 'Try adding clearer behavior and guardrails.',
+              takeaway: passed ? LOCAL_TAKEAWAY : undefined,
+              score: typeof evaluation.score === 'number' ? evaluation.score : undefined,
+            });
+
+            if (passed) {
+              addBadge('coding');
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } else {
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             }
         } catch (error) {
             console.error(error);
+            const aiError = getAIErrorPresentation(error);
             setFeedback({
-                success: false,
-                text: "The local onboarding check failed. Let's try again!",
-                nudge: "Try describing the button, its label, and what should happen when it is clicked."
+              success: false,
+              text: 'AI evaluation failed.',
+              nudge: aiError.message,
             });
         } finally {
             setIsGenerating(false);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { sanitizeHtmlForWebView } from '@/lib/htmlSanitizer';
 
 interface HtmlPreviewProps {
@@ -8,11 +9,6 @@ interface HtmlPreviewProps {
   height?: number;
 }
 
-/**
- * Renders HTML in a WebView for live preview (e.g. starter code, generated output).
- * Sanitizes HTML to prevent XSS from prompt-injection attacks.
- */
-/** Detect if body is effectively empty (blank page) */
 function isBlankPage(html: string): boolean {
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
   const bodyContent = bodyMatch?.[1]?.replace(/<script[\s\S]*?<\/script>/gi, '').trim() ?? '';
@@ -20,7 +16,7 @@ function isBlankPage(html: string): boolean {
 }
 
 const EMPTY_PAGE_PLACEHOLDER = `
-  <div style="display:flex;align-items:center;justify-content:center;min-height:120px;color:#9ca3af;font-size:13px;font-family:system-ui;text-align:center;padding:16px;">
+  <div style="display:flex;align-items:center;justify-content:center;width:100%;min-height:40vh;color:#9ca3af;font-size:18px;line-height:1.4;font-family:system-ui;text-align:center;padding:24px;">
     Empty webpage — describe what you want to add
   </div>
 `;
@@ -34,12 +30,10 @@ export function HtmlPreview({ html, height = 200 }: HtmlPreviewProps) {
     ? sanitized
     : `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">${tailwindScript}</head><body>${sanitized}</body></html>`;
 
-  // If it's a full document but missing tailwind, and the user likely needs it (indicated by classes)
   if (sanitized.includes('<html') && !sanitized.includes('tailwindcss.com') && sanitized.includes('class=')) {
     wrappedHtml = wrappedHtml.replace('</head>', `${tailwindScript}</head>`);
   }
 
-  // When body is empty, inject a placeholder so the user sees something
   if (isBlankPage(wrappedHtml)) {
     wrappedHtml = wrappedHtml.replace(/<body([^>]*)>([\s\S]*?)<\/body>/i, (_, attrs, inner) =>
       `<body${attrs}>${inner}${EMPTY_PAGE_PLACEHOLDER}</body>`
@@ -47,7 +41,7 @@ export function HtmlPreview({ html, height = 200 }: HtmlPreviewProps) {
   }
 
   return (
-    <View style={[styles.container, { height }]}>
+    <Animated.View entering={FadeIn.duration(400)} style={[styles.container, { height }]}>
       <WebView
         source={{ html: wrappedHtml }}
         originWhitelist={['*']}
@@ -55,14 +49,13 @@ export function HtmlPreview({ html, height = 200 }: HtmlPreviewProps) {
         scrollEnabled={true}
         showsVerticalScrollIndicator={true}
         showsHorizontalScrollIndicator={false}
-        // Allow interaction: forms, buttons, links, inputs
         javaScriptEnabled={true}
         domStorageEnabled={true}
         scalesPageToFit={false}
         bounces={true}
         nestedScrollEnabled={true}
       />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -70,11 +63,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     minHeight: 120,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
+    borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   webview: {
     flex: 1,

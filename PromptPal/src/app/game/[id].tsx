@@ -736,9 +736,8 @@ export default function GameScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant">
-            <Text className="text-onSurface text-xl font-bold">?</Text>
-          </TouchableOpacity>
+          {/* Placeholder keeps header centering consistent */}
+          <View className="w-10 h-10" />
         </View>
 
       </View>
@@ -905,7 +904,7 @@ export default function GameScreen() {
   };
 
   const renderCodeChallenge = () => {
-    const missionText = (level as { instruction?: string }).instruction || level.description || 'Write a prompt that guides the model to solve this challenge.';
+    const missionText = (level as { instruction?: string }).instruction || level.description || 'Recreate this with your prompt.';
     const hintsUsed = NanoAssistant.getHintsUsed(level.id);
     const hintsRemaining = NanoAssistant.getHintsRemaining(level.id, level.difficulty);
     const maxHints = NanoAssistant.getMaxHintsPerLevel(level.difficulty);
@@ -916,36 +915,24 @@ export default function GameScreen() {
     const grading = level as { grading?: { criteria?: { description: string }[] } };
     const requirementItems = grading.grading?.criteria?.map((c) => c.description) ?? [];
 
+    const previewHtml = generatedCode ?? starterCode ?? '';
+
+    // Show only Mission under the preview card.
     const sections: PracticeStyleSection[] = [
       { title: 'Mission', icon: 'flag-outline', tone: 'neutral' as const, body: missionText },
-      ...(requirementItems.length > 0 ? [{
-        title: 'Requirements',
-        icon: 'checkmark-done-outline',
-        tone: 'neutral' as const,
-        items: requirementItems,
-      }] : []),
-      // When we have live preview, skip "What You See" text - the preview shows it
-      ...(!starterCode && (level as { whatUserSees?: string }).whatUserSees ? [{
-        title: 'What You See',
-        icon: 'eye-outline',
-        tone: 'neutral' as const,
-        body: (level as { whatUserSees?: string }).whatUserSees,
-      }] : []),
     ];
-
-    const previewHtml = generatedCode ?? starterCode ?? '';
 
     return (
       <PracticeStyleChallenge
         title={level.title || 'Code Challenge'}
-        subtitle={level.description}
+        subtitle={previewHtml ? missionText : undefined}
         previewLabel="Target"
         targetPreview={previewHtml ? <HtmlPreview html={previewHtml} height={220} /> : undefined}
         sections={sections}
         promptLabel="Your Prompt"
         prompt={prompt}
         onChangePrompt={setPrompt}
-        promptPlaceholder="Describe the behavior, output, and constraints you want from the model..."
+        promptPlaceholder="Describe what you want to build..."
         charCount={charCount}
         tokenCount={tokenCount}
         inputAccessoryViewID={Platform.OS === 'ios' ? inputAccessoryId : undefined}
@@ -956,7 +943,7 @@ export default function GameScreen() {
         hintActionDisabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
         hintPanel={renderHintsPanel()}
         onSubmit={handleGenerate}
-        submitLabel="Generate"
+        submitLabel="Let's Build It"
         submitIcon="flash-outline"
         submitDisabled={prompt.trim().length === 0 || isGenerating}
         isSubmitting={isGenerating}
@@ -973,7 +960,7 @@ export default function GameScreen() {
   };
 
   const renderCopywritingChallenge = () => {
-    const missionText = (level as { instruction?: string }).instruction || level.description || 'Write a prompt that steers the model toward stronger copy.';
+    const missionText = (level as { instruction?: string }).instruction || level.description || 'Write a prompt that creates compelling copy.';
     const grading = level as { grading?: { criteria?: { description: string }[] } };
     const requirementItems = grading.grading?.criteria?.map((c) => c.description) ?? [];
     const hintsUsed = NanoAssistant.getHintsUsed(level.id);
@@ -991,15 +978,12 @@ export default function GameScreen() {
     const ctx = level?.starterContext as Record<string, unknown> | undefined;
     const contextStr = ctx && Object.keys(ctx).length > 0 ? formatStarterContext(ctx) : undefined;
 
-    // Target preview already shows mission + requirements; only add Word Limit to avoid redundancy
-    const sections: PracticeStyleSection[] = [
-      ...(level.wordLimit ? [{
-        title: 'Word Limit',
-        icon: 'text-outline',
-        tone: 'secondary' as const,
-        badge: `${minWords}-${maxWords} words`,
-      }] : []),
-    ];
+    const sections: PracticeStyleSection[] = level.wordLimit ? [{
+      title: 'Word Limit',
+      icon: 'text-outline',
+      tone: 'secondary' as const,
+      badge: `${minWords}-${maxWords} words`,
+    }] : [];
 
     const copyRequirements = level.requiredElements?.length
       ? level.requiredElements
@@ -1008,12 +992,12 @@ export default function GameScreen() {
     return (
       <PracticeStyleChallenge
         title={level.title || 'Copywriting Challenge'}
-        subtitle={level.description}
-        previewLabel="Target"
+        subtitle={missionText}
+        previewLabel="Brief"
         targetPreview={
           <CopyTargetPreview
             instruction={missionText}
-            criteria={requirementItems}
+            criteria={requirementItems.slice(0, 3)}
             context={contextStr}
           />
         }
@@ -1021,7 +1005,7 @@ export default function GameScreen() {
         promptLabel="Your Prompt"
         prompt={prompt}
         onChangePrompt={setPrompt}
-        promptPlaceholder="Describe the audience, tone, structure, and output you want..."
+        promptPlaceholder="Describe the audience and tone you want..."
         charCount={charCount}
         tokenCount={tokenCount}
         wordCountLabel={level.wordLimit ? `${wordCount} / ${minWords}-${maxWords}` : undefined}
@@ -1035,7 +1019,7 @@ export default function GameScreen() {
         hintActionDisabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
         hintPanel={renderHintsPanel()}
         onSubmit={handleGenerate}
-        submitLabel="Generate"
+        submitLabel="Let's Write It"
         submitIcon="create-outline"
         submitDisabled={prompt.trim().length === 0 || isGenerating}
         isSubmitting={isGenerating}
@@ -1065,8 +1049,8 @@ export default function GameScreen() {
 
     return (
       <View className="px-6 pb-8">
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-onSurfaceVariant text-xs font-black uppercase tracking-widest">YOUR PROMPT</Text>
+        <View className="flex-row justify-between items-center mb-3">
+          <Text className="text-onSurfaceVariant text-[11px] font-black uppercase tracking-[2px]">Your Turn</Text>
           <TouchableOpacity
             onPress={handleGetHint}
             disabled={isLoadingHint || hintCooldown > 0 || noHintsLeft}
@@ -1078,7 +1062,7 @@ export default function GameScreen() {
             ) : (
               <>
                 <Text className={`text-base mr-1 ${noHintsLeft ? 'opacity-50' : ''}`}>{hintCooldown > 0 ? '⏳' : '🪄'}</Text>
-                <Text className={`text-xs font-bold ${noHintsLeft ? 'text-onSurfaceVariant/50' : hintCooldown > 0 ? 'text-onSurfaceVariant' : 'text-secondary'}`}>
+                <Text className={`text-[11px] font-bold ${noHintsLeft ? 'text-onSurfaceVariant/50' : hintCooldown > 0 ? 'text-onSurfaceVariant' : 'text-secondary'}`}>
                   {noHintsLeft ? 'No hints left' : hintCooldown > 0 ? `${hintCooldown}s` : hintsUsed === 0 ? 'Free Hint' : `Hint (${hintsRemaining}/${maxHints})`}
                 </Text>
               </>
@@ -1089,54 +1073,57 @@ export default function GameScreen() {
         {renderHintsPanel()}
 
         <View ref={inputRef}>
-          <Card className="p-6 rounded-[32px] border-2 border-primary/30 bg-surfaceVariant/20 mb-4">
+          <Card className="p-5 rounded-[24px] border border-primary/20 bg-surfaceVariant/15 mb-4">
             <Input
               value={prompt}
               onChangeText={setPrompt}
-              placeholder="Describe the floating islands, the nebula sky..."
+              placeholder="Describe what you see..."
               multiline
-              className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
+              className="text-base text-onSurface min-h-[100px] bg-transparent border-0 p-0 mb-3"
               inputAccessoryViewID={Platform.OS === 'ios' ? inputAccessoryId : undefined}
             />
 
             <View className="flex-row items-center">
               <View className="flex-row">
-                <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-                <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-3" />
-                <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-3" />
+                <Badge label={`${charCount} chars`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-2.5" />
+                <Badge label={`${tokenCount} tokens`} variant="surface" className="bg-surfaceVariant mr-2 border-0 px-2.5" />
+                <Badge label={level.style || ''} variant="primary" className="bg-primary/20 border-0 px-2.5" />
               </View>
             </View>
           </Card>
         </View>
 
-        <View className="mt-6">
+        <View className="mt-4">
           <Button
             onPress={handleGenerate}
             loading={isGenerating}
             variant="primary"
             size="lg"
             fullWidth
-            className="rounded-full py-5 shadow-glow"
+            className="rounded-full py-5"
           >
-            {level.type === 'image' ? 'Generate & Compare' : 'Generate'}
+            <View className="flex-row items-center">
+              <Text className="text-onPrimary text-base font-bold mr-2">Generate & Compare</Text>
+              <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+            </View>
           </Button>
         </View>
 
         {/* Evaluation Results */}
         {lastScore !== null && level.type === 'image' && (
           <View className="mt-4">
-            <Card className="p-4 rounded-[24px] border border-primary/30 bg-primary/5">
+            <Card className="p-4 rounded-[20px] border border-primary/20 bg-primary/5">
               <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-onSurface text-sm font-black">Evaluation Score</Text>
+                <Text className="text-onSurface text-sm font-bold">Score</Text>
                 <View className="flex-row items-center">
                   <Text className="text-primary text-xl font-black mr-2">{lastScore}%</Text>
-                  <View className={`w-3 h-3 rounded-full ${lastScore >= level.passingScore ? 'bg-success' : 'bg-error'}`} />
+                  <View className={`w-2.5 h-2.5 rounded-full ${lastScore >= level.passingScore ? 'bg-success' : 'bg-error'}`} />
                 </View>
               </View>
 
               {feedback && feedback.length > 0 && (
                 <View className="mt-2">
-                  <Text className="text-onSurface text-xs font-bold uppercase tracking-widest mb-2">Feedback</Text>
+                  <Text className="text-onSurface text-[10px] font-bold uppercase tracking-widest mb-2">Feedback</Text>
                   {feedback.map((feedbackItem, index) => (
                     <View key={index} className="flex-row mb-1">
                       <Text className="text-onSurfaceVariant text-xs mr-2">•</Text>
@@ -1148,11 +1135,11 @@ export default function GameScreen() {
 
               {matchedKeywords && matchedKeywords.length > 0 && (
                 <View className="mt-3">
-                  <Text className="text-onSurface text-xs font-bold uppercase tracking-widest mb-2">Keywords Captured</Text>
+                  <Text className="text-onSurface text-[10px] font-bold uppercase tracking-widest mb-2">Captured</Text>
                   <View className="flex-row flex-wrap">
                     {matchedKeywords.map((keyword, index) => (
                       <View key={index} className="bg-primary/20 px-2 py-1 rounded-full mr-2 mb-1">
-                        <Text className="text-primary text-xs font-bold">{keyword}</Text>
+                        <Text className="text-primary text-[11px] font-bold">{keyword}</Text>
                       </View>
                     ))}
                   </View>

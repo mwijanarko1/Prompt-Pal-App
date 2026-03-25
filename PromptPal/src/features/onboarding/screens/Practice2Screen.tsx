@@ -6,10 +6,34 @@ import Animated, { FadeInUp, FadeInDown, FadeIn, FadeOut } from 'react-native-re
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
 import { ONBOARDING_COLORS } from '../theme';
-import { delay, evaluatePractice2Prompt } from '../utils/practiceEvaluation';
+import { useConvexAI } from '@/hooks/useConvexAI';
+import { getAIErrorPresentation } from '@/lib/aiErrors';
+import { delay } from '../utils/practiceEvaluation';
+
+const ONBOARDING_CODE_LEVEL_ID = 'code-11-hard';
+const PASSING_SCORE = 70;
+
+const TARGET_BRIEF =
+  'Target Logic: Add a way for the user to type a new task and add it to the visible tasks list (the new task should appear in the list).';
+
+const VISIBLE_HINTS = [
+  'Mention an input field where the user can type a new task.',
+  'Explain how the user triggers adding (e.g. an Add button click).',
+  'Describe that the new task appears in the list.',
+  'If applicable, describe that the input clears after adding.',
+];
+
+const LOCAL_TAKEAWAY =
+  'For interactive features, step-by-step user behavior matters as much as the visible components.';
+
+function extractCodeFromResponse(text: string): string {
+  const match = text.match(/```(?:[a-z]+)?\s*([\s\S]*?)\s*```/i);
+  return (match?.[1] || text).trim();
+}
 
 export function Practice2Screen() {
     const { goToNextStep, addBadge } = useOnboardingStore();
+    const { generateText, evaluateCodeSubmission } = useConvexAI();
     
     const [localPrompt, setLocalPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -36,34 +60,72 @@ export function Practice2Screen() {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             await delay(350);
 
-            const evaluation = evaluatePractice2Prompt(localPrompt);
-            setGeneratedCode(evaluation.code);
+            const codeSystemPrompt = [
+              'You are a strict frontend code generator.',
+              '',
+              'The user will provide a prompt describing a small interactive UI.',
+              '',
+              'Return a complete, runnable HTML document with any necessary inline JavaScript.',
+              '- Return ONLY code.',
+              '- No markdown code fences.',
+              '- No explanations.',
+              '',
+              'VISIBLE CHALLENGE:',
+              TARGET_BRIEF,
+              '',
+              `VISIBLE GUIDANCE:\n- ${VISIBLE_HINTS.join('\n- ')}`,
+            ].join('\n');
+
+            setGenerationStep('Generating code...');
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            await delay(350);
+
+            const generateResult = await generateText(localPrompt, codeSystemPrompt);
+            const generatedCodeText = extractCodeFromResponse(generateResult.result || '');
+
+            if (!generatedCodeText.trim()) {
+              throw new Error('AI returned empty code. Try a more specific prompt.');
+            }
+
+            setGeneratedCode(generatedCodeText);
 
             setGenerationStep('Validating interactive behavior...');
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             await delay(350);
 
-            setFeedback({
-                success: evaluation.success,
-                text: evaluation.text,
-                nudge: evaluation.nudge,
-                takeaway: evaluation.takeaway,
-                score: evaluation.score
+            const evaluation = await evaluateCodeSubmission({
+              levelId: ONBOARDING_CODE_LEVEL_ID,
+              code: generatedCodeText,
+              userPrompt: localPrompt,
+              visibleBrief: TARGET_BRIEF,
+              visibleHints: VISIBLE_HINTS,
             });
 
-            if (evaluation.success) {
-                addBadge('logic-master');
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            const passed = typeof evaluation.score === 'number' ? evaluation.score >= PASSING_SCORE : false;
+            const feedbackLines: string[] = Array.isArray(evaluation.feedback) ? evaluation.feedback : [];
+
+            setFeedback({
+              success: passed,
+              text: feedbackLines[0] || (passed ? 'Nice work.' : 'Your prompt needs more detail.'),
+              nudge: passed ? undefined : feedbackLines.join(' ') || 'Try spelling out the interactive behavior clearly.',
+              takeaway: passed ? LOCAL_TAKEAWAY : undefined,
+              score: typeof evaluation.score === 'number' ? evaluation.score : undefined,
+            });
+
+            if (passed) {
+              addBadge('logic-master');
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } else {
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             }
 
         } catch (error) {
             console.error(error);
+            const aiError = getAIErrorPresentation(error);
             setFeedback({
-                success: false,
-                text: "The local onboarding check failed. Let's try again!",
-                nudge: "Make sure your prompt mentions an input field and a button to add the task."
+              success: false,
+              text: 'AI evaluation failed.',
+              nudge: aiError.message,
             });
         } finally {
             setIsGenerating(false);

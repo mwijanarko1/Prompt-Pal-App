@@ -6,10 +6,34 @@ import Animated, { FadeInUp, FadeInDown, FadeIn, FadeOut } from 'react-native-re
 import { OnboardingScreenWrapper } from '../components/OnboardingScreenWrapper';
 import { useOnboardingStore } from '../store';
 import { ONBOARDING_COLORS } from '../theme';
-import { delay, evaluatePractice3Prompt } from '../utils/practiceEvaluation';
+import { useConvexAI } from '@/hooks/useConvexAI';
+import { getAIErrorPresentation } from '@/lib/aiErrors';
+import { delay } from '../utils/practiceEvaluation';
+
+const ONBOARDING_CODE_LEVEL_ID = 'code-5-easy';
+const PASSING_SCORE = 70;
+
+const TARGET_BRIEF =
+  "Target Behavior: Fix the bugs described by the user while keeping the rest of the UI behavior intact (guardrails). The fixes should include: clicking tasks does the intended state change, and the Add action should not work for empty input.";
+
+const VISIBLE_HINTS = [
+  'Describe what is broken and where it happens.',
+  "Describe what should happen instead (expected behavior).",
+  'Explain what must not change (guardrails).',
+  "Explicitly mention empty input behavior for the Add action.",
+];
+
+const LOCAL_TAKEAWAY =
+  'The best debugging prompts name the bug, describe the expected behavior, and protect what should not change.';
+
+function extractCodeFromResponse(text: string): string {
+  const match = text.match(/```(?:[a-z]+)?\s*([\s\S]*?)\s*```/i);
+  return (match?.[1] || text).trim();
+}
 
 export function Practice3Screen() {
     const { goToNextStep, addBadge } = useOnboardingStore();
+    const { generateText, evaluateCodeSubmission } = useConvexAI();
     
     const [localPrompt, setLocalPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -36,34 +60,72 @@ export function Practice3Screen() {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             await delay(350);
 
-            const evaluation = evaluatePractice3Prompt(localPrompt);
-            setGeneratedCode(evaluation.code);
+            const codeSystemPrompt = [
+              'You are a strict frontend code generator and debugger.',
+              '',
+              'The user will provide a bug report prompt describing what is wrong and what should happen instead.',
+              '',
+              'Return a complete runnable HTML document with inline JavaScript that fixes the described bugs.',
+              '- Return ONLY code.',
+              '- No markdown code fences.',
+              '- No explanations.',
+              '',
+              'VISIBLE CHALLENGE:',
+              TARGET_BRIEF,
+              '',
+              `VISIBLE GUIDANCE:\n- ${VISIBLE_HINTS.join('\n- ')}`,
+            ].join('\n');
+
+            setGenerationStep('Generating patched code...');
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            await delay(350);
+
+            const generateResult = await generateText(localPrompt, codeSystemPrompt);
+            const generatedCodeText = extractCodeFromResponse(generateResult.result || '');
+
+            if (!generatedCodeText.trim()) {
+              throw new Error('AI returned empty code. Try a more specific bug report.');
+            }
+
+            setGeneratedCode(generatedCodeText);
 
             setGenerationStep('Verifying fixes & guardrails...');
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             await delay(350);
 
-            setFeedback({
-                success: evaluation.success,
-                text: evaluation.text,
-                nudge: evaluation.nudge,
-                takeaway: evaluation.takeaway,
-                score: evaluation.score
+            const evaluation = await evaluateCodeSubmission({
+              levelId: ONBOARDING_CODE_LEVEL_ID,
+              code: generatedCodeText,
+              userPrompt: localPrompt,
+              visibleBrief: TARGET_BRIEF,
+              visibleHints: VISIBLE_HINTS,
             });
 
-            if (evaluation.success) {
-                addBadge('component-hero');
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            const passed = typeof evaluation.score === 'number' ? evaluation.score >= PASSING_SCORE : false;
+            const feedbackLines: string[] = Array.isArray(evaluation.feedback) ? evaluation.feedback : [];
+
+            setFeedback({
+              success: passed,
+              text: feedbackLines[0] || (passed ? 'Nice work.' : 'Your bug report needs more detail.'),
+              nudge: passed ? undefined : feedbackLines.join(' ') || 'Try stating what is broken and the expected behavior.',
+              takeaway: passed ? LOCAL_TAKEAWAY : undefined,
+              score: typeof evaluation.score === 'number' ? evaluation.score : undefined,
+            });
+
+            if (passed) {
+              addBadge('component-hero');
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } else {
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             }
 
         } catch (error) {
             console.error(error);
+            const aiError = getAIErrorPresentation(error);
             setFeedback({
-                success: false,
-                text: "The local debugging check failed. Let's try again!",
-                nudge: "Explicitly mention the click behavior and the empty input check."
+              success: false,
+              text: 'AI evaluation failed.',
+              nudge: aiError.message,
             });
         } finally {
             setIsGenerating(false);

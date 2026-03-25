@@ -324,11 +324,6 @@ export default function QuestScreen() {
         }
     }, [level, prompt, isLoadingHint, hintCooldown]);
 
-    const openHelpModal = useCallback(() => {
-        Keyboard.dismiss();
-        setShowHelpModal(true);
-    }, []);
-
     const openReferenceTab = useCallback(() => {
         if (!level) return;
 
@@ -711,15 +706,8 @@ export default function QuestScreen() {
                         </Text>
                     </View>
 
-                    <TouchableOpacity
-                        onPress={openHelpModal}
-                        disabled={!helpContent}
-                        className={`w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant ${helpContent ? '' : 'opacity-40'}`}
-                        accessibilityRole="button"
-                        accessibilityLabel="Open challenge help"
-                    >
-                        <Text className="text-onSurface text-xl font-bold">?</Text>
-                    </TouchableOpacity>
+                {/* Placeholder keeps header centering consistent */}
+                <View className="w-10 h-10" />
                 </View>
 
                 {quest?.completed && (
@@ -904,12 +892,6 @@ export default function QuestScreen() {
 
         const sections: PracticeStyleSection[] = [
             { title: 'Mission', icon: 'flag-outline', tone: 'neutral' as const, body: missionText },
-            ...(requirementItems.length > 0 ? [{
-                title: 'Requirements',
-                icon: 'checkmark-done-outline',
-                tone: 'neutral' as const,
-                items: requirementItems,
-            }] : []),
             ...(!starterCode && (level as { whatUserSees?: string }).whatUserSees ? [{
                 title: 'What You See',
                 icon: 'eye-outline',

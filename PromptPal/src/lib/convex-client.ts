@@ -136,3 +136,12 @@ client.action = ((...args: any[]) => wrapWithAuthRetry(originalAction, ...args))
 
 // Export the client (authentication will be set up automatically)
 export { client as convexHttpClient };
+
+// Clear authentication (used on sign-out)
+export function clearAuth(): void {
+  client.clearAuth();
+  if (refreshTimeout) {
+    clearTimeout(refreshTimeout);
+    refreshTimeout = null;
+  }
+}
