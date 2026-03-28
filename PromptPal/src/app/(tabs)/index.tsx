@@ -12,7 +12,6 @@ import { Modal, ProgressBar, StatCard } from '@/components/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api.js';
-import { useSubscriptionStore } from '@/features/subscription/store';
 
 // Local type definitions for UI components
 export interface LearningModule {
@@ -82,8 +81,6 @@ const MODULE_TYPE_MAPPING: Record<string, string> = {
   'copywriting': 'copywriting',
   'image-generation': 'image'
 };
-
-const FREE_MODULE_IDS = new Set<string>(['image-generation']);
 
 interface QuestCardProps {
   quest: DailyQuest;
@@ -214,13 +211,7 @@ const ModuleCard = memo(function ModuleCard({
   const router = useRouter();
 
   const handlePress = useCallback(() => {
-    if (isLocked) {
-      Alert.alert(
-        'Pro subscription required',
-        'You need to have an active pro subscription.'
-      );
-      return;
-    }
+    if (isLocked) return;
     const href = `/game/levels/${id}`;
     router.push(href);
   }, [id, router, isLocked]);
@@ -298,12 +289,6 @@ export default function HomeScreen() {
   // Use useQuery for reactive level data
   const allLevels = useQuery(api.queries.getLevels, { appId: 'prompt-pal' }) || [];
   const backendCompletedIds = useQuery(api.queries.getCompletedLevelIds, { appId: 'prompt-pal' }) ?? [];
-  const usage = useQuery(
-    api.queries.getUserUsage,
-    isSignedIn ? { appId: 'prompt-pal' } : 'skip'
-  );
-  const localIsPro = useSubscriptionStore((state) => state.isPro);
-  const isPro = usage?.tier === 'pro' || localIsPro;
 
   // Merge backend (userProgress) + game store: userProgress is source of truth for module progress
   const effectiveCompletedLevels = useMemo(() => {
@@ -352,13 +337,13 @@ export default function HomeScreen() {
     return (
       <ModuleCard
         {...item}
-        isLocked={item.isLocked || (!isPro && !FREE_MODULE_IDS.has(item.id))}
+        isLocked={Boolean(item.isLocked)}
         progress={actualProgress}
         currentLevelName={levelInfo?.name}
         currentLevelOrder={levelInfo?.order}
       />
     );
-  }, [getModuleLevelInfo, allLevels, effectiveCompletedLevels, isPro]);
+  }, [getModuleLevelInfo, allLevels, effectiveCompletedLevels]);
 
   const handleSettingsPress = useCallback(() => {
     setSettingsModalVisible(true);

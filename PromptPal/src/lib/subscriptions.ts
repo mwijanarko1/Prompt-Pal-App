@@ -2,7 +2,8 @@ import { Platform } from 'react-native';
 import Purchases, { LOG_LEVEL, PurchasesPackage } from 'react-native-purchases';
 
 const IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
-const ENTITLEMENT_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_KEY || 'pro';
+const ENTITLEMENT_KEY =
+  process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_KEY || 'PromptPal Pro';
 const MONTHLY_PRODUCT_ID =
   process.env.EXPO_PUBLIC_RC_MONTHLY_PRODUCT_ID || 'com.mikhailspeaks.promptpal.pro.monthly';
 const YEARLY_PRODUCT_ID =
@@ -11,6 +12,14 @@ const YEARLY_PRODUCT_ID =
 let isConfigured = false;
 
 export type SubscriptionPlanId = 'monthly' | 'yearly';
+
+/** When true, signed-in users must have active RevenueCat entitlement (includes intro free trial) to use the app. */
+export function isSubscriptionGateEnabled(): boolean {
+  if (process.env.EXPO_PUBLIC_REQUIRE_SUBSCRIPTION === '0') {
+    return false;
+  }
+  return Platform.OS === 'ios' && Boolean(IOS_API_KEY?.trim());
+}
 
 export async function configureRevenueCat(appUserId?: string | null): Promise<boolean> {
   if (Platform.OS !== 'ios') {

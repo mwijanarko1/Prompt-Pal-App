@@ -52,6 +52,7 @@ function ConvexProviderWrapper({ children }: { children: React.ReactNode }) {
 function AppInitializer() {
   const { isSignedIn, userId } = useAuth();
   const syncFromRevenueCat = useSubscriptionStore((state) => state.syncFromRevenueCat);
+  const finishGateCheckWithoutClient = useSubscriptionStore((state) => state.finishGateCheckWithoutClient);
 
   // Handle non-reactive Convex client authentication
   useEffect(() => {
@@ -61,14 +62,18 @@ function AppInitializer() {
   }, [isSignedIn]);
 
   useEffect(() => {
-    configureRevenueCat(userId).then((configured) => {
-      if (configured) {
-        void syncFromRevenueCat();
-      }
-    }).catch((error) => {
-      console.warn('[RevenueCat] Configure failed', error);
-    });
-  }, [syncFromRevenueCat, userId]);
+    configureRevenueCat(userId)
+      .then((configured) => {
+        if (configured) {
+          return syncFromRevenueCat();
+        }
+        finishGateCheckWithoutClient();
+      })
+      .catch((error) => {
+        console.warn('[RevenueCat] Configure failed', error);
+        finishGateCheckWithoutClient();
+      });
+  }, [syncFromRevenueCat, finishGateCheckWithoutClient, userId]);
 
   // Validate environment variables on app startup (non-blocking in development)
   useEffect(() => {

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, DynamicColorIOS, Platform, Text, useColorScheme, View } from 'react-native';
 import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
 import { useOnboardingStore } from '@/features/onboarding/store';
+import { SubscriptionAccessGuard } from '@/components/SubscriptionAccessGuard';
 
 const TAB_CONTENT_STYLE = { backgroundColor: 'transparent' } as const;
 
@@ -107,7 +108,11 @@ function TabsNavigator() {
     return <OnboardingFlow />;
   }
 
-  return <NativeTabShell />;
+  return (
+    <SubscriptionAccessGuard>
+      <NativeTabShell />
+    </SubscriptionAccessGuard>
+  );
 }
 
 function TabLayoutWithAuth() {

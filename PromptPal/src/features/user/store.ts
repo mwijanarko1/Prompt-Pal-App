@@ -53,11 +53,10 @@ const getDefaultLearningModules = (): LearningModule[] => [
     icon: 'color-palette',
     thumbnail: getModuleThumbnail('Image Generation', 'Design', 'AI Art'),
     accentColor: 'bg-gray-500',
-    buttonText: 'Locked',
+    buttonText: 'Start Creating',
     type: 'module',
     format: 'interactive',
     estimatedTime: 10,
-    isLocked: true,
   },
 ];
 

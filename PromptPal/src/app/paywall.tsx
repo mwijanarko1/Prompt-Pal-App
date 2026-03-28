@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { purchasePlan, restorePurchases, isProEntitled } from '@/lib/subscriptions';
 import { useSubscriptionStore } from '@/features/subscription/store';
 
@@ -33,8 +33,18 @@ const plans: Plan[] = [
 
 export default function PaywallScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ required?: string }>();
+  const isRequired = params.required === '1';
   const [isProcessing, setIsProcessing] = useState(false);
   const setPro = useSubscriptionStore((state) => state.setPro);
+
+  const goAfterEntitlement = () => {
+    if (isRequired) {
+      router.replace('/(tabs)');
+    } else {
+      router.back();
+    }
+  };
 
   const startSubscription = async (planId: Plan['id']) => {
     if (isProcessing) return;
@@ -44,8 +54,9 @@ export default function PaywallScreen() {
       const entitled = isProEntitled(info);
       setPro(entitled);
       if (entitled) {
-        Alert.alert('Success', 'Your subscription is active.');
-        router.back();
+        Alert.alert('Success', 'Your subscription is active.', [
+          { text: 'OK', onPress: goAfterEntitlement },
+        ]);
       } else {
         Alert.alert('Purchase pending', 'Purchase finished but entitlement is not active yet.');
       }
@@ -66,7 +77,9 @@ export default function PaywallScreen() {
       const info = await restorePurchases();
       const entitled = isProEntitled(info);
       setPro(entitled);
-      Alert.alert('Restore complete', entitled ? 'Your Pro access has been restored.' : 'No active subscription found.');
+      Alert.alert('Restore complete', entitled ? 'Your Pro access has been restored.' : 'No active subscription found.', [
+        entitled ? { text: 'OK', onPress: goAfterEntitlement } : { text: 'OK' },
+      ]);
     } catch (error: any) {
       Alert.alert('Restore failed', error?.message || 'Unable to restore purchases.');
     } finally {
@@ -76,11 +89,18 @@ export default function PaywallScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ gestureEnabled: !isRequired }} />
       <View className="flex-row items-center justify-between px-6 py-4">
-        <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-full bg-surface">
-          <Ionicons name="chevron-back" size={22} color="#F9FAFB" />
-        </Pressable>
-        <Text className="text-onSurface text-lg font-black uppercase tracking-[2px]">Upgrade</Text>
+        {isRequired ? (
+          <View className="h-10 w-10" />
+        ) : (
+          <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-full bg-surface">
+            <Ionicons name="chevron-back" size={22} color="#F9FAFB" />
+          </Pressable>
+        )}
+        <Text className="text-onSurface text-lg font-black uppercase tracking-[2px]">
+          {isRequired ? 'Subscribe' : 'Upgrade'}
+        </Text>
         <View className="h-10 w-10" />
       </View>
 

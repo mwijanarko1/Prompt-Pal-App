@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../../convex/_generated/api.js';
 import { renderResourceContent } from '@/components/ui/ResourceModal';
 import { Resource } from '@/components/ui/ResourceUtils';
+import { SubscriptionAccessGuard } from '@/components/SubscriptionAccessGuard';
 
 export default function ResourceDetailScreen() {
   const { resourceId } = useLocalSearchParams<{ resourceId: string }>();
@@ -52,7 +53,8 @@ export default function ResourceDetailScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SubscriptionAccessGuard>
+      <SafeAreaView className="flex-1 bg-background">
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Fixed Header */}
@@ -87,5 +89,6 @@ export default function ResourceDetailScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </SubscriptionAccessGuard>
   );
 }
