@@ -7,6 +7,7 @@ import { ActivityIndicator, DynamicColorIOS, Platform, Text, useColorScheme, Vie
 import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
 import { useOnboardingStore } from '@/features/onboarding/store';
 import { SubscriptionAccessGuard } from '@/components/SubscriptionAccessGuard';
+import { LearningNotificationSync } from '@/components/LearningNotificationSync';
 
 const TAB_CONTENT_STYLE = { backgroundColor: 'transparent' } as const;
 
@@ -37,6 +38,7 @@ function NativeTabShell() {
 
   return (
     <ThemeProvider value={navigationTheme}>
+      <LearningNotificationSync />
       <NativeTabs
         backgroundColor="transparent"
         tintColor={iosDynamicColor('#111827', '#FFFFFF')}

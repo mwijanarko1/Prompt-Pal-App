@@ -1,5 +1,5 @@
 PODS:
-  - EXApplication (55.0.8):
+  - EXApplication (55.0.10):
     - ExpoModulesCore
   - EXConstants (55.0.7):
     - ExpoModulesCore
@@ -87,6 +87,8 @@ PODS:
     - React-Core
     - React-runtimescheduler
     - ReactCommon
+  - ExpoNotifications (55.0.14):
+    - ExpoModulesCore
   - ExpoRouter (55.0.4):
     - ExpoModulesCore
     - RNScreens
@@ -2294,7 +2296,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
-  - EXApplication (from `../node_modules/expo-application/ios`)
+  - EXApplication (from `../node_modules/expo-notifications/node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
@@ -2311,6 +2313,7 @@ DEPENDENCIES:
   - "ExpoLogBox (from `../node_modules/@expo/log-box`)"
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoModulesJSI (from `../node_modules/expo-modules-core`)
+  - ExpoNotifications (from `../node_modules/expo-notifications/ios`)
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
@@ -2416,7 +2419,7 @@ SPEC REPOS:
 
 EXTERNAL SOURCES:
   EXApplication:
-    :path: "../node_modules/expo-application/ios"
+    :path: "../node_modules/expo-notifications/node_modules/expo-application/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   Expo:
@@ -2449,6 +2452,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-modules-core"
   ExpoModulesJSI:
     :path: "../node_modules/expo-modules-core"
+  ExpoNotifications:
+    :path: "../node_modules/expo-notifications/ios"
   ExpoRouter:
     :path: "../node_modules/expo-router/ios"
   ExpoSecureStore:
@@ -2626,7 +2631,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  EXApplication: b86f81225a9cd817cfe86a79655b9829f12629db
+  EXApplication: 83fdeb8d9e911c28c9dda8c71ae7a697278ce810
   EXConstants: b3c63be5f8648e4ab8e6ff5099b62f629247f969
   Expo: ed1258b36d29c6b5021951ab7933754e765587cb
   ExpoAsset: bdc7bc21fe25d197c3aa7547e14c12c42087d9c9
@@ -2643,6 +2648,7 @@ SPEC CHECKSUMS:
   ExpoLogBox: 89b634d5a8a64c4a6a7caad8f9985a28463c7002
   ExpoModulesCore: a57a0a1e39caa9ad5f76c8477b831ee32fbeddfc
   ExpoModulesJSI: a554588f3260ee3c44a3e7f4a8151c2b9ffdb024
+  ExpoNotifications: 0e3b12306933444ca6030782eaa0b1b015ee3b42
   ExpoRouter: 6b8875b84c8eef1359039c5b703c8ed18f536825
   ExpoSecureStore: ebb13e5e590b1e62ec530bd0cfe1a3e7f1867e26
   ExpoSymbols: 3d67a96643245a5d933ce7fbf535f95eb541f617

@@ -11,6 +11,7 @@ import { ConvexProvider, ConvexReactClient } from 'convex/react';
 import { refreshAuth } from '@/lib/convex-client';
 import { configureRevenueCat } from '@/lib/subscriptions';
 import { useSubscriptionStore } from '@/features/subscription/store';
+import { ensureNotificationHandlerConfigured } from '@/lib/notifications';
 import "../app/global.css";
 
 // Initialize Convex client
@@ -83,6 +84,10 @@ function AppInitializer() {
       // Avoid hard-aborting startup from environment validation in release builds.
       console.error('[Environment]', error);
     }
+  }, []);
+
+  useEffect(() => {
+    ensureNotificationHandlerConfigured();
   }, []);
 
   return (

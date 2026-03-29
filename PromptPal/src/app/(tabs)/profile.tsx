@@ -1,5 +1,15 @@
 import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  ActivityIndicator,
+  Alert,
+  Switch,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
@@ -16,6 +26,12 @@ import Svg, { Circle } from 'react-native-svg';
 import { StatCard } from '@/components/ui';
 import type { UsageStats } from '@/lib/usage';
 import { useSubscriptionStore } from '@/features/subscription/store';
+import { useNotificationPrefsStore } from '@/features/notifications/store';
+import {
+  cancelLearningDailyReminders,
+  requestNotificationPermissions,
+  syncLearningDailyReminderFromProgress,
+} from '@/lib/notifications';
 
 const { width } = Dimensions.get('window');
 
@@ -122,7 +138,9 @@ export default function ProfileScreen() {
   const isDark = colorScheme === 'dark';
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  const { level } = useUserProgressStore();
+  const { level, currentStreak, lastActivityDate } = useUserProgressStore();
+  const learningRemindersEnabled = useNotificationPrefsStore((s) => s.learningRemindersEnabled);
+  const setLearningRemindersEnabled = useNotificationPrefsStore((s) => s.setLearningRemindersEnabled);
   const canQueryProfile = isLoaded && isSignedIn;
   const [achievements, setAchievements] = useState<any[]>([]);
   const [userResults, setUserResults] = useState<{ taskResults: Array<{ score?: number }> }>({ taskResults: [] });
@@ -263,6 +281,34 @@ export default function ProfileScreen() {
     }
   }, [isDeletingAccount, router, signOut, user]);
 
+  const onLearningRemindersToggle = useCallback(
+    async (value: boolean) => {
+      if (value) {
+        const granted = await requestNotificationPermissions();
+        if (!granted) {
+          Alert.alert(
+            'Notifications off',
+            'Allow notifications in Settings to get daily learning reminders.'
+          );
+          return;
+        }
+        setLearningRemindersEnabled(true);
+        const prefs = useNotificationPrefsStore.getState();
+        await syncLearningDailyReminderFromProgress({
+          enabled: true,
+          currentStreak,
+          lastActivityDate,
+          hour: prefs.reminderHour,
+          minute: prefs.reminderMinute,
+        });
+      } else {
+        setLearningRemindersEnabled(false);
+        await cancelLearningDailyReminders();
+      }
+    },
+    [currentStreak, lastActivityDate, setLearningRemindersEnabled]
+  );
+
   const confirmDeleteAccount = useCallback(() => {
     Alert.alert(
       'Delete Account',
@@ -362,6 +408,26 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
           </View>
+
+          {Platform.OS !== 'web' ? (
+            <View className="w-full mt-2 mb-6 rounded-3xl border border-outline/20 bg-surface/40 px-5 py-4">
+              <View className="flex-row items-center justify-between gap-4">
+                <View className="flex-1 pr-2">
+                  <Text className="text-onSurface text-sm font-black mb-1">Daily learning reminders</Text>
+                  <Text className="text-onSurfaceVariant text-[11px] leading-4">
+                    One nudge per day around 9:00. Wording changes if your streak is active, at risk, or
+                    you’ve been away.
+                  </Text>
+                </View>
+                <Switch
+                  value={learningRemindersEnabled}
+                  onValueChange={(v) => void onLearningRemindersToggle(v)}
+                  trackColor={{ false: '#374151', true: '#FF6B0088' }}
+                  thumbColor={learningRemindersEnabled ? '#FF6B00' : '#9CA3AF'}
+                />
+              </View>
+            </View>
+          ) : null}
 
           {/* Usage Quota Section */}
           <View className="w-full mb-10 mt-10">
