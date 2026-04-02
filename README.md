@@ -37,7 +37,7 @@ Areas still likely in progress:
 - Hardening and validating scoring quality end to end
 - Broader test coverage and release-readiness work
 
-For the most accurate architecture reference, use [docs/CODEBASE_MAP.md](/Users/mikhail/Documents/CURSOR%20CODES/In%20Progress/Prompt%20Pal%20App/docs/CODEBASE_MAP.md).
+For the most accurate architecture reference, use [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md).
 
 ## Workspace Structure
 
@@ -79,7 +79,11 @@ PromptPal/
    ```bash
    cp .env.example .env
    ```
-4. Start the Expo development server.
+4. (Convex) Start the Convex development server in a separate terminal.
+   ```bash
+   bun run convex:dev
+   ```
+5. Start the Expo development server.
    ```bash
    bun start
    ```
@@ -88,9 +92,14 @@ PromptPal/
 
 The app expects these public environment variables at minimum:
 
-- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `EXPO_PUBLIC_CONVEX_URL`
-- `EXPO_PUBLIC_SAFE_MODE`
+- `EXPO_PUBLIC_CONVEX_SITE_URL`
+- `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_JWT_ISSUER_DOMAIN`
+- `CONVEX_DEPLOYMENT`
+
+Optional:
+- `EXPO_PUBLIC_SAFE_MODE` (set to `1` to force the safe-mode `BootModeScreen` crash isolation screen)
 
 Check the app-level configuration and environment helpers in `PromptPal/` before adding new variables.
 
@@ -100,18 +109,19 @@ From `PromptPal/`:
 
 ```bash
 bun start
-bun run lint
+bun run convex:dev
+bun run validate-env
 ```
 
-Use the scripts defined in [PromptPal/package.json](/Users/mikhail/Documents/CURSOR%20CODES/In%20Progress/Prompt%20Pal%20App/PromptPal/package.json) as the source of truth.
+Use the scripts defined in [`PromptPal/package.json`](PromptPal/package.json) as the source of truth.
 
 ## Contributing
 
 Keep changes small, typed, and aligned with the existing architecture.
 
 - Use Conventional Commits.
-- Run linting before opening a PR.
-- Review [AGENTS.md](/Users/mikhail/Documents/CURSOR%20CODES/In%20Progress/Prompt%20Pal%20App/AGENTS.md) and [docs/CODEBASE_MAP.md](/Users/mikhail/Documents/CURSOR%20CODES/In%20Progress/Prompt%20Pal%20App/docs/CODEBASE_MAP.md) before making structural changes.
+- Run `bun run validate-env` before opening a PR.
+- Review [`AGENTS.md`](AGENTS.md) and [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md) before making structural changes.
 
 ## Links
 

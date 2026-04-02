@@ -6,8 +6,8 @@
  * Required environment variables for the application
  */
 const REQUIRED_ENV_VARS = [
-  'EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY',
-  'EXPO_PUBLIC_CONVEX_URL',
+	"EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY",
+	"EXPO_PUBLIC_CONVEX_URL",
 ] as const;
 
 /**
@@ -16,28 +16,31 @@ const REQUIRED_ENV_VARS = [
  * @throws {Error} If any required environment variable is missing (production only)
  */
 export function validateEnvironment(): void {
-  const missingVars: string[] = [];
+	const missingVars: string[] = [];
 
-  for (const varName of REQUIRED_ENV_VARS) {
-    const value = process.env[varName];
-    if (!value) {
-      missingVars.push(varName);
-    }
-  }
+	for (const varName of REQUIRED_ENV_VARS) {
+		const value = process.env[varName];
+		if (!value) {
+			missingVars.push(varName);
+		}
+	}
 
-  if (missingVars.length > 0) {
-    const errorMessage = `Missing required environment variables: ${missingVars.join(', ')}\n` +
-      'Please check your .env file and ensure all required variables are set.';
-    
-    // In development, log warning instead of throwing to allow app to run
-    if (__DEV__) {
-      console.warn('[Environment] ', errorMessage);
-      console.warn('[Environment] App will continue in development mode, but some features may not work.');
-    } else {
-      // In production, throw error
-      throw new Error(errorMessage);
-    }
-  }
+	if (missingVars.length > 0) {
+		const errorMessage =
+			`Missing required environment variables: ${missingVars.join(", ")}\n` +
+			"Please check your .env file and ensure all required variables are set.";
+
+		// In development, log warning instead of throwing to allow app to run
+		if (__DEV__) {
+			console.warn("[Environment] ", errorMessage);
+			console.warn(
+				"[Environment] App will continue in development mode, but some features may not work.",
+			);
+		} else {
+			// In production, throw error
+			throw new Error(errorMessage);
+		}
+	}
 }
 
 /**
@@ -47,11 +50,11 @@ export function validateEnvironment(): void {
  * @throws {Error} If the variable is not set
  */
 export function getRequiredEnvVar(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Required environment variable "${name}" is not set`);
-  }
-  return value;
+	const value = process.env[name];
+	if (!value) {
+		throw new Error(`Required environment variable "${name}" is not set`);
+	}
+	return value;
 }
 
 /**
@@ -61,5 +64,5 @@ export function getRequiredEnvVar(name: string): string {
  * @returns The environment variable value or default
  */
 export function getOptionalEnvVar(name: string, defaultValue: string): string {
-  return process.env[name] || defaultValue;
+	return process.env[name] || defaultValue;
 }

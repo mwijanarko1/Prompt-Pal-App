@@ -42,6 +42,7 @@ temp/
 
 # Project specific
 @.claude/
+pr-32/
 
 # React Native/Expo specific
 ios/Pods/

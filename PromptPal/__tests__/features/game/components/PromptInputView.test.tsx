@@ -21,6 +21,12 @@ const mockLevel: Level = {
 
 // Mock NanoAssistant
 jest.mock('@/lib/nanoAssistant');
+jest.mock('@/features/user/store', () => ({
+  useUserProgressStore: () => ({
+    xp: 100,
+    spendXP: jest.fn(),
+  }),
+}));
 
 describe('PromptInputView (S2)', () => {
   const defaultProps = {
@@ -82,7 +88,7 @@ describe('PromptInputView (S2)', () => {
   describe('S2: Hint button with NanoAssistant integration', () => {
     it('shows Free Hint when no hints used', () => {
       render(<PromptInputView {...defaultProps} />);
-      expect(screen.getByText('Free Hint')).toBeTruthy();
+      expect(screen.getByText('Hint (25 XP)')).toBeTruthy();
     });
 
     it('shows Hint (n/m) when some hints used', () => {
@@ -90,7 +96,7 @@ describe('PromptInputView (S2)', () => {
       NanoAssistant.getHintsUsed.mockReturnValue(1);
       NanoAssistant.getHintsRemaining.mockReturnValue(3);
       render(<PromptInputView {...defaultProps} />);
-      expect(screen.getByText('Hint (3/4)')).toBeTruthy();
+      expect(screen.getByText('Hint (25 XP • 3/4)')).toBeTruthy();
     });
 
     it('shows No hints left when hints remaining is 0', () => {
@@ -194,6 +200,26 @@ describe('PromptInputView (S2)', () => {
     it('shows style badge when styleBadge prop is provided', () => {
       render(<PromptInputView {...defaultProps} styleBadge="oil painting" />);
       expect(screen.getByText('oil painting')).toBeTruthy();
+    });
+  });
+
+  describe('Scaffold UI', () => {
+    it('renders scaffold template and checklist items when provided', () => {
+      render(
+        <PromptInputView
+          {...defaultProps}
+          scaffoldType="template"
+          scaffoldTemplate="Build a [shape] button"
+          checklistItems={['Shape', 'Button label']}
+          matchedChecklistItems={['Shape']}
+        />,
+      );
+
+      expect(screen.getByText('Scaffold Template')).toBeTruthy();
+      expect(screen.getByText('[shape]')).toBeTruthy();
+      expect(screen.getByText('Checklist')).toBeTruthy();
+      expect(screen.getByText('Shape')).toBeTruthy();
+      expect(screen.getByText('Button label')).toBeTruthy();
     });
   });
 });

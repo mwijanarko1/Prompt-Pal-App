@@ -22,6 +22,7 @@ import type * as quest_levels_data from "../quest_levels_data.js";
 import type * as rankings from "../rankings.js";
 import type * as rateLimit from "../rateLimit.js";
 import type * as seed from "../seed.js";
+import type * as subscriptions from "../subscriptions.js";
 
 import type {
   ApiFromModules,
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   rankings: typeof rankings;
   rateLimit: typeof rateLimit;
   seed: typeof seed;
+  subscriptions: typeof subscriptions;
 }>;
 
 /**

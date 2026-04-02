@@ -1,252 +1,218 @@
-import { convexHttpClient } from '../convex-client';
-import { api } from '../../../convex/_generated/api.js';
-import { logger } from '../logger';
+import { convexHttpClient } from "../convex-client";
+import { api } from "../../../convex/_generated/api.js";
+import { logger } from "../logger";
 
 export interface ImageScoringInput {
-  targetImageUrl: string;
-  resultImageUrl: string;
-  hiddenPromptKeywords?: string[];
-  style?: string;
-  passingScore?: number;
+	targetImageUrl: string;
+	resultImageUrl: string;
+	hiddenPromptKeywords?: string[];
+	style?: string;
+	passingScore?: number;
+	userPrompt?: string;
+	taskId?: string;
+}
+
+export interface ImageScoringCriterion {
+	name: string;
+	score: number;
+	feedback: string;
 }
 
 export interface ImageScoringResult {
-  score: number;
-  similarity: number;
-  feedback: string[];
-  keywordsMatched: string[];
+	score: number;
+	similarity: number;
+	keywordScore: number;
+	styleScore: number;
+	promptQualityScore: number;
+	feedback: string[];
+	keywordsMatched: string[];
+	criteria: ImageScoringCriterion[];
 }
 
 export class ImageScoringService {
-  private static readonly MIN_SCORE = 0;
-  private static readonly MAX_SCORE = 100;
-  private static readonly TIMEOUT_MS = 45000;
+	private static readonly MIN_SCORE = 0;
+	private static readonly MAX_SCORE = 100;
+	private static readonly TIMEOUT_MS = 45000;
 
-  /**
-   * Scores a generated image against the target image
-   * @param input - Scoring input parameters
-   * @returns Promise resolving to scoring result
-   */
-  static async scoreImage(input: ImageScoringInput): Promise<ImageScoringResult> {
-    const { targetImageUrl, resultImageUrl, hiddenPromptKeywords, style, passingScore } = input;
+	/**
+	 * Scores a generated image against the target image
+	 * @param input - Scoring input parameters
+	 * @returns Promise resolving to scoring result
+	 */
+	static async scoreImage(
+		input: ImageScoringInput,
+	): Promise<ImageScoringResult> {
+		const {
+			targetImageUrl,
+			resultImageUrl,
+			hiddenPromptKeywords,
+			style,
+			userPrompt,
+			taskId,
+		} = input;
 
-    try {
-      if (!targetImageUrl || !resultImageUrl) {
-        throw new Error('Both target and result image URLs are required');
-      }
+		try {
+			if (!targetImageUrl || !resultImageUrl) {
+				throw new Error("Both target and result image URLs are required");
+			}
 
-      const feedback: string[] = [];
-      const keywordsMatched: string[] = [];
+			let similarity = 0;
+			let keywordScore = 0;
+			let styleScore = 0;
+			let promptQualityScore = 0;
+			let overallScore = 0;
+			let feedback: string[] = [];
+			let keywordsMatched: string[] = [];
+			let criteria: ImageScoringCriterion[] = [];
 
-      let aiResponse: any = null;
-      let similarity = 0;
+			try {
+				const aiResponse = await Promise.race([
+					convexHttpClient.action(api.ai.evaluateImage, {
+						taskId: taskId || `task-${Date.now()}`,
+						userImageUrl: resultImageUrl,
+						expectedImageUrl: targetImageUrl,
+						hiddenPromptKeywords,
+						style,
+						userPrompt,
+					}),
+					new Promise<never>((_, reject) =>
+						setTimeout(
+							() => reject(new Error("Image comparison timeout")),
+							this.TIMEOUT_MS,
+						),
+					),
+				]);
 
-      try {
-        aiResponse = await Promise.race([
-          convexHttpClient.action(api.ai.evaluateImage, {
-            taskId: `task-${Date.now()}`,
-            userImageUrl: resultImageUrl,
-            expectedImageUrl: targetImageUrl,
-            hiddenPromptKeywords,
-            style,
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Image comparison timeout')), this.TIMEOUT_MS)
-          )
-        ]);
+				const evaluation = aiResponse.evaluation;
+				if (!evaluation) {
+					logger.warn(
+						"ImageScoringService",
+						"No evaluation payload in AI response",
+					);
+				} else {
+					similarity = this.clampScore(evaluation.similarity);
+					keywordScore = this.clampScore(evaluation.keywordScore);
+					styleScore = this.clampScore(evaluation.styleScore);
+					promptQualityScore = this.clampScore(evaluation.promptQualityScore);
+					overallScore = this.clampScore(evaluation.score);
+					feedback = Array.isArray(evaluation.feedback)
+						? evaluation.feedback.filter(
+								(item): item is string =>
+									typeof item === "string" && item.trim().length > 0,
+						  )
+						: [];
+					keywordsMatched = Array.isArray(evaluation.keywordsMatched)
+						? evaluation.keywordsMatched.filter(
+								(item): item is string =>
+									typeof item === "string" && item.trim().length > 0,
+						  )
+						: [];
+					criteria = Array.isArray(evaluation.criteria)
+						? evaluation.criteria
+								.filter(
+									(item): item is ImageScoringCriterion =>
+										Boolean(item) &&
+										typeof item === "object" &&
+										typeof item.name === "string",
+								)
+								.map((item) => ({
+									name: item.name,
+									score: this.clampScore(item.score),
+									feedback:
+										typeof item.feedback === "string"
+											? item.feedback
+											: "No detailed feedback provided.",
+								}))
+						: [];
+				}
+			} catch (error) {
+				logger.warn(
+					"ImageScoringService",
+					"AI comparison failed, using fallback scoring",
+					{ error },
+				);
+				similarity = this.calculateFallbackSimilarity();
+				overallScore = similarity;
+				feedback = ["Image evaluation failed. Review the subject, composition, and style."];
+			}
 
-        similarity = aiResponse.evaluation?.score !== undefined ? Math.round(aiResponse.evaluation.score * 100) : 0;
+			return {
+				score: this.clampScore(overallScore),
+				similarity,
+				keywordScore,
+				styleScore,
+				promptQualityScore,
+				feedback,
+				keywordsMatched,
+				criteria,
+			};
+		} catch (error) {
+			logger.error("ImageScoringService", error, {
+				operation: "scoreImage",
+				input,
+			});
 
-        if (aiResponse.evaluation?.score === undefined && aiResponse.evaluation?.score !== 0) {
-          logger.warn('ImageScoringService', 'No similarity score in AI response');
-        }
-      } catch (error) {
-        logger.warn('ImageScoringService', 'AI comparison failed, using fallback scoring', { error });
-        similarity = this.calculateFallbackSimilarity();
-      }
+			return {
+				score: this.MIN_SCORE,
+				similarity: 0,
+				keywordScore: 0,
+				styleScore: 0,
+				promptQualityScore: 0,
+				feedback: ["Failed to score image. Please try again."],
+				keywordsMatched: [],
+				criteria: [],
+			};
+		}
+	}
 
-      const keywordScore = hiddenPromptKeywords && hiddenPromptKeywords.length > 0
-        ? this.calculateKeywordScore(aiResponse?.evaluation, hiddenPromptKeywords, keywordsMatched)
-        : 0;
+	private static clampScore(value: unknown): number {
+		if (typeof value !== "number" || Number.isNaN(value)) {
+			return 0;
+		}
 
-      const styleScore = style ? this.calculateStyleScore(aiResponse?.evaluation, style) : 0;
+		return Math.min(Math.max(Math.round(value), this.MIN_SCORE), this.MAX_SCORE);
+	}
 
-      const overallScore = this.calculateOverallScore(similarity, keywordScore, styleScore);
+	/**
+	 * Fallback similarity calculation when AI comparison fails
+	 * Returns a conservative default as actual image analysis requires AI
+	 */
+	private static calculateFallbackSimilarity(): number {
+		logger.warn(
+			"ImageScoringService",
+			"Using fallback similarity score (AI comparison unavailable)",
+		);
+		return 25;
+	}
 
-      this.generateFeedback(similarity, keywordScore, styleScore, overallScore, feedback, passingScore);
+	/**
+	 * Batch score multiple images
+	 */
+	static async scoreImages(
+		inputs: ImageScoringInput[],
+	): Promise<ImageScoringResult[]> {
+		const results = await Promise.allSettled(
+			inputs.map((input) => this.scoreImage(input)),
+		);
 
-      if (keywordsMatched.length > 0) {
-        feedback.push(`Captured elements: ${keywordsMatched.join(', ')}`);
-      }
-
-      if (hiddenPromptKeywords && hiddenPromptKeywords.length > 0) {
-        const missedKeywords = hiddenPromptKeywords.filter(kw => !keywordsMatched.includes(kw));
-        if (missedKeywords.length > 0) {
-          feedback.push(`Try including: ${missedKeywords.join(', ')}`);
-        }
-      }
-
-      return {
-        score: Math.min(Math.max(overallScore, this.MIN_SCORE), this.MAX_SCORE),
-        similarity,
-        feedback,
-        keywordsMatched,
-      };
-    } catch (error) {
-      logger.error('ImageScoringService', error, { operation: 'scoreImage', input });
-
-      return {
-        score: this.MIN_SCORE,
-        similarity: 0,
-        feedback: ['Failed to score image. Please try again.'],
-        keywordsMatched: [],
-      };
-    }
-  }
-
-  /**
-   * Calculates keyword matching score from AI response
-   */
-  private static calculateKeywordScore(
-    aiResponse: any,
-    keywords: string[],
-    matchedKeywords: string[]
-  ): number {
-    if (!aiResponse || !aiResponse.metadata) {
-      return 0;
-    }
-
-    const metadata = aiResponse.metadata as { detectedKeywords?: string[] };
-    const detectedKeywords = metadata.detectedKeywords || [];
-
-    const matchedCount = keywords.filter(keyword =>
-      detectedKeywords.some(detected =>
-        detected.toLowerCase().includes(keyword.toLowerCase()) ||
-        keyword.toLowerCase().includes(detected.toLowerCase())
-      )
-    ).length;
-
-    matchedKeywords.push(...keywords.filter(keyword =>
-      detectedKeywords.some(detected =>
-        detected.toLowerCase().includes(keyword.toLowerCase()) ||
-        keyword.toLowerCase().includes(detected.toLowerCase())
-      )
-    ));
-
-    return keywords.length > 0 ? (matchedCount / keywords.length) * 100 : 0;
-  }
-
-  /**
-   * Calculates style matching score
-   */
-  private static calculateStyleScore(aiResponse: any, targetStyle: string): number {
-    if (!aiResponse || !aiResponse.metadata) {
-      return 0;
-    }
-
-    const metadata = aiResponse.metadata as { styleMatch?: number };
-    return metadata.styleMatch !== undefined ? Math.round(metadata.styleMatch * 100) : 0;
-  }
-
-  /**
-   * Calculates overall score from component scores
-   */
-  private static calculateOverallScore(
-    similarity: number,
-    keywordScore: number,
-    styleScore: number
-  ): number {
-    const weights = {
-      similarity: 0.6,
-      keyword: 0.3,
-      style: 0.1,
-    };
-
-    return Math.round(
-      similarity * weights.similarity +
-      keywordScore * weights.keyword +
-      styleScore * weights.style
-    );
-  }
-
-  /**
-   * Generates feedback based on score components
-   */
-  private static generateFeedback(
-    similarity: number,
-    keywordScore: number,
-    styleScore: number,
-    overallScore: number,
-    feedback: string[],
-    passingScore?: number
-  ): void {
-    if (passingScore && overallScore >= passingScore) {
-      feedback.push('Excellent work! Your image meets the passing criteria.');
-      return;
-    }
-
-    if (similarity < 50) {
-      feedback.push('Focus on the main subject and composition.');
-    } else if (similarity < 75) {
-      feedback.push('Good overall match. Refine details for better accuracy.');
-    }
-
-    if (keywordScore < 50) {
-      feedback.push('Add more descriptive elements from the reference.');
-    }
-
-    if (styleScore < 50) {
-      feedback.push('Try adjusting the artistic style to match better.');
-    }
-
-    if (overallScore < 30) {
-      feedback.push('Consider revising your prompt completely.');
-    } else if (overallScore < 60) {
-      feedback.push('You\'re on the right track. Keep refining!');
-    }
-  }
-
-  /**
-   * Fallback similarity calculation when AI comparison fails
-   * Returns a conservative default as actual image analysis requires AI
-   */
-  private static calculateFallbackSimilarity(): number {
-    logger.warn('ImageScoringService', 'Using fallback similarity score (AI comparison unavailable)');
-    return 25;
-  }
-
-  /**
-   * Simple hash function for fallback comparison
-   */
-  private static simpleHash(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return Math.abs(hash);
-  }
-
-  /**
-   * Batch score multiple images
-   */
-  static async scoreImages(inputs: ImageScoringInput[]): Promise<ImageScoringResult[]> {
-    const results = await Promise.allSettled(
-      inputs.map(input => this.scoreImage(input))
-    );
-
-    return results.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return result.value;
-      }
-      logger.error('ImageScoringService', result.reason, { operation: 'scoreImages', index });
-      return {
-        score: 0,
-        similarity: 0,
-        feedback: ['Scoring failed for this image.'],
-        keywordsMatched: [],
-      };
-    });
-  }
+		return results.map((result, index) => {
+			if (result.status === "fulfilled") {
+				return result.value;
+			}
+			logger.error("ImageScoringService", result.reason, {
+				operation: "scoreImages",
+				index,
+			});
+			return {
+				score: 0,
+				similarity: 0,
+				keywordScore: 0,
+				styleScore: 0,
+				promptQualityScore: 0,
+				feedback: ["Scoring failed for this image."],
+				keywordsMatched: [],
+				criteria: [],
+			};
+		});
+	}
 }

@@ -1,1 +1,1 @@
-export type { Level } from '@/features/game/store';
+export type { Level } from "@/features/game/store";

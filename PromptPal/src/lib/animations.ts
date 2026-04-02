@@ -1,4 +1,4 @@
-import { Animated, Easing } from 'react-native';
+import { Animated, Easing } from "react-native";
 
 /**
  * Fade in animation
@@ -7,15 +7,15 @@ import { Animated, Easing } from 'react-native';
  * @returns Animation config
  */
 export const fadeIn = (
-  opacity: Animated.Value,
-  duration: number = 300
+	opacity: Animated.Value,
+	duration: number = 300,
 ): Animated.CompositeAnimation => {
-  return Animated.timing(opacity, {
-    toValue: 1,
-    duration,
-    easing: Easing.out(Easing.ease),
-    useNativeDriver: true,
-  });
+	return Animated.timing(opacity, {
+		toValue: 1,
+		duration,
+		easing: Easing.out(Easing.ease),
+		useNativeDriver: true,
+	});
 };
 
 /**
@@ -25,15 +25,15 @@ export const fadeIn = (
  * @returns Animation config
  */
 export const fadeOut = (
-  opacity: Animated.Value,
-  duration: number = 300
+	opacity: Animated.Value,
+	duration: number = 300,
 ): Animated.CompositeAnimation => {
-  return Animated.timing(opacity, {
-    toValue: 0,
-    duration,
-    easing: Easing.in(Easing.ease),
-    useNativeDriver: true,
-  });
+	return Animated.timing(opacity, {
+		toValue: 0,
+		duration,
+		easing: Easing.in(Easing.ease),
+		useNativeDriver: true,
+	});
 };
 
 /**
@@ -45,28 +45,28 @@ export const fadeOut = (
  * @returns Animation config
  */
 export const slideUp = (
-  translateY: Animated.Value,
-  opacity: Animated.Value,
-  duration: number = 400,
-  fromValue: number = 50
+	translateY: Animated.Value,
+	opacity: Animated.Value,
+	duration: number = 400,
+	fromValue: number = 50,
 ): Animated.CompositeAnimation => {
-  translateY.setValue(fromValue);
-  opacity.setValue(0);
+	translateY.setValue(fromValue);
+	opacity.setValue(0);
 
-  return Animated.parallel([
-    Animated.timing(translateY, {
-      toValue: 0,
-      duration,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }),
-    Animated.timing(opacity, {
-      toValue: 1,
-      duration,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }),
-  ]);
+	return Animated.parallel([
+		Animated.timing(translateY, {
+			toValue: 0,
+			duration,
+			easing: Easing.out(Easing.cubic),
+			useNativeDriver: true,
+		}),
+		Animated.timing(opacity, {
+			toValue: 1,
+			duration,
+			easing: Easing.out(Easing.ease),
+			useNativeDriver: true,
+		}),
+	]);
 };
 
 /**
@@ -78,25 +78,25 @@ export const slideUp = (
  * @returns Animation config
  */
 export const slideDown = (
-  translateY: Animated.Value,
-  opacity: Animated.Value,
-  duration: number = 400,
-  toValue: number = 50
+	translateY: Animated.Value,
+	opacity: Animated.Value,
+	duration: number = 400,
+	toValue: number = 50,
 ): Animated.CompositeAnimation => {
-  return Animated.parallel([
-    Animated.timing(translateY, {
-      toValue,
-      duration,
-      easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    }),
-    Animated.timing(opacity, {
-      toValue: 0,
-      duration,
-      easing: Easing.in(Easing.ease),
-      useNativeDriver: true,
-    }),
-  ]);
+	return Animated.parallel([
+		Animated.timing(translateY, {
+			toValue,
+			duration,
+			easing: Easing.in(Easing.cubic),
+			useNativeDriver: true,
+		}),
+		Animated.timing(opacity, {
+			toValue: 0,
+			duration,
+			easing: Easing.in(Easing.ease),
+			useNativeDriver: true,
+		}),
+	]);
 };
 
 /**
@@ -108,29 +108,29 @@ export const slideDown = (
  * @returns Animation config (looping)
  */
 export const pulse = (
-  scale: Animated.Value,
-  minScale: number = 0.95,
-  maxScale: number = 1.05,
-  duration: number = 1000
+	scale: Animated.Value,
+	minScale: number = 0.95,
+	maxScale: number = 1.05,
+	duration: number = 1000,
 ): Animated.CompositeAnimation => {
-  scale.setValue(minScale);
+	scale.setValue(minScale);
 
-  const pulseAnimation = Animated.sequence([
-    Animated.timing(scale, {
-      toValue: maxScale,
-      duration: duration / 2,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: true,
-    }),
-    Animated.timing(scale, {
-      toValue: minScale,
-      duration: duration / 2,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: true,
-    }),
-  ]);
+	const pulseAnimation = Animated.sequence([
+		Animated.timing(scale, {
+			toValue: maxScale,
+			duration: duration / 2,
+			easing: Easing.inOut(Easing.ease),
+			useNativeDriver: true,
+		}),
+		Animated.timing(scale, {
+			toValue: minScale,
+			duration: duration / 2,
+			easing: Easing.inOut(Easing.ease),
+			useNativeDriver: true,
+		}),
+	]);
 
-  return Animated.loop(pulseAnimation);
+	return Animated.loop(pulseAnimation);
 };
 
 /**
@@ -140,25 +140,25 @@ export const pulse = (
  * @returns Animation config
  */
 export const successBounce = (
-  scale: Animated.Value,
-  duration: number = 600
+	scale: Animated.Value,
+	duration: number = 600,
 ): Animated.CompositeAnimation => {
-  scale.setValue(1);
+	scale.setValue(1);
 
-  return Animated.sequence([
-    Animated.spring(scale, {
-      toValue: 1.2,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }),
-    Animated.spring(scale, {
-      toValue: 1,
-      friction: 4,
-      tension: 40,
-      useNativeDriver: true,
-    }),
-  ]);
+	return Animated.sequence([
+		Animated.spring(scale, {
+			toValue: 1.2,
+			friction: 3,
+			tension: 40,
+			useNativeDriver: true,
+		}),
+		Animated.spring(scale, {
+			toValue: 1,
+			friction: 4,
+			tension: 40,
+			useNativeDriver: true,
+		}),
+	]);
 };
 
 /**
@@ -168,39 +168,39 @@ export const successBounce = (
  * @returns Animation config
  */
 export const shake = (
-  translateX: Animated.Value,
-  duration: number = 400
+	translateX: Animated.Value,
+	duration: number = 400,
 ): Animated.CompositeAnimation => {
-  translateX.setValue(0);
+	translateX.setValue(0);
 
-  const shakeAnimation = Animated.sequence([
-    Animated.timing(translateX, {
-      toValue: -10,
-      duration: duration / 4,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    }),
-    Animated.timing(translateX, {
-      toValue: 10,
-      duration: duration / 4,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    }),
-    Animated.timing(translateX, {
-      toValue: -10,
-      duration: duration / 4,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    }),
-    Animated.timing(translateX, {
-      toValue: 0,
-      duration: duration / 4,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    }),
-  ]);
+	const shakeAnimation = Animated.sequence([
+		Animated.timing(translateX, {
+			toValue: -10,
+			duration: duration / 4,
+			easing: Easing.linear,
+			useNativeDriver: true,
+		}),
+		Animated.timing(translateX, {
+			toValue: 10,
+			duration: duration / 4,
+			easing: Easing.linear,
+			useNativeDriver: true,
+		}),
+		Animated.timing(translateX, {
+			toValue: -10,
+			duration: duration / 4,
+			easing: Easing.linear,
+			useNativeDriver: true,
+		}),
+		Animated.timing(translateX, {
+			toValue: 0,
+			duration: duration / 4,
+			easing: Easing.linear,
+			useNativeDriver: true,
+		}),
+	]);
 
-  return shakeAnimation;
+	return shakeAnimation;
 };
 
 /**
@@ -210,17 +210,17 @@ export const shake = (
  * @returns Animation config
  */
 export const scaleIn = (
-  scale: Animated.Value,
-  duration: number = 300
+	scale: Animated.Value,
+	duration: number = 300,
 ): Animated.CompositeAnimation => {
-  scale.setValue(0);
+	scale.setValue(0);
 
-  return Animated.spring(scale, {
-    toValue: 1,
-    friction: 7,
-    tension: 40,
-    useNativeDriver: true,
-  });
+	return Animated.spring(scale, {
+		toValue: 1,
+		friction: 7,
+		tension: 40,
+		useNativeDriver: true,
+	});
 };
 
 /**
@@ -230,13 +230,13 @@ export const scaleIn = (
  * @returns Animation config
  */
 export const scaleOut = (
-  scale: Animated.Value,
-  duration: number = 300
+	scale: Animated.Value,
+	duration: number = 300,
 ): Animated.CompositeAnimation => {
-  return Animated.timing(scale, {
-    toValue: 0,
-    duration,
-    easing: Easing.in(Easing.ease),
-    useNativeDriver: true,
-  });
+	return Animated.timing(scale, {
+		toValue: 0,
+		duration,
+		easing: Easing.in(Easing.ease),
+		useNativeDriver: true,
+	});
 };
