@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { Button, Card, Input, Badge } from "@/components/ui";
+import { BeginnerTemplatePromptInput } from "@/features/game/components/BeginnerTemplatePromptInput";
 import { PromptScaffoldHelper } from "@/features/game/components/PromptScaffold";
 
 type Tone = "neutral" | "accent" | "warning" | "secondary";
@@ -39,6 +40,9 @@ interface PracticeStyleChallengeProps {
 	promptPlaceholder: string;
 	scaffoldType?: "template" | "checklist" | "none";
 	scaffoldTemplate?: string;
+	/** Beginner + template: fixed scaffold text, editable `[slot]` fields only. */
+	beginnerTemplateLocked?: boolean;
+	onBeginnerTemplateSlotsFilledChange?: (allFilled: boolean) => void;
 	checklistItems?: string[];
 	matchedChecklistItems?: string[];
 	charCount: number;
@@ -130,6 +134,8 @@ export function PracticeStyleChallenge({
 	promptPlaceholder,
 	scaffoldType,
 	scaffoldTemplate,
+	beginnerTemplateLocked = false,
+	onBeginnerTemplateSlotsFilledChange,
 	checklistItems,
 	matchedChecklistItems,
 	charCount,
@@ -351,25 +357,38 @@ export function PracticeStyleChallenge({
 					<PromptScaffoldHelper
 						scaffoldType={scaffoldType}
 						scaffoldTemplate={scaffoldTemplate}
+						hideTemplateCard={beginnerTemplateLocked}
 						checklistItems={checklistItems}
 						matchedChecklistItems={matchedChecklistItems}
 					/>
 
 					<View className="rounded-[20px] border border-outline/15 bg-surface p-4">
-						<Input
-							ref={inputRef}
-							value={prompt}
-							onChangeText={onChangePrompt}
-							onFocus={onPromptFocus}
-							placeholder={promptPlaceholder}
-							multiline
-							className="mb-0"
-							inputAccessoryViewID={inputAccessoryViewID}
-							selection={inputSelection}
-							onSelectionChange={(event) =>
-								onPromptSelectionChange?.(event.nativeEvent.selection)
-							}
-						/>
+						{beginnerTemplateLocked && scaffoldTemplate ? (
+							<BeginnerTemplatePromptInput
+								template={scaffoldTemplate}
+								onChangePrompt={onChangePrompt}
+								onAllSlotsFilledChange={onBeginnerTemplateSlotsFilledChange}
+								onPromptFocus={onPromptFocus}
+								inputAccessoryViewID={inputAccessoryViewID}
+								firstInputRef={inputRef}
+								className="mb-1"
+							/>
+						) : (
+							<Input
+								ref={inputRef}
+								value={prompt}
+								onChangeText={onChangePrompt}
+								onFocus={onPromptFocus}
+								placeholder={promptPlaceholder}
+								multiline
+								className="mb-0"
+								inputAccessoryViewID={inputAccessoryViewID}
+								selection={inputSelection}
+								onSelectionChange={(event) =>
+									onPromptSelectionChange?.(event.nativeEvent.selection)
+								}
+							/>
+						)}
 
 						{wordCountLabel ? (
 							<View className="mb-3">

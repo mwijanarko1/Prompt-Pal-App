@@ -1,33 +1,24 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { Card } from "@/components/ui";
+import { findFirstPlaceholderRange } from "@/features/game/utils/scaffold";
 
 export const HINT_XP_COST = 25;
+
+export { findFirstPlaceholderRange };
 
 type ScaffoldType = "template" | "checklist" | "none";
 
 interface PromptScaffoldProps {
 	scaffoldType?: ScaffoldType;
 	scaffoldTemplate?: string;
+	/** When true, hide the template card (e.g. template is shown inline as locked text + slots). */
+	hideTemplateCard?: boolean;
 	checklistItems?: string[];
 	matchedChecklistItems?: string[];
 }
 
 const PLACEHOLDER_PATTERN = /\[[^[\]]+\]/g;
-
-export function findFirstPlaceholderRange(
-	template?: string,
-): { start: number; end: number } | null {
-	if (!template) return null;
-
-	const match = PLACEHOLDER_PATTERN.exec(template);
-	if (!match || match.index === undefined) return null;
-
-	return {
-		start: match.index,
-		end: match.index + match[0].length,
-	};
-}
 
 function renderTemplateText(template: string) {
 	const segments = template.split(PLACEHOLDER_PATTERN);
@@ -63,11 +54,14 @@ function renderTemplateText(template: string) {
 export function PromptScaffoldHelper({
 	scaffoldType,
 	scaffoldTemplate,
+	hideTemplateCard = false,
 	checklistItems = [],
 	matchedChecklistItems = [],
 }: PromptScaffoldProps) {
 	const shouldShowTemplate =
-		scaffoldType === "template" && Boolean(scaffoldTemplate);
+		scaffoldType === "template" &&
+		Boolean(scaffoldTemplate) &&
+		!hideTemplateCard;
 	const shouldShowChecklist =
 		(scaffoldType === "template" || scaffoldType === "checklist") &&
 		checklistItems.length > 0;

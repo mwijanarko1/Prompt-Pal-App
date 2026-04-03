@@ -40,6 +40,7 @@ import {
 } from "@/features/game/components/PracticeStyleChallenge";
 import { HtmlPreview } from "@/features/game/components/HtmlPreview";
 import { CopyTargetPreview } from "@/features/game/components/CopyTargetPreview";
+import { BeginnerTemplatePromptInput } from "@/features/game/components/BeginnerTemplatePromptInput";
 import {
 	findFirstPlaceholderRange,
 	HINT_XP_COST,
@@ -49,8 +50,9 @@ import type { CodeTestResult } from "@/lib/scoring/codeScoring";
 import type { CopyScoringResult } from "@/lib/scoring/copyScoring";
 import { getChecklistMatchResult } from "@/lib/scaffolding/checklistMatching";
 import {
-	getInitialPromptForLevel,
+	getInitialPromptStateForLevel,
 	getLevelChecklistItems,
+	isBeginnerTemplateLocked,
 } from "@/features/game/utils/scaffold";
 
 const { height: screenHeight } = Dimensions.get("window");
@@ -151,6 +153,7 @@ export default function GameScreen() {
 	const [promptSelection, setPromptSelection] = useState<
 		{ start: number; end?: number } | undefined
 	>(undefined);
+	const [beginnerSlotsFilled, setBeginnerSlotsFilled] = useState(true);
 
 	// Refs for keyboard scrolling
 	const scrollViewRef = useRef<ScrollView>(null);
@@ -191,6 +194,10 @@ export default function GameScreen() {
 	const { updateStreak, addXP, spendXP, xp } = useUserProgressStore();
 
 	const checklistItems = useMemo(() => getLevelChecklistItems(level), [level]);
+	const beginnerLocked = useMemo(
+		() => isBeginnerTemplateLocked(level),
+		[level],
+	);
 	const matchedChecklistItems = useMemo(
 		() => getChecklistMatchResult(prompt, checklistItems).matchedItems,
 		[prompt, checklistItems],
@@ -369,14 +376,22 @@ export default function GameScreen() {
 	}, [id, startLevel, user?.id]);
 
 	useEffect(() => {
-		const nextPrompt = getInitialPromptForLevel(level);
+		const nextPrompt = getInitialPromptStateForLevel(level);
 		setPrompt(nextPrompt);
 		setPromptSelection(undefined);
 		hasEditedPromptRef.current = false;
+		setBeginnerSlotsFilled(!isBeginnerTemplateLocked(level));
 		shouldJumpToTemplateRef.current = Boolean(
-			level?.scaffoldType === "template" && nextPrompt,
+			level?.scaffoldType === "template" &&
+				nextPrompt &&
+				!isBeginnerTemplateLocked(level),
 		);
-	}, [level?.id, level?.scaffoldType, level?.scaffoldTemplate]);
+	}, [
+		level?.id,
+		level?.scaffoldType,
+		level?.scaffoldTemplate,
+		level?.difficulty,
+	]);
 
 	// Hint cooldown timer
 	useEffect(() => {
@@ -436,8 +451,10 @@ export default function GameScreen() {
 	}, []);
 
 	const handlePromptFocus = useCallback(() => {
+		if (!level || isBeginnerTemplateLocked(level)) {
+			return;
+		}
 		if (
-			!level ||
 			level.scaffoldType !== "template" ||
 			!level.scaffoldTemplate ||
 			hasEditedPromptRef.current ||
@@ -455,6 +472,10 @@ export default function GameScreen() {
 			setPromptSelection(range);
 		});
 	}, [level, prompt]);
+
+	const handleBeginnerSlotsFilledChange = useCallback((filled: boolean) => {
+		setBeginnerSlotsFilled(filled);
+	}, []);
 
 	const handleGetHint = useCallback(async () => {
 		if (!level || isLoadingHint || hintCooldown > 0) return;
@@ -1169,6 +1190,8 @@ export default function GameScreen() {
 				promptPlaceholder="Describe what you want to build..."
 				scaffoldType={level.scaffoldType}
 				scaffoldTemplate={level.scaffoldTemplate}
+				beginnerTemplateLocked={beginnerLocked}
+				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1189,7 +1212,11 @@ export default function GameScreen() {
 				onSubmit={handleGenerate}
 				submitLabel="Let's Build It"
 				submitIcon="flash-outline"
-				submitDisabled={prompt.trim().length === 0 || isGenerating}
+				submitDisabled={
+					prompt.trim().length === 0 ||
+					isGenerating ||
+					(beginnerLocked && !beginnerSlotsFilled)
+				}
 				isSubmitting={isGenerating}
 			/>
 		);
@@ -1260,6 +1287,8 @@ export default function GameScreen() {
 				promptPlaceholder="Describe the audience and tone you want..."
 				scaffoldType={level.scaffoldType}
 				scaffoldTemplate={level.scaffoldTemplate}
+				beginnerTemplateLocked={beginnerLocked}
+				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1287,7 +1316,11 @@ export default function GameScreen() {
 				onSubmit={handleGenerate}
 				submitLabel="Let's Write It"
 				submitIcon="create-outline"
-				submitDisabled={prompt.trim().length === 0 || isGenerating}
+				submitDisabled={
+					prompt.trim().length === 0 ||
+					isGenerating ||
+					(beginnerLocked && !beginnerSlotsFilled)
+				}
 				isSubmitting={isGenerating}
 			/>
 		);
@@ -1361,25 +1394,40 @@ export default function GameScreen() {
 						<PromptScaffoldHelper
 							scaffoldType={level.scaffoldType}
 							scaffoldTemplate={level.scaffoldTemplate}
+							hideTemplateCard={beginnerLocked}
 							checklistItems={checklistItems}
 							matchedChecklistItems={matchedChecklistItems}
 						/>
-						<Input
-							ref={promptInputRef}
-							value={prompt}
-							onChangeText={handlePromptChange}
-							onFocus={handlePromptFocus}
-							placeholder="Describe what you see..."
-							multiline
-							className="text-base text-onSurface min-h-[100px] bg-transparent border-0 p-0 mb-3"
-							inputAccessoryViewID={
-								Platform.OS === "ios" ? inputAccessoryId : undefined
-							}
-							selection={promptSelection}
-							onSelectionChange={(event) =>
-								setPromptSelection(event.nativeEvent.selection)
-							}
-						/>
+						{beginnerLocked && level.scaffoldTemplate ? (
+							<BeginnerTemplatePromptInput
+								template={level.scaffoldTemplate}
+								onChangePrompt={handlePromptChange}
+								onAllSlotsFilledChange={handleBeginnerSlotsFilledChange}
+								onPromptFocus={handlePromptFocus}
+								inputAccessoryViewID={
+									Platform.OS === "ios" ? inputAccessoryId : undefined
+								}
+								firstInputRef={promptInputRef}
+								className="mb-3 min-h-[100px] content-start"
+							/>
+						) : (
+							<Input
+								ref={promptInputRef}
+								value={prompt}
+								onChangeText={handlePromptChange}
+								onFocus={handlePromptFocus}
+								placeholder="Describe what you see..."
+								multiline
+								className="text-base text-onSurface min-h-[100px] bg-transparent border-0 p-0 mb-3"
+								inputAccessoryViewID={
+									Platform.OS === "ios" ? inputAccessoryId : undefined
+								}
+								selection={promptSelection}
+								onSelectionChange={(event) =>
+									setPromptSelection(event.nativeEvent.selection)
+								}
+							/>
+						)}
 
 						<View className="flex-row items-center">
 							<View className="flex-row">
@@ -1407,6 +1455,10 @@ export default function GameScreen() {
 					<Button
 						onPress={handleGenerate}
 						loading={isGenerating}
+						disabled={
+							prompt.trim().length === 0 ||
+							(beginnerLocked && !beginnerSlotsFilled)
+						}
 						variant="primary"
 						size="lg"
 						fullWidth

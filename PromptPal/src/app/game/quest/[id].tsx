@@ -44,6 +44,7 @@ import {
 } from "@/features/game/components/PracticeStyleChallenge";
 import { HtmlPreview } from "@/features/game/components/HtmlPreview";
 import { CopyTargetPreview } from "@/features/game/components/CopyTargetPreview";
+import { BeginnerTemplatePromptInput } from "@/features/game/components/BeginnerTemplatePromptInput";
 import {
 	findFirstPlaceholderRange,
 	HINT_XP_COST,
@@ -54,8 +55,9 @@ import type { CopyScoringResult } from "@/lib/scoring/copyScoring";
 import { buildQuestHelpContent } from "@/features/game/utils/questHelp";
 import { getChecklistMatchResult } from "@/lib/scaffolding/checklistMatching";
 import {
-	getInitialPromptForLevel,
+	getInitialPromptStateForLevel,
 	getLevelChecklistItems,
+	isBeginnerTemplateLocked,
 } from "@/features/game/utils/scaffold";
 
 const { height: screenHeight } = Dimensions.get("window");
@@ -158,6 +160,7 @@ export default function QuestScreen() {
 	const [promptSelection, setPromptSelection] = useState<
 		{ start: number; end?: number } | undefined
 	>(undefined);
+	const [beginnerSlotsFilled, setBeginnerSlotsFilled] = useState(true);
 
 	// Refs for keyboard scrolling
 	const scrollViewRef = useRef<ScrollView>(null);
@@ -203,6 +206,10 @@ export default function QuestScreen() {
 		useUserProgressStore();
 
 	const checklistItems = useMemo(() => getLevelChecklistItems(level), [level]);
+	const beginnerLocked = useMemo(
+		() => isBeginnerTemplateLocked(level),
+		[level],
+	);
 	const matchedChecklistItems = useMemo(
 		() => getChecklistMatchResult(prompt, checklistItems).matchedItems,
 		[prompt, checklistItems],
@@ -313,14 +320,22 @@ export default function QuestScreen() {
 	}, [id, startLevel, user?.id]);
 
 	useEffect(() => {
-		const nextPrompt = getInitialPromptForLevel(level);
+		const nextPrompt = getInitialPromptStateForLevel(level);
 		setPrompt(nextPrompt);
 		setPromptSelection(undefined);
 		hasEditedPromptRef.current = false;
+		setBeginnerSlotsFilled(!isBeginnerTemplateLocked(level));
 		shouldJumpToTemplateRef.current = Boolean(
-			level?.scaffoldType === "template" && nextPrompt,
+			level?.scaffoldType === "template" &&
+				nextPrompt &&
+				!isBeginnerTemplateLocked(level),
 		);
-	}, [level?.id, level?.scaffoldType, level?.scaffoldTemplate]);
+	}, [
+		level?.id,
+		level?.scaffoldType,
+		level?.scaffoldTemplate,
+		level?.difficulty,
+	]);
 
 	// Hint cooldown timer
 	useEffect(() => {
@@ -339,8 +354,10 @@ export default function QuestScreen() {
 	}, []);
 
 	const handlePromptFocus = useCallback(() => {
+		if (!level || isBeginnerTemplateLocked(level)) {
+			return;
+		}
 		if (
-			!level ||
 			level.scaffoldType !== "template" ||
 			!level.scaffoldTemplate ||
 			hasEditedPromptRef.current ||
@@ -358,6 +375,10 @@ export default function QuestScreen() {
 			setPromptSelection(range);
 		});
 	}, [level, prompt]);
+
+	const handleBeginnerSlotsFilledChange = useCallback((filled: boolean) => {
+		setBeginnerSlotsFilled(filled);
+	}, []);
 
 	// Keyboard handling - keep input visible and avoid unexpected dismissals
 	useEffect(() => {
@@ -1152,6 +1173,8 @@ export default function QuestScreen() {
 				promptPlaceholder="Describe the behavior, output, and constraints you want from the model..."
 				scaffoldType={level.scaffoldType}
 				scaffoldTemplate={level.scaffoldTemplate}
+				beginnerTemplateLocked={beginnerLocked}
+				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1173,7 +1196,10 @@ export default function QuestScreen() {
 				submitLabel="Generate"
 				submitIcon="flash-outline"
 				submitDisabled={
-					prompt.trim().length === 0 || isGenerating || quest?.completed
+					prompt.trim().length === 0 ||
+					isGenerating ||
+					quest?.completed ||
+					(beginnerLocked && !beginnerSlotsFilled)
 				}
 				isSubmitting={isGenerating}
 			/>
@@ -1246,6 +1272,8 @@ export default function QuestScreen() {
 				promptPlaceholder="Describe the audience, tone, structure, and output you want..."
 				scaffoldType={level.scaffoldType}
 				scaffoldTemplate={level.scaffoldTemplate}
+				beginnerTemplateLocked={beginnerLocked}
+				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1274,7 +1302,10 @@ export default function QuestScreen() {
 				submitLabel="Generate"
 				submitIcon="create-outline"
 				submitDisabled={
-					prompt.trim().length === 0 || isGenerating || quest?.completed
+					prompt.trim().length === 0 ||
+					isGenerating ||
+					quest?.completed ||
+					(beginnerLocked && !beginnerSlotsFilled)
 				}
 				isSubmitting={isGenerating}
 			/>
@@ -1351,29 +1382,44 @@ export default function QuestScreen() {
 						<PromptScaffoldHelper
 							scaffoldType={level.scaffoldType}
 							scaffoldTemplate={level.scaffoldTemplate}
+							hideTemplateCard={beginnerLocked}
 							checklistItems={checklistItems}
 							matchedChecklistItems={matchedChecklistItems}
 						/>
-						<Input
-							ref={promptInputRef}
-							value={prompt}
-							onChangeText={handlePromptChange}
-							onFocus={handlePromptFocus}
-							placeholder={
-								level.type === "image"
-									? "Describe the floating islands, the nebula sky..."
-									: "Enter your prompt here..."
-							}
-							multiline
-							className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
-							inputAccessoryViewID={
-								Platform.OS === "ios" ? inputAccessoryId : undefined
-							}
-							selection={promptSelection}
-							onSelectionChange={(event) =>
-								setPromptSelection(event.nativeEvent.selection)
-							}
-						/>
+						{beginnerLocked && level.scaffoldTemplate ? (
+							<BeginnerTemplatePromptInput
+								template={level.scaffoldTemplate}
+								onChangePrompt={handlePromptChange}
+								onAllSlotsFilledChange={handleBeginnerSlotsFilledChange}
+								onPromptFocus={handlePromptFocus}
+								inputAccessoryViewID={
+									Platform.OS === "ios" ? inputAccessoryId : undefined
+								}
+								firstInputRef={promptInputRef}
+								className="mb-4 min-h-[120px] content-start"
+							/>
+						) : (
+							<Input
+								ref={promptInputRef}
+								value={prompt}
+								onChangeText={handlePromptChange}
+								onFocus={handlePromptFocus}
+								placeholder={
+									level.type === "image"
+										? "Describe the floating islands, the nebula sky..."
+										: "Enter your prompt here..."
+								}
+								multiline
+								className="text-lg text-onSurface min-h-[120px] bg-transparent border-0 p-0 mb-4"
+								inputAccessoryViewID={
+									Platform.OS === "ios" ? inputAccessoryId : undefined
+								}
+								selection={promptSelection}
+								onSelectionChange={(event) =>
+									setPromptSelection(event.nativeEvent.selection)
+								}
+							/>
+						)}
 
 						<View className="flex-row items-center">
 							<View className="flex-row">
@@ -1403,7 +1449,11 @@ export default function QuestScreen() {
 					<Button
 						onPress={handleGenerate}
 						loading={isGenerating}
-						disabled={quest?.completed}
+						disabled={
+							quest?.completed ||
+							prompt.trim().length === 0 ||
+							(beginnerLocked && !beginnerSlotsFilled)
+						}
 						variant="primary"
 						size="lg"
 						fullWidth
