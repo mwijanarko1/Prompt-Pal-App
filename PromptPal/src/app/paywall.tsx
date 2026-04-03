@@ -9,6 +9,7 @@ import {
 	Text,
 	View,
 } from "react-native";
+import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -20,7 +21,6 @@ import {
 	getLegalUrls,
 	getManagementUrl,
 	getSubscriptionPackageOptions,
-	isExpoGoRuntime,
 	isProEntitled,
 	isSubscriptionFeatureAvailable,
 	purchaseSubscriptionPackage,
@@ -30,7 +30,7 @@ import {
 } from "@/lib/subscriptions";
 
 function getUnsupportedPlatformCopy() {
-	if (Platform.OS === "ios" && isExpoGoRuntime()) {
+	if (Platform.OS === "ios" && Constants.executionEnvironment === "storeClient") {
 		return {
 			title: "Subscriptions need a development build",
 			body: "PromptPal Pro purchases are not available inside Expo Go. Use a development build or RevenueCat Test Store to test subscription flows.",
@@ -98,9 +98,9 @@ export default function PaywallScreen() {
 
 	const syncAfterPurchaseChange = useCallback(async () => {
 		const status = await syncCurrentUserSubscription();
-		await applyStatus(status, { userId });
+		applyStatus(status);
 		return status;
-	}, [applyStatus, userId]);
+	}, [applyStatus]);
 
 	useEffect(() => {
 		if (!subscriptionAvailable) {
@@ -183,13 +183,10 @@ export default function PaywallScreen() {
 			} catch (error) {
 				const customerInfo = await getCustomerInfo().catch(() => null);
 				if (customerInfo && isProEntitled(customerInfo)) {
-					await applyStatus(
-						{
-							tier: "pro",
-							managementUrl: getManagementUrl(customerInfo),
-						},
-						{ userId },
-					);
+					applyStatus({
+						tier: "pro",
+						managementUrl: getManagementUrl(customerInfo),
+					});
 					Alert.alert(
 						"Purchase complete",
 						"Your subscription is active on this device. Backend syncing will retry the next time the app connects.",
@@ -202,7 +199,7 @@ export default function PaywallScreen() {
 				setProcessingIdentifier(null);
 			}
 		},
-		[applyStatus, goAfterEntitlement, syncAfterPurchaseChange, userId],
+		[applyStatus, goAfterEntitlement, syncAfterPurchaseChange],
 	);
 
 	const handleRestorePurchases = useCallback(async () => {
@@ -226,13 +223,10 @@ export default function PaywallScreen() {
 		} catch (error) {
 			const customerInfo = await getCustomerInfo().catch(() => null);
 			if (customerInfo && isProEntitled(customerInfo)) {
-				await applyStatus(
-					{
-						tier: "pro",
-						managementUrl: getManagementUrl(customerInfo),
-					},
-					{ userId },
-				);
+				applyStatus({
+					tier: "pro",
+					managementUrl: getManagementUrl(customerInfo),
+				});
 				Alert.alert("Restore complete", "Your Pro access is active on this device.", [
 					{ text: "OK", onPress: goAfterEntitlement },
 				]);
@@ -242,7 +236,7 @@ export default function PaywallScreen() {
 		} finally {
 			setProcessingIdentifier(null);
 		}
-	}, [applyStatus, goAfterEntitlement, syncAfterPurchaseChange, userId]);
+	}, [applyStatus, goAfterEntitlement, syncAfterPurchaseChange]);
 
 	return (
 		<SafeAreaView className="flex-1 bg-background" edges={["top", "left", "right"]}>

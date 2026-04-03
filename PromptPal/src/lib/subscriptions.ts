@@ -61,15 +61,11 @@ export function getLegalUrls() {
 	};
 }
 
-export function isExpoGoRuntime(): boolean {
-	return Boolean(Constants.expoGoConfig);
-}
-
 export function isSubscriptionFeatureAvailable(): boolean {
 	return (
 		Platform.OS === "ios" &&
 		Boolean(IOS_API_KEY) &&
-		!isExpoGoRuntime()
+		Constants.executionEnvironment !== "storeClient"
 	);
 }
 
@@ -87,7 +83,7 @@ export async function configureRevenueCat(
 		if (
 			Platform.OS === "ios" &&
 			Boolean(IOS_API_KEY) &&
-			isExpoGoRuntime() &&
+			Constants.executionEnvironment === "storeClient" &&
 			!hasLoggedExpoGoFallback
 		) {
 			console.info(

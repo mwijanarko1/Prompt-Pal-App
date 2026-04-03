@@ -130,15 +130,13 @@ function TabsNavigator() {
 		return <TabShellFallback message="Restoring your learning space..." />;
 	}
 
-	const tabContent = !hasCompletedOnboarding ? (
-		<OnboardingFlow />
-	) : (
-		<NativeTabShell />
-	);
+	if (!hasCompletedOnboarding) {
+		return <OnboardingFlow />;
+	}
 
 	return (
 		<SubscriptionAccessGuard>
-			{tabContent}
+			<NativeTabShell />
 		</SubscriptionAccessGuard>
 	);
 }

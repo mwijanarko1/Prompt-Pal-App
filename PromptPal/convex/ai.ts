@@ -30,7 +30,6 @@ if (!GEMINI_API_KEY) {
 const google = createGoogleGenerativeAI({
 	apiKey: GEMINI_API_KEY,
 });
-const REQUIRE_PRO_FOR_AI = process.env.REQUIRE_PRO_FOR_AI === "1";
 
 type QuotaResult = {
 	allowed: boolean;
@@ -285,32 +284,6 @@ async function logAIGenerationFailure(
 	}
 }
 
-async function assertProAccessIfRequired(
-	ctx: any,
-	userId: string,
-	appId: string,
-): Promise<void> {
-	if (!REQUIRE_PRO_FOR_AI) {
-		return;
-	}
-
-	const tier = (await ctx.runQuery(internal.queries.getUserPlanTier, {
-		userId,
-		appId,
-	})) as QuotaResult["tier"];
-
-	if (tier === "pro") {
-		return;
-	}
-
-	throw new ConvexError<AppAIErrorData>({
-		code: "SUBSCRIPTION_REQUIRED",
-		message: "PromptPal Pro is required to use AI features.",
-		retryable: false,
-		statusCode: 403,
-	});
-}
-
 const MAX_PROMPT_LENGTH = 8000;
 const MAX_CODE_LENGTH = 100_000;
 const MAX_COPY_LENGTH = 10_000;
@@ -416,7 +389,6 @@ export const generateText = action({
 		if (!identity) throw new Error("Not authenticated");
 
 		try {
-			await assertProAccessIfRequired(ctx, identity.subject, args.appId);
 			const { text, tokensUsed, quotaCheck } = await generateTextWithQuota(
 				ctx,
 				{
@@ -465,7 +437,6 @@ export const evaluateCodeSubmission = action({
 	): Promise<PromptEvaluationResult & { testResults: any[] }> => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) throw new Error("Not authenticated");
-		await assertProAccessIfRequired(ctx, identity.subject, "prompt-pal");
 
 		if (
 			args.userPrompt.length > MAX_PROMPT_LENGTH ||
@@ -786,7 +757,6 @@ export const evaluateCopySubmission = action({
 	handler: async (ctx, args) => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) throw new Error("Not authenticated");
-		await assertProAccessIfRequired(ctx, identity.subject, "prompt-pal");
 
 		if (
 			args.userPrompt.length > MAX_PROMPT_LENGTH ||
@@ -956,7 +926,6 @@ export const generateImage = action({
 	handler: async (ctx, args): Promise<GenerateImageResult> => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) throw new Error("Not authenticated");
-		await assertProAccessIfRequired(ctx, identity.subject, args.appId);
 
 		if (args.prompt.length > MAX_PROMPT_LENGTH) {
 			throw new ConvexError<AppAIErrorData>({
@@ -1089,7 +1058,6 @@ export const evaluateImage = action({
 	handler: async (ctx, args): Promise<EvaluateImageResult> => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) throw new Error("Not authenticated");
-		await assertProAccessIfRequired(ctx, identity.subject, "prompt-pal");
 
 		if (args.userPrompt && args.userPrompt.length > MAX_PROMPT_LENGTH) {
 			throw new Error("Input too long");

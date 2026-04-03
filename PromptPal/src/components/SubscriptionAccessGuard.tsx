@@ -27,15 +27,12 @@ export function SubscriptionAccessGuard({
 	const gateEnabled = isSubscriptionGateEnabled();
 	const tier = useSubscriptionStore((state) => state.tier);
 	const isLoading = useSubscriptionStore((state) => state.isLoading);
-	const hasResolvedSubscription = useSubscriptionStore(
-		(state) => state.hasResolvedSubscription,
-	);
 
 	if (!gateEnabled) {
 		return <>{children}</>;
 	}
 
-	if (isLoading || !hasResolvedSubscription) {
+	if (isLoading) {
 		return <GateLoading />;
 	}
 

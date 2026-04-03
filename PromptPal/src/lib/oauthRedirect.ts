@@ -1,4 +1,5 @@
 import * as AuthSession from "expo-auth-session";
+import { filterOAuthRedirectCandidates } from "@/lib/oauthRedirectCandidates";
 
 interface ClerkErrorShape {
 	message?: string;
@@ -9,35 +10,18 @@ interface ClerkErrorShape {
 	}>;
 }
 
-/** Redirect URLs that fail to open (e.g. promptpal:/// with empty path) */
-const INVALID_REDIRECT_PATTERNS = [
-	/^promptpal:\/\/\/?$/, // promptpal:// or promptpal:///
-	/^promptpal:\/\/\s*$/, // trailing whitespace
-];
-
-const EXPO_GO_REDIRECT_PREFIXES = ['exp://', 'exps://', 'https://']
-
-function isValidRedirectUrl(url: string): boolean {
-	if (!url || typeof url !== "string") return false;
-	const trimmed = url.trim();
-
-	if (trimmed.startsWith("promptpal://")) {
-		const hasPath =
-			trimmed.length > "promptpal://".length &&
-			!INVALID_REDIRECT_PATTERNS.some((p) => p.test(trimmed));
-		return hasPath;
-	}
-
-	// Expo Go and web-based auth flows can generate non-custom-scheme redirects.
-	return EXPO_GO_REDIRECT_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
-}
-
 /**
  * Provide a prioritized set of native redirect URLs for Clerk SSO.
  * Filters out malformed URLs (e.g. promptpal:///) that cause "Unable to open URL".
  */
 export function getOAuthRedirectCandidates(): string[] {
 	const dynamicCandidates = [
+		AuthSession.makeRedirectUri({
+			path: "sso-callback",
+		}),
+		AuthSession.makeRedirectUri({
+			path: "oauth-native-callback",
+		}),
 		AuthSession.makeRedirectUri({
 			scheme: "promptpal",
 			path: "sso-callback",
@@ -54,11 +38,11 @@ export function getOAuthRedirectCandidates(): string[] {
 		"promptpal://oauth-native-callback",
 	];
 
-	const candidates = [envOverride, ...dynamicCandidates, ...fallbacks]
-		.filter((value): value is string => Boolean(value))
-		.filter(isValidRedirectUrl);
-
-	return Array.from(new Set(candidates));
+	return filterOAuthRedirectCandidates([
+		envOverride,
+		...dynamicCandidates,
+		...fallbacks,
+	]);
 }
 
 /**

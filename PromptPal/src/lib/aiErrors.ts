@@ -1,6 +1,5 @@
 export type AppAIErrorCode =
 	| "APP_QUOTA_EXCEEDED"
-	| "SUBSCRIPTION_REQUIRED"
 	| "AI_PROVIDER_QUOTA_EXCEEDED"
 	| "AI_PROVIDER_RATE_LIMITED"
 	| "AI_PROVIDER_UNAVAILABLE"
@@ -40,7 +39,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isAppAIErrorCode(value: unknown): value is AppAIErrorCode {
 	return (
 		value === "APP_QUOTA_EXCEEDED" ||
-		value === "SUBSCRIPTION_REQUIRED" ||
 		value === "AI_PROVIDER_QUOTA_EXCEEDED" ||
 		value === "AI_PROVIDER_RATE_LIMITED" ||
 		value === "AI_PROVIDER_UNAVAILABLE" ||
@@ -95,13 +93,6 @@ function mapKnownErrorCode(error: AppAIErrorData): AIErrorPresentation {
 				message: error.message,
 				isOperational: true,
 			};
-		case "SUBSCRIPTION_REQUIRED":
-			return {
-				code: error.code,
-				title: "Subscription Required",
-				message: error.message,
-				isOperational: true,
-			};
 		case "AI_PROVIDER_QUOTA_EXCEEDED":
 			return {
 				code: error.code,
@@ -146,15 +137,6 @@ export function getAIErrorPresentation(error: unknown): AIErrorPresentation {
 		return {
 			code: "APP_QUOTA_EXCEEDED",
 			title: "Usage Limit Reached",
-			message,
-			isOperational: true,
-		};
-	}
-
-	if (normalized.includes("subscription required")) {
-		return {
-			code: "SUBSCRIPTION_REQUIRED",
-			title: "Subscription Required",
 			message,
 			isOperational: true,
 		};

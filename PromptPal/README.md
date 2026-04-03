@@ -164,13 +164,6 @@ Users earn XP, maintain daily streaks, complete quests, and compete on global le
 
 Local `.env` files are not bundled into EAS builds. Configure environment variables via EAS Secrets before building. See [docs/operations/DEPLOYMENT.md](../docs/operations/DEPLOYMENT.md) for setup instructions.
 
-### Subscription Gating
-
-- `EXPO_PUBLIC_REQUIRE_SUBSCRIPTION=1` gates client navigation behind the paywall when the iOS subscription feature is available.
-- `REQUIRE_PRO_FOR_AI=1` gates Convex AI actions for non-Pro users on the server.
-- Enable both flags together for a true “Pro required” product. Enabling only one creates split behavior between the UI gate and backend AI access.
-- With both flags enabled, the paywall resolves before onboarding so users do not enter onboarding AI steps without Pro access.
-
 ---
 
 ## 📁 Project Structure

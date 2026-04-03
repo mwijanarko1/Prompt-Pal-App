@@ -25,10 +25,7 @@ import Svg, { Circle } from "react-native-svg";
 import { StatCard } from "@/components/ui";
 import type { UsageStats } from "@/lib/usage";
 import { useSubscriptionStore } from "@/features/subscription/store";
-import {
-	isExpoGoRuntime,
-	isSubscriptionFeatureAvailable,
-} from "@/lib/subscriptions";
+import { isSubscriptionFeatureAvailable } from "@/lib/subscriptions";
 
 const { width } = Dimensions.get("window");
 
@@ -327,9 +324,7 @@ export default function ProfileScreen() {
 		if (!subscriptionAvailable) {
 			Alert.alert(
 				"Unavailable on this device",
-				isExpoGoRuntime()
-					? "PromptPal Pro purchases need a development build or RevenueCat Test Store inside Expo Go."
-					: "PromptPal Pro purchases are currently available on iPhone only.",
+				"PromptPal Pro purchases are currently available on iOS only.",
 			);
 			return;
 		}
@@ -442,9 +437,7 @@ export default function ProfileScreen() {
 										? isPro
 											? "Manage your subscription or restore purchases."
 											: "Upgrade on iPhone to unlock PromptPal Pro."
-										: isExpoGoRuntime()
-											? "Open a development build or use RevenueCat Test Store to test purchases in Expo Go."
-											: "Subscriptions are currently available on iPhone only."}
+										: "Subscriptions are currently available on iPhone only."}
 								</Text>
 							</View>
 							<Pressable

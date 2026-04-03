@@ -434,7 +434,7 @@ export const refundQuotaUsage = internalMutation({
 });
 
 /**
- * Update user plan (used by RevenueCat sync and webhook reconciliation)
+ * Update user plan (used by Superwall webhooks)
  */
 export const updateUserPlan = internalMutation({
 	args: {

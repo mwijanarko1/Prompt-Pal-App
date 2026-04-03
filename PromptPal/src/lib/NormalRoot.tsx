@@ -57,9 +57,6 @@ function AppInitializer() {
 	const beginSubscriptionSync = useSubscriptionStore(
 		(state) => state.beginSync,
 	);
-	const hydrateSubscriptionFromCache = useSubscriptionStore(
-		(state) => state.hydrateFromCache,
-	);
 	const applySubscriptionStatus = useSubscriptionStore(
 		(state) => state.applyStatus,
 	);
@@ -97,27 +94,16 @@ function AppInitializer() {
 		}
 
 		if (!isSubscriptionFeatureAvailable()) {
-			void applySubscriptionStatus(
-				{
-					tier: "free",
-					managementUrl: null,
-				},
-				{
-					userId,
-					markResolved: true,
-				},
-			);
+			applySubscriptionStatus({
+				tier: "free",
+				managementUrl: null,
+			});
 			return;
 		}
 
 		let cancelled = false;
 
 		const syncSubscription = async () => {
-			await hydrateSubscriptionFromCache(userId);
-			if (cancelled) {
-				return;
-			}
-
 			beginSubscriptionSync();
 
 			try {
@@ -125,10 +111,7 @@ function AppInitializer() {
 				await configureRevenueCat(userId);
 				const status = await syncCurrentUserSubscription();
 				if (!cancelled) {
-					await applySubscriptionStatus(status, {
-						userId,
-						markResolved: true,
-					});
+					applySubscriptionStatus(status);
 				}
 			} catch (error) {
 				const localCustomerInfo = await getCustomerInfo().catch(() => null);
@@ -137,16 +120,10 @@ function AppInitializer() {
 				}
 
 				if (localCustomerInfo) {
-					await applySubscriptionStatus(
-						{
-							tier: isProEntitled(localCustomerInfo) ? "pro" : "free",
-							managementUrl: getManagementUrl(localCustomerInfo),
-						},
-						{
-							userId,
-							markResolved: true,
-						},
-					);
+					applySubscriptionStatus({
+						tier: isProEntitled(localCustomerInfo) ? "pro" : "free",
+						managementUrl: getManagementUrl(localCustomerInfo),
+					});
 					return;
 				}
 
@@ -155,6 +132,10 @@ function AppInitializer() {
 						? error.message
 						: "Failed to sync subscription status.",
 				);
+				applySubscriptionStatus({
+					tier: "free",
+					managementUrl: null,
+				});
 			}
 		};
 
@@ -166,7 +147,6 @@ function AppInitializer() {
 	}, [
 		applySubscriptionStatus,
 		beginSubscriptionSync,
-		hydrateSubscriptionFromCache,
 		isLoaded,
 		isSignedIn,
 		markSubscriptionSyncError,
