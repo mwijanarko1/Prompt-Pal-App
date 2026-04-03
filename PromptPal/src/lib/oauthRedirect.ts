@@ -15,14 +15,21 @@ const INVALID_REDIRECT_PATTERNS = [
 	/^promptpal:\/\/\s*$/, // trailing whitespace
 ];
 
+const EXPO_GO_REDIRECT_PREFIXES = ['exp://', 'exps://', 'https://']
+
 function isValidRedirectUrl(url: string): boolean {
 	if (!url || typeof url !== "string") return false;
 	const trimmed = url.trim();
-	if (!trimmed.startsWith("promptpal://")) return false;
-	const hasPath =
-		trimmed.length > "promptpal://".length &&
-		!INVALID_REDIRECT_PATTERNS.some((p) => p.test(trimmed));
-	return hasPath;
+
+	if (trimmed.startsWith("promptpal://")) {
+		const hasPath =
+			trimmed.length > "promptpal://".length &&
+			!INVALID_REDIRECT_PATTERNS.some((p) => p.test(trimmed));
+		return hasPath;
+	}
+
+	// Expo Go and web-based auth flows can generate non-custom-scheme redirects.
+	return EXPO_GO_REDIRECT_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
 }
 
 /**
