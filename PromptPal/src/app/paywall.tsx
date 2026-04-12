@@ -9,7 +9,6 @@ import {
 	Text,
 	View,
 } from "react-native";
-import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -22,6 +21,7 @@ import {
 	getManagementUrl,
 	getSubscriptionPackageOptions,
 	isProEntitled,
+	isRunningInExpoGo,
 	isSubscriptionFeatureAvailable,
 	purchaseSubscriptionPackage,
 	restorePurchases,
@@ -30,7 +30,7 @@ import {
 } from "@/lib/subscriptions";
 
 function getUnsupportedPlatformCopy() {
-	if (Platform.OS === "ios" && Constants.executionEnvironment === "storeClient") {
+	if (Platform.OS === "ios" && isRunningInExpoGo()) {
 		return {
 			title: "Subscriptions need a development build",
 			body: "PromptPal Pro purchases are not available inside Expo Go. Use a development build or RevenueCat Test Store to test subscription flows.",

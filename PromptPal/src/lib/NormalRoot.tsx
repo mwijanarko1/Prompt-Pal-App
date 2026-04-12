@@ -176,6 +176,8 @@ function AppInitializer() {
 					<Stack.Screen name="(tabs)" />
 					<Stack.Screen name="(auth)" />
 					<Stack.Screen name="paywall" />
+					<Stack.Screen name="train" />
+					<Stack.Screen name="generate" />
 					<Stack.Screen name="game" />
 					<Stack.Screen name="library/[resourceId]" />
 				</Stack>

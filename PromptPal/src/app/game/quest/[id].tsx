@@ -25,7 +25,10 @@ import {
 	ResultModal,
 	Modal,
 } from "@/components/ui";
-import { processApiLevelsWithLocalAssets } from "@/features/levels/data";
+import {
+	isDailyQuestLevelId,
+	processApiLevelsWithLocalAssets,
+} from "@/features/levels/data";
 import { useGameStore, Level, ChallengeType } from "@/features/game/store";
 import { useUserProgressStore } from "@/features/user/store";
 import { useConvexAI } from "@/hooks/useConvexAI";
@@ -277,7 +280,8 @@ export default function QuestScreen() {
 								getModuleIdFromLevelType(moduleType || "image");
 							const relevantLevels = allLevels.filter(
 								(l: any) =>
-									l.moduleId === currentModuleId || l.type === moduleType,
+									!isDailyQuestLevelId(l.id) &&
+									(l.moduleId === currentModuleId || l.type === moduleType),
 							);
 							setModuleLevels(relevantLevels as Level[]);
 						}

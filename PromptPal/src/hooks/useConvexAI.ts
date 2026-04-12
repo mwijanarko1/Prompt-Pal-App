@@ -8,6 +8,7 @@ export function useConvexAI() {
 	const evaluateImageAction = useAction(api.ai.evaluateImage);
 	const evaluateCodeSubmissionAction = useAction(api.ai.evaluateCodeSubmission);
 	const evaluateCopySubmissionAction = useAction(api.ai.evaluateCopySubmission);
+	const evaluateOnboardingPromptAction = useAction(api.ai.evaluateOnboardingPrompt);
 
 	const generateText = async (prompt: string, context?: string) => {
 		try {
@@ -81,11 +82,19 @@ export function useConvexAI() {
 		return evaluateCopySubmissionAction(options);
 	};
 
+	const evaluateOnboardingPrompt = async (options: {
+		userPrompt: string;
+		taskBrief: string;
+	}) => {
+		return evaluateOnboardingPromptAction(options);
+	};
+
 	return {
 		generateText,
 		generateImage,
 		evaluateImage,
 		evaluateCodeSubmission,
 		evaluateCopySubmission,
+		evaluateOnboardingPrompt,
 	};
 }

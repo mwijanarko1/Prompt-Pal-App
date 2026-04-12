@@ -75,6 +75,11 @@ function getLocalImageForLevel(levelId: string): any {
 
 const APP_ID = "prompt-pal";
 
+/** Daily quest pool levels use ids `quest_*`; exclude from main module curriculum UIs */
+export function isDailyQuestLevelId(levelId: string): boolean {
+	return levelId.startsWith("quest_");
+}
+
 const MODULE_ID_BY_TYPE: Record<string, string> = {
 	image: "image-generation",
 	code: "coding-logic",

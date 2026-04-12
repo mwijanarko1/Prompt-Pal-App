@@ -42,3 +42,128 @@ export const logModuleStarted = (moduleId: string) => {
 export const logModuleCompleted = (moduleId: string, timeSpent: number) => {
 	logEvent("module_completed", { module_id: moduleId, time_spent: timeSpent });
 };
+
+type SuperpromptCategory = "image" | "copy" | "code";
+type SuperpromptRefineMode =
+	| "more_detailed"
+	| "simplify"
+	| "change_tone"
+	| undefined;
+
+type SuperpromptTier = "free" | "pro" | undefined;
+
+export const logSuperpromptHomeTrainTapped = () => {
+	logEvent("superprompt_home_train_tapped", {});
+};
+
+export const logSuperpromptHomeGenerateTapped = () => {
+	logEvent("superprompt_home_generate_tapped", {});
+};
+
+export const logSuperpromptGenerateSubmitted = (params: {
+	category: SuperpromptCategory;
+	refine_mode?: SuperpromptRefineMode;
+}) => {
+	logEvent("superprompt_generate_submitted", {
+		category: params.category,
+		...(params.refine_mode
+			? { refine_mode: params.refine_mode }
+			: {}),
+	});
+};
+
+export const logSuperpromptGenerateSucceeded = (params: {
+	category: SuperpromptCategory;
+	refine_mode?: SuperpromptRefineMode;
+	tier?: SuperpromptTier;
+	remaining_quota?: number;
+}) => {
+	logEvent("superprompt_generate_succeeded", {
+		category: params.category,
+		...(params.refine_mode
+			? { refine_mode: params.refine_mode }
+			: {}),
+		...(params.tier ? { tier: params.tier } : {}),
+		...(params.remaining_quota !== undefined
+			? { remaining_quota: params.remaining_quota }
+			: {}),
+	});
+};
+
+export const logSuperpromptGenerateFailed = (params: {
+	category: SuperpromptCategory;
+	refine_mode?: SuperpromptRefineMode;
+	tier?: SuperpromptTier;
+	remaining_quota?: number;
+}) => {
+	logEvent("superprompt_generate_failed", {
+		category: params.category,
+		...(params.refine_mode
+			? { refine_mode: params.refine_mode }
+			: {}),
+		...(params.tier ? { tier: params.tier } : {}),
+		...(params.remaining_quota !== undefined
+			? { remaining_quota: params.remaining_quota }
+			: {}),
+	});
+};
+
+export const logSuperpromptRefineTapped = (params: {
+	category: SuperpromptCategory;
+	refine_mode: SuperpromptRefineMode;
+	tier?: SuperpromptTier;
+	remaining_quota?: number;
+}) => {
+	logEvent("superprompt_refine_tapped", {
+		category: params.category,
+		...(params.refine_mode
+			? { refine_mode: params.refine_mode }
+			: {}),
+		...(params.tier ? { tier: params.tier } : {}),
+		...(params.remaining_quota !== undefined
+			? { remaining_quota: params.remaining_quota }
+			: {}),
+	});
+};
+
+export const logSuperpromptCopied = (params: {
+	category: SuperpromptCategory;
+	tier?: SuperpromptTier;
+	remaining_quota?: number;
+}) => {
+	logEvent("superprompt_copied", {
+		category: params.category,
+		...(params.tier ? { tier: params.tier } : {}),
+		...(params.remaining_quota !== undefined
+			? { remaining_quota: params.remaining_quota }
+			: {}),
+	});
+};
+
+export const logSuperpromptTrainNudgeTapped = (params: {
+	category: SuperpromptCategory;
+	tier?: SuperpromptTier;
+	remaining_quota?: number;
+}) => {
+	logEvent("superprompt_train_nudge_tapped", {
+		category: params.category,
+		...(params.tier ? { tier: params.tier } : {}),
+		...(params.remaining_quota !== undefined
+			? { remaining_quota: params.remaining_quota }
+			: {}),
+	});
+};
+
+export const logSuperpromptQuotaBlocked = (params: {
+	category: SuperpromptCategory;
+	tier?: SuperpromptTier;
+	remaining_quota?: number;
+}) => {
+	logEvent("superprompt_quota_blocked", {
+		category: params.category,
+		...(params.tier ? { tier: params.tier } : {}),
+		...(params.remaining_quota !== undefined
+			? { remaining_quota: params.remaining_quota }
+			: {}),
+	});
+};

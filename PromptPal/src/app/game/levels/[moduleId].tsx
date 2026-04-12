@@ -12,7 +12,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { convexHttpClient } from "@/lib/convex-client";
 import { api } from "../../../../convex/_generated/api.js";
-import { fetchLevelsFromApi } from "@/features/levels/data";
+import {
+	fetchLevelsFromApi,
+	isDailyQuestLevelId,
+} from "@/features/levels/data";
 import { Card, ProgressBar } from "@/components/ui";
 import { useGameStore } from "@/features/game/store";
 import { useUserProgressStore } from "@/features/user/store";
@@ -100,12 +103,16 @@ export default function LevelsScreen() {
 						);
 					}
 
-					if (moduleLevels.length === 0) {
+					const curriculumLevels = moduleLevels.filter(
+						(l) => !isDailyQuestLevelId(l.id),
+					);
+
+					if (curriculumLevels.length === 0) {
 						setError("No levels found for this module");
 						return;
 					}
 
-					setLevels(moduleLevels as Level[]);
+					setLevels(curriculumLevels as Level[]);
 				} else {
 					setLevels([]);
 					setError(

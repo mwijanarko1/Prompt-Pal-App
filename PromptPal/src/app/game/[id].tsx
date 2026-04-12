@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Button, Input, Card, Badge, ResultModal } from "@/components/ui";
 import {
 	fetchLevelsFromApi,
+	isDailyQuestLevelId,
 	processApiLevelsWithLocalAssets,
 } from "@/features/levels/data";
 import { useGameStore, Level, ChallengeType } from "@/features/game/store";
@@ -266,7 +267,9 @@ export default function GameScreen() {
 							apiLevels.length > 0 && expectedType
 								? apiLevels.filter(
 										(l: Level) =>
-											l.moduleId === currentModuleId || l.type === expectedType,
+											!isDailyQuestLevelId(l.id) &&
+											(l.moduleId === currentModuleId ||
+												l.type === expectedType),
 									)
 								: [];
 

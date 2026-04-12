@@ -56,23 +56,20 @@ export function BeginnerTemplatePromptInput({
 		onAllSlotsFilledChange?.(filled);
 	}, [hints.length, slots, onAllSlotsFilledChange]);
 
-	const pushComposed = useCallback(
-		(nextSlots: string[]) => {
-			onChangePrompt(composePromptFromScaffoldSlots(segments, nextSlots));
-		},
-		[onChangePrompt, segments],
-	);
-
 	const setSlotAt = useCallback(
 		(index: number, text: string) => {
 			setSlots((prev) => {
 				const next = [...prev];
 				next[index] = text;
-				pushComposed(next);
+				// Defer parent updates: calling onChangePrompt synchronously inside this updater
+				// can run while React is rendering and triggers "Cannot update a component while rendering".
+				queueMicrotask(() => {
+					onChangePrompt(composePromptFromScaffoldSlots(segments, next));
+				});
 				return next;
 			});
 		},
-		[pushComposed],
+		[onChangePrompt, segments],
 	);
 
 	const inputClass =
