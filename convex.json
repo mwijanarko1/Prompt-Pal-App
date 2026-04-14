@@ -1,0 +1,5 @@
+{
+  "project": "ai-proxy-backend",
+  "functions": "convex/",
+  "generateCommonJSApi": true
+}

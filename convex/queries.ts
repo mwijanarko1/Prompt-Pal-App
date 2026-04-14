@@ -1,0 +1,1756 @@
+import { internalQuery, query, type QueryCtx } from "./_generated/server";
+import { v } from "convex/values";
+
+const getIsoDateString = (date: Date): string =>
+	date.toISOString().split("T")[0];
+
+async function requireAuthenticatedUserId(ctx: QueryCtx): Promise<string> {
+	const identity = await ctx.auth.getUserIdentity();
+	if (!identity) {
+		throw new Error("Not authenticated");
+	}
+
+	return identity.subject;
+}
+
+async function getAuthenticatedUserId(ctx: QueryCtx): Promise<string | null> {
+	const identity = await ctx.auth.getUserIdentity();
+	return identity?.subject ?? null;
+}
+
+function toPublicLevel(level: any) {
+	const bridgedChecklist = level.promptChecklist ?? level.checklistItems;
+
+	return {
+		id: level.id,
+		type: level.type,
+		title: level.title,
+		description: level.description,
+		difficulty: level.difficulty,
+		passingScore: level.passingScore,
+		unlocked: level.unlocked,
+		isActive: level.isActive,
+		order: level.order,
+		targetImageUrl: level.targetImageUrl,
+		hiddenPromptKeywords: level.hiddenPromptKeywords,
+		style: level.style,
+		moduleTitle: level.moduleTitle,
+		requirementBrief: level.requirementBrief,
+		language: level.language,
+		briefTitle: level.briefTitle,
+		starterContext: level.starterContext,
+		wordLimit: level.wordLimit,
+		metrics: level.metrics,
+		hints: level.hints,
+		estimatedTime: level.estimatedTime,
+		points: level.points,
+		tags: level.tags,
+		learningObjectives: level.learningObjectives,
+		prerequisites: level.prerequisites,
+		scaffoldType: level.scaffoldType,
+		scaffoldTemplate: level.scaffoldTemplate,
+		checklistItems: level.checklistItems ?? bridgedChecklist,
+		promptChecklist: bridgedChecklist,
+		// Onboarding-style code lessons
+		instruction: level.instruction,
+		whatUserSees: level.whatUserSees,
+		starterCode: level.starterCode,
+		grading: level.grading,
+		failState: level.failState,
+		successState: level.successState,
+		lessonTakeaway: level.lessonTakeaway,
+		createdAt: level.createdAt,
+		updatedAt: level.updatedAt,
+	};
+}
+
+// userId is now automatically extracted from the auth token
+export const getUserUsage = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { appId } = args;
+
+		const app = await ctx.db
+			.query("apps")
+			.withIndex("by_app_id", (q) => q.eq("id", appId))
+			.first();
+
+		const now = Date.now();
+		// Calculate actual days in current month for accurate quota periods
+		const currentDate = new Date(now);
+		const year = currentDate.getFullYear();
+		const month = currentDate.getMonth();
+		const daysInMonth = new Date(year, month + 1, 0).getDate();
+		const oneMonthMs = daysInMonth * 24 * 60 * 60 * 1000;
+
+		if (!app) {
+			return {
+				tier: "free" as const,
+				used: {
+					textCalls: 0,
+					imageCalls: 0,
+					audioSummaries: 0,
+				},
+				limits: {
+					textCalls: 50,
+					imageCalls: 50,
+					audioSummaries: 0,
+				},
+				periodStart: now,
+				periodEnd: now + oneMonthMs,
+			};
+		}
+
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return {
+				tier: "free" as const,
+				used: {
+					textCalls: 0,
+					imageCalls: 0,
+					audioSummaries: 0,
+				},
+				limits: app.freeLimits,
+				periodStart: now,
+				periodEnd: now + oneMonthMs,
+			};
+		}
+
+		const plan = await ctx.db
+			.query("appPlans")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.first();
+
+		let tier: "free" | "pro" = "free";
+		let used = {
+			textCalls: 0,
+			imageCalls: 0,
+			audioSummaries: 0,
+		};
+		let periodStart = now;
+
+		if (plan) {
+			tier = plan.tier;
+			periodStart = plan.periodStart;
+
+			if (now - plan.periodStart >= oneMonthMs) {
+				// Period has expired, show zero usage
+				used = {
+					textCalls: 0,
+					imageCalls: 0,
+					audioSummaries: 0,
+				};
+			} else {
+				used = plan.used;
+			}
+		}
+
+		const limits = tier === "pro" ? app.proLimits : app.freeLimits;
+
+		return {
+			tier,
+			used,
+			limits,
+			periodStart,
+			periodEnd: periodStart + oneMonthMs,
+		};
+	},
+});
+
+export const getUserPlanTier = internalQuery({
+	args: {
+		userId: v.string(),
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const plan = await ctx.db
+			.query("appPlans")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", args.userId).eq("appId", args.appId),
+			)
+			.first();
+
+		return plan?.tier ?? "free";
+	},
+});
+
+// Get app configuration (for validation)
+export const getApp = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const app = await ctx.db
+			.query("apps")
+			.withIndex("by_app_id", (q) => q.eq("id", args.appId))
+			.first();
+
+		return app;
+	},
+});
+
+// NOTE: userId is now extracted from authentication context for security
+export const getUserProgress = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { appId } = args;
+
+		const identity = await ctx.auth.getUserIdentity();
+		if (!identity) {
+			throw new Error("Not authenticated");
+		}
+		const userId = identity.subject;
+
+		const progress = await ctx.db
+			.query("userProgress")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.first();
+
+		if (!progress) {
+			return {
+				levelId: "",
+				isUnlocked: false,
+				isCompleted: false,
+				bestScore: 0,
+				attempts: 0,
+				timeSpent: 0,
+				completedAt: null,
+				hintsUsed: 0,
+				firstAttemptScore: 0,
+			};
+		}
+
+		return {
+			levelId: progress.levelId,
+			isUnlocked: progress.isUnlocked,
+			isCompleted: progress.isCompleted,
+			bestScore: progress.bestScore,
+			attempts: progress.attempts,
+			timeSpent: progress.timeSpent,
+			completedAt: progress.completedAt,
+			hintsUsed: progress.hintsUsed,
+			firstAttemptScore: progress.firstAttemptScore,
+		};
+	},
+});
+
+export const getUserModules = internalQuery({
+	args: {
+		userId: v.string(),
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { userId, appId } = args;
+
+		const modules = await ctx.db
+			.query("userModules")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.collect();
+
+		return modules.map((module) => ({
+			moduleId: module.moduleId,
+			level: module.level,
+			topic: module.topic,
+			progress: module.progress,
+			completedAt: module.completedAt,
+		}));
+	},
+});
+
+export const getUserQuests = internalQuery({
+	args: {
+		userId: v.string(),
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { userId, appId } = args;
+
+		const quests = await ctx.db
+			.query("userQuests")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.collect();
+
+		return quests.map((quest) => ({
+			questId: quest.questId,
+			completed: quest.completed,
+			completedAt: quest.completedAt,
+			expiresAt: quest.expiresAt,
+		}));
+	},
+});
+
+export const getUserGameState = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { appId } = args;
+		const identity = await ctx.auth.getUserIdentity();
+
+		if (!identity) {
+			throw new Error("User must be authenticated");
+		}
+
+		const userId = identity.subject;
+
+		const gameState = await ctx.db
+			.query("gameProgress")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.first();
+
+		if (!gameState) {
+			return {
+				currentLevelId: null,
+				lives: 3,
+				score: 0,
+				isPlaying: false,
+				unlockedLevels: [
+					"image-1-easy",
+					"image-2-easy",
+					"image-3-easy", // Image module
+					"code-1-easy",
+					"code-2-easy",
+					"code-3-easy", // Code module
+					"copywriting-1-easy",
+					"copywriting-2-easy",
+					"copywriting-3-easy", // Copywriting module
+				], // Start with first 3 easy levels of all 3 modules unlocked
+				completedLevels: [],
+			};
+		}
+
+		return {
+			currentLevelId: gameState.currentLevelId,
+			lives: gameState.lives,
+			score: gameState.score,
+			isPlaying: gameState.isPlaying,
+			unlockedLevels: gameState.unlockedLevels,
+			completedLevels: gameState.completedLevels,
+		};
+	},
+});
+
+export const getLearningModules = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { appId } = args;
+
+		const modules = await ctx.db
+			.query("learningModules")
+			.withIndex("by_app", (q) => q.eq("appId", appId))
+			.filter((q) => q.eq(q.field("isActive"), true))
+			.collect();
+
+		return modules
+			.sort((a, b) => a.order - b.order)
+			.map((module) => ({
+				id: module.id,
+				category: module.category,
+				title: module.title,
+				level: module.level,
+				topic: module.topic,
+				description: module.description,
+				icon: module.icon,
+				accentColor: module.accentColor,
+				buttonText: module.buttonText,
+			}));
+	},
+});
+
+export const getDailyQuests = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { appId } = args;
+
+		const quests = await ctx.db
+			.query("dailyQuests")
+			.withIndex("by_app", (q) => q.eq("appId", appId))
+			.filter((q) => q.eq(q.field("isActive"), true))
+			.collect();
+
+		return quests.map((quest) => ({
+			id: quest.id,
+			title: quest.title,
+			description: quest.description,
+			xpReward: quest.xpReward,
+			type: quest.type,
+			category: quest.category,
+		}));
+	},
+});
+
+export const getLevels = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { appId } = args;
+
+		const levels = await ctx.db
+			.query("levels")
+			.withIndex("by_app_order", (q) => q.eq("appId", appId))
+			.filter((q) => q.eq(q.field("isActive"), true))
+			.collect();
+
+		return levels.map((level) => ({
+			id: level.id,
+			type: level.type,
+			title: level.title,
+			difficulty: level.difficulty,
+			targetImageUrl: level.targetImageUrl,
+			hiddenPromptKeywords: level.hiddenPromptKeywords,
+			passingScore: level.passingScore,
+			order: level.order,
+			unlocked: level.unlocked,
+			prerequisites: level.prerequisites,
+		}));
+	},
+});
+
+export const getUserGenerations = query({
+	args: {
+		userId: v.string(),
+		appId: v.string(),
+		limit: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { userId, appId, limit = 50 } = args;
+
+		const generations = await ctx.db
+			.query("aiGenerations")
+			.withIndex("by_user_created", (q) => q.eq("userId", userId))
+			.filter((q) => q.eq(q.field("appId"), appId))
+			.order("desc")
+			.take(limit);
+
+		return generations.map((gen) => ({
+			requestId: gen.requestId,
+			type: gen.type,
+			model: gen.model,
+			promptLength: gen.promptLength,
+			responseLength: gen.responseLength,
+			tokensUsed: gen.tokensUsed,
+			durationMs: gen.durationMs,
+			success: gen.success,
+			errorMessage: gen.errorMessage,
+			createdAt: gen.createdAt,
+		}));
+	},
+});
+
+export const getAnalyticsEvents = query({
+	args: {
+		appId: v.string(),
+		eventType: v.optional(v.string()),
+		limit: v.optional(v.number()),
+		startTime: v.optional(v.number()),
+		endTime: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { appId, eventType, limit = 100, startTime, endTime } = args;
+
+		let query = ctx.db
+			.query("userEvents")
+			.filter((q) => q.eq(q.field("appId"), appId));
+
+		if (eventType) {
+			query = query.filter((q) => q.eq(q.field("eventType"), eventType));
+		}
+
+		if (startTime) {
+			query = query.filter((q) => q.gte(q.field("timestamp"), startTime));
+		}
+
+		if (endTime) {
+			query = query.filter((q) => q.lte(q.field("timestamp"), endTime));
+		}
+
+		const events = await query.order("desc").take(limit);
+
+		return events.map((event) => ({
+			userId: event.userId,
+			eventType: event.eventType,
+			eventData: event.eventData,
+			sessionId: event.sessionId,
+			timestamp: event.timestamp,
+			userAgent: event.userAgent,
+		}));
+	},
+});
+
+// ===== GAMIFICATION SYSTEM QUERIES =====
+
+export const getUser = internalQuery({
+	args: {
+		clerkId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const user = await ctx.db
+			.query("users")
+			.withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+			.first();
+
+		return user;
+	},
+});
+
+export const getUserPreferences = query({
+	args: {},
+	handler: async (ctx) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return {
+				soundEnabled: true,
+				hapticsEnabled: true,
+				theme: "dark",
+				difficulty: "easy",
+				favoriteModule: null,
+			};
+		}
+		const prefs = await ctx.db
+			.query("userPreferences")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.first();
+
+		if (!prefs) {
+			return {
+				soundEnabled: true,
+				hapticsEnabled: true,
+				theme: "dark",
+				difficulty: "easy",
+				favoriteModule: null,
+			};
+		}
+
+		return {
+			soundEnabled: prefs.soundEnabled,
+			hapticsEnabled: prefs.hapticsEnabled,
+			theme: prefs.theme,
+			difficulty: prefs.difficulty,
+			favoriteModule: prefs.favoriteModule,
+		};
+	},
+});
+
+export const getUserStatistics = internalQuery({
+	args: {
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const stats = await ctx.db
+			.query("userStatistics")
+			.withIndex("by_user", (q) => q.eq("userId", args.userId))
+			.first();
+
+		if (!stats) {
+			return {
+				totalXp: 0,
+				currentLevel: 1,
+				currentStreak: 0,
+				longestStreak: 0,
+				lastActivityDate: null,
+				globalRank: 0,
+				points: 0,
+			};
+		}
+
+		return {
+			totalXp: stats.totalXp,
+			currentLevel: stats.currentLevel,
+			currentStreak: stats.currentStreak,
+			longestStreak: stats.longestStreak,
+			lastActivityDate: stats.lastActivityDate,
+			globalRank: stats.globalRank,
+			points: stats.points,
+		};
+	},
+});
+
+// Get current user's statistics (auth-based)
+export const getMyUserStatistics = query({
+	args: {},
+	handler: async (ctx) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return {
+				totalXp: 0,
+				currentLevel: 1,
+				currentStreak: 0,
+				longestStreak: 0,
+				lastActivityDate: null,
+				globalRank: 0,
+				points: 0,
+			};
+		}
+
+		const stats = await ctx.db
+			.query("userStatistics")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.first();
+
+		if (!stats) {
+			return {
+				totalXp: 0,
+				currentLevel: 1,
+				currentStreak: 0,
+				longestStreak: 0,
+				lastActivityDate: null,
+				globalRank: 0,
+				points: 0,
+			};
+		}
+
+		return {
+			totalXp: stats.totalXp,
+			currentLevel: stats.currentLevel,
+			currentStreak: stats.currentStreak,
+			longestStreak: stats.longestStreak,
+			lastActivityDate: stats.lastActivityDate,
+			globalRank: stats.globalRank,
+			points: stats.points,
+		};
+	},
+});
+
+export const getUserResults = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return { taskResults: [] };
+		}
+		const { appId } = args;
+
+		const completedProgress = await ctx.db
+			.query("userProgress")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.filter((q) => q.eq(q.field("isCompleted"), true))
+			.collect();
+
+		// Transform the data into the expected format
+		const taskResults = completedProgress.map((progress) => {
+			// Determine task type from level ID
+			const taskType = getTaskTypeFromLevelId(progress.levelId);
+
+			return {
+				id: progress.levelId,
+				score: progress.bestScore,
+				completedAt: progress.completedAt
+					? new Date(progress.completedAt).toISOString()
+					: null,
+				taskType,
+			};
+		});
+
+		return {
+			taskResults,
+		};
+	},
+});
+
+// Get completed level IDs from userProgress (source of truth for module progress)
+export const getCompletedLevelIds = query({
+	args: {
+		appId: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return [];
+		}
+		const appId = args.appId ?? "prompt-pal";
+		const completed = await ctx.db
+			.query("userProgress")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.filter((q) => q.eq(q.field("isCompleted"), true))
+			.collect();
+		return completed.map((p) => p.levelId);
+	},
+});
+
+// Helper function to determine task type from level ID
+function getTaskTypeFromLevelId(
+	levelId: string,
+): "image" | "code" | "copywriting" {
+	if (levelId.startsWith("image-")) {
+		return "image";
+	} else if (levelId.startsWith("code-") || levelId.startsWith("coding-")) {
+		return "code";
+	} else if (
+		levelId.startsWith("copywriting-") ||
+		levelId.startsWith("copy-")
+	) {
+		return "copywriting";
+	} else {
+		// Default fallback
+		return "image";
+	}
+}
+
+// Get leaderboard (top users by XP)
+export const getLeaderboard = query({
+	args: {
+		limit: v.optional(v.number()),
+		offset: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { limit = 50 } = args;
+
+		const users = await ctx.db
+			.query("userStatistics")
+			.withIndex("by_xp")
+			.order("desc")
+			.paginate({ numItems: limit, cursor: null });
+
+		const leaderboard = [];
+		for (const stat of users.page) {
+			const user = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_id", (q) => q.eq("clerkId", stat.userId))
+				.first();
+			if (user) {
+				leaderboard.push({
+					userId: user._id,
+					name: user.name,
+					avatarUrl: user.avatarUrl,
+					totalXp: stat.totalXp,
+					currentLevel: stat.currentLevel,
+					globalRank: stat.globalRank,
+					currentStreak: stat.currentStreak,
+				});
+			}
+		}
+
+		return {
+			leaderboard,
+			continueCursor: users.continueCursor,
+		};
+	},
+});
+
+export const getAllLevels = query({
+	args: {
+		type: v.optional(
+			v.union(v.literal("image"), v.literal("code"), v.literal("copywriting")),
+		),
+		difficulty: v.optional(
+			v.union(
+				v.literal("beginner"),
+				v.literal("intermediate"),
+				v.literal("advanced"),
+			),
+		),
+		limit: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { type, difficulty, limit } = args;
+
+		let query = ctx.db.query("levels");
+
+		if (type) {
+			query = query.filter((q) => q.eq(q.field("type"), type));
+		}
+
+		if (difficulty) {
+			query = query.filter((q) => q.eq(q.field("difficulty"), difficulty));
+		}
+
+		const levels = await query.take(limit || 100);
+
+		return levels.map(toPublicLevel);
+	},
+});
+
+export const getLevelById = query({
+	args: {
+		id: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const level = await ctx.db
+			.query("levels")
+			.filter((q) => q.eq(q.field("id"), args.id))
+			.first();
+
+		if (!level) return null;
+
+		return toPublicLevel(level);
+	},
+});
+
+export const getLevelEvaluationData = internalQuery({
+	args: {
+		id: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const level = await ctx.db
+			.query("levels")
+			.filter((q) => q.eq(q.field("id"), args.id))
+			.first();
+
+		if (!level) return null;
+
+		return {
+			id: level.id,
+			type: level.type,
+			title: level.title,
+			description: level.description,
+			difficulty: level.difficulty,
+			passingScore: level.passingScore,
+			moduleTitle: level.moduleTitle,
+			requirementBrief: level.requirementBrief,
+			requirementImage: level.requirementImage,
+			language: level.language,
+			functionName: level.functionName,
+			testCases: level.testCases,
+			briefTitle: level.briefTitle,
+			briefProduct: level.briefProduct,
+			briefTarget: level.briefTarget,
+			briefTone: level.briefTone,
+			briefGoal: level.briefGoal,
+			wordLimit: level.wordLimit,
+			requiredElements: level.requiredElements,
+			metrics: level.metrics,
+			hints: level.hints,
+			scaffoldType: level.scaffoldType,
+			scaffoldTemplate: level.scaffoldTemplate,
+			checklistItems: level.checklistItems ?? level.promptChecklist,
+			promptChecklist: level.promptChecklist ?? level.checklistItems,
+			// For llm_judge copy lessons
+			grading: level.grading,
+			failState: level.failState,
+			successState: level.successState,
+			lessonTakeaway: level.lessonTakeaway,
+			starterContext: level.starterContext,
+			whatUserSees: level.whatUserSees,
+			starterCode: level.starterCode,
+		};
+	},
+});
+
+export const getUserLevelAttempts = query({
+	args: {
+		levelId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return [];
+		}
+		const { levelId } = args;
+
+		const attempts = await ctx.db
+			.query("userLevelAttempts")
+			.withIndex("by_user_level", (q) =>
+				q.eq("userId", userId).eq("levelId", levelId),
+			)
+			.order("asc") // Order by attempt number (which should be ascending)
+			.collect();
+
+		return attempts.map((attempt) => ({
+			id: attempt._id,
+			attemptNumber: attempt.attemptNumber,
+			score: attempt.score,
+			feedback: attempt.feedback,
+			keywordsMatched: attempt.keywordsMatched,
+			imageUrl: attempt.imageUrl,
+			code: attempt.code,
+			copy: attempt.copy,
+			testResults: attempt.testResults,
+			createdAt: attempt.createdAt,
+		}));
+	},
+});
+
+export const getNextAttemptNumber = internalQuery({
+	args: {
+		userId: v.string(),
+		levelId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { userId, levelId } = args;
+
+		const lastAttempt = await ctx.db
+			.query("userLevelAttempts")
+			.withIndex("by_user_level", (q) =>
+				q.eq("userId", userId).eq("levelId", levelId),
+			)
+			.order("desc")
+			.first();
+
+		return lastAttempt ? lastAttempt.attemptNumber + 1 : 1;
+	},
+});
+
+export const getUserLevelProgress = internalQuery({
+	args: {
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const progress = await ctx.db
+			.query("userProgress")
+			.withIndex("by_user", (q) => q.eq("userId", args.userId))
+			.collect();
+
+		return progress.map((p) => ({
+			levelId: p.levelId,
+			isUnlocked: p.isUnlocked,
+			isCompleted: p.isCompleted,
+			bestScore: p.bestScore,
+			attempts: p.attempts,
+			timeSpent: p.timeSpent,
+			completedAt: p.completedAt,
+			hintsUsed: p.hintsUsed,
+			firstAttemptScore: p.firstAttemptScore,
+		}));
+	},
+});
+
+export const getLevelProgress = query({
+	args: {
+		userId: v.string(),
+		levelId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const progress = await ctx.db
+			.query("userProgress")
+			.withIndex("by_user_level", (q) =>
+				q.eq("userId", args.userId).eq("levelId", args.levelId),
+			)
+			.first();
+
+		if (!progress) {
+			return {
+				isUnlocked: false,
+				isCompleted: false,
+				bestScore: 0,
+				attempts: 0,
+				timeSpent: 0,
+				completedAt: null,
+				hintsUsed: 0,
+				firstAttemptScore: 0,
+			};
+		}
+
+		return {
+			isUnlocked: progress.isUnlocked,
+			isCompleted: progress.isCompleted,
+			bestScore: progress.bestScore,
+			attempts: progress.attempts,
+			timeSpent: progress.timeSpent,
+			completedAt: progress.completedAt,
+			hintsUsed: progress.hintsUsed,
+			firstAttemptScore: progress.firstAttemptScore,
+		};
+	},
+});
+
+export const getAllLearningModules = query({
+	args: {
+		category: v.optional(v.string()),
+		level: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const { category, level } = args;
+
+		let query = ctx.db.query("learningModules");
+
+		if (category) {
+			query = query.filter((q) => q.eq(q.field("category"), category));
+		}
+
+		if (level) {
+			query = query.filter((q) => q.eq(q.field("level"), level));
+		}
+
+		const modules = await query.collect();
+
+		return modules.map((module) => ({
+			id: module.id,
+			category: module.category,
+			title: module.title,
+			level: module.level,
+			topic: module.topic,
+			icon: module.icon,
+			accentColor: module.accentColor,
+			buttonText: module.buttonText,
+			description: module.description,
+			objectives: module.objectives,
+			content: module.content,
+			type: module.type,
+			format: module.format,
+			estimatedTime: module.estimatedTime,
+			tags: module.tags,
+		}));
+	},
+});
+
+export const getLearningResources = query({
+	args: {
+		appId: v.string(),
+		category: v.optional(v.string()),
+		type: v.optional(
+			v.union(
+				v.literal("guide"),
+				v.literal("cheatsheet"),
+				v.literal("lexicon"),
+				v.literal("case-study"),
+				v.literal("prompting-tip"),
+			),
+		),
+	},
+	handler: async (ctx, args) => {
+		const { appId, category, type } = args;
+
+		let query = ctx.db
+			.query("learningResources")
+			.withIndex("by_app_category", (q) =>
+				category
+					? q.eq("appId", appId).eq("category", category)
+					: q.eq("appId", appId),
+			)
+			.filter((q) => q.eq(q.field("isActive"), true));
+
+		if (type) {
+			query = query.filter((q) => q.eq(q.field("type"), type));
+		}
+
+		const resources = await query.collect();
+
+		return resources.sort((a, b) => a.order - b.order);
+	},
+});
+
+export const getLearningResourceById = query({
+	args: {
+		id: v.string(),
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const resource = await ctx.db
+			.query("learningResources")
+			.filter((q) => q.eq(q.field("id"), args.id))
+			.filter((q) => q.eq(q.field("appId"), args.appId))
+			.first();
+
+		return resource;
+	},
+});
+
+export const getLibraryData = query({
+	args: {
+		userId: v.string(),
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const { userId, appId } = args;
+
+		// 1. Fetch all active learning modules
+		const modules = await ctx.db
+			.query("learningModules")
+			.withIndex("by_app", (q) => q.eq("appId", appId))
+			.filter((q) => q.eq(q.field("isActive"), true))
+			.collect();
+
+		// 2. Fetch all active learning resources
+		const resources = await ctx.db
+			.query("learningResources")
+			.filter((q) => q.eq(q.field("appId"), appId))
+			.filter((q) => q.eq(q.field("isActive"), true))
+			.collect();
+
+		// 3. Fetch user progress
+		const userStats = await ctx.db
+			.query("userStatistics")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.first();
+
+		const moduleProgress = await ctx.db
+			.query("userModuleProgress")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.collect();
+
+		const levelProgress = await ctx.db
+			.query("userProgress")
+			.withIndex("by_user_app", (q) =>
+				q.eq("userId", userId).eq("appId", appId),
+			)
+			.collect();
+
+		// 4. Map everything together
+		const categories = Array.from(
+			new Set([
+				...modules.map((m) => m.category),
+				...resources.map((r) => r.category),
+			]),
+		);
+
+		const structuredLibrary = categories.map((cat) => ({
+			category: cat,
+			modules: modules
+				.filter((m) => m.category === cat)
+				.sort((a, b) => a.order - b.order)
+				.map((m) => ({
+					...m,
+					userProgress:
+						moduleProgress.find((p) => p.moduleId === m.id)?.progress || 0,
+					isCompleted:
+						moduleProgress.find((p) => p.moduleId === m.id)?.completed || false,
+				})),
+			resources: resources
+				.filter((r) => r.category === cat)
+				.sort((a, b) => a.order - b.order),
+		}));
+
+		return {
+			userSummary: {
+				totalXp: userStats?.totalXp || 0,
+				currentLevel: userStats?.currentLevel || 1,
+				streak: userStats?.currentStreak || 0,
+				completedLevels: levelProgress.filter((p) => p.isCompleted).length,
+			},
+			categories: structuredLibrary,
+		};
+	},
+});
+
+export const getLearningModuleById = query({
+	args: {
+		id: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const module = await ctx.db
+			.query("learningModules")
+			.filter((q) => q.eq(q.field("id"), args.id))
+			.first();
+
+		return module;
+	},
+});
+
+export const getUserModuleProgress = query({
+	args: {
+		moduleId: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return [];
+		}
+		const { moduleId } = args;
+
+		let query = ctx.db
+			.query("userModuleProgress")
+			.withIndex("by_user", (q) => q.eq("userId", userId));
+
+		if (moduleId) {
+			query = query.filter((q) => q.eq(q.field("moduleId"), moduleId));
+		}
+
+		const progress = await query.collect();
+
+		return progress.map((p) => ({
+			moduleId: p.moduleId,
+			progress: p.progress,
+			completed: p.completed,
+			completedAt: p.completedAt,
+		}));
+	},
+});
+
+export const getActiveDailyQuests = query({
+	args: {},
+	handler: async (ctx) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return [];
+		}
+		const now = Date.now();
+		const quests = await ctx.db
+			.query("dailyQuests")
+			.withIndex("by_active", (q) => q.eq("isActive", true))
+			.filter((q) => q.gt(q.field("expiresAt"), now))
+			.collect();
+
+		const completions = await ctx.db
+			.query("userQuestCompletions")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.collect();
+
+		const completionMap = new Map(
+			completions.map((completion) => [completion.questId, completion]),
+		);
+
+		return quests.map((quest) => ({
+			id: quest.id,
+			title: quest.title,
+			description: quest.description,
+			xpReward: quest.xpReward,
+			questType: quest.questType,
+			requirements: quest.requirements,
+			difficulty: quest.difficulty,
+			isActive: quest.isActive,
+			expiresAt: quest.expiresAt,
+			completed: completionMap.has(quest.id)
+				? completionMap.get(quest.id)!.completed
+				: false,
+			completedAt: completionMap.has(quest.id)
+				? completionMap.get(quest.id)!.completedAt
+				: null,
+		}));
+	},
+});
+
+// Get daily quest by ID (includes completion status when user is authenticated)
+export const getDailyQuestById = query({
+	args: {
+		id: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const quest = await ctx.db
+			.query("dailyQuests")
+			.filter((q) => q.eq(q.field("id"), args.id))
+			.first();
+
+		if (!quest) return null;
+
+		const userId = await getAuthenticatedUserId(ctx);
+		let completed = false;
+		if (userId) {
+			const completion = await ctx.db
+				.query("userQuestCompletions")
+				.withIndex("by_user_quest", (q) =>
+					q.eq("userId", userId).eq("questId", quest.id),
+				)
+				.first();
+			completed = completion?.completed ?? false;
+		}
+
+		return { ...quest, completed };
+	},
+});
+
+// Get current quest (assigned quest for today)
+export const getCurrentQuest = query({
+	args: {
+		appId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const resolvedUserId = await getAuthenticatedUserId(ctx);
+		if (!resolvedUserId) {
+			return null;
+		}
+
+		const now = Date.now();
+		const assignedDate = getIsoDateString(new Date(now));
+
+		const assignment = await ctx.db
+			.query("userDailyQuests")
+			.withIndex("by_user_app_date", (q) =>
+				q
+					.eq("userId", resolvedUserId)
+					.eq("appId", args.appId)
+					.eq("assignedDate", assignedDate),
+			)
+			.first();
+
+		if (!assignment || assignment.expiresAt <= now) {
+			return null;
+		}
+
+		const quest = await ctx.db
+			.query("dailyQuests")
+			.filter((q) => q.eq(q.field("id"), assignment.questId))
+			.first();
+
+		if (
+			!quest ||
+			!quest.isActive ||
+			(quest.expiresAt && quest.expiresAt <= now)
+		) {
+			return null;
+		}
+
+		const completion = await ctx.db
+			.query("userQuestCompletions")
+			.withIndex("by_user_quest", (q) =>
+				q.eq("userId", resolvedUserId).eq("questId", quest.id),
+			)
+			.first();
+
+		const timeRemaining = quest.expiresAt
+			? Math.max(0, Math.ceil((quest.expiresAt - now) / (1000 * 60 * 60)))
+			: 24;
+
+		return {
+			id: quest.id,
+			title: quest.title,
+			description: quest.description,
+			xpReward: quest.xpReward,
+			timeRemaining,
+			completed: completion?.completed ?? false,
+			expiresAt: quest.expiresAt ?? assignment.expiresAt,
+		};
+	},
+});
+
+async function listUserAchievements(ctx: QueryCtx, userId: string) {
+	const userAchievements = await ctx.db
+		.query("userAchievements")
+		.withIndex("by_user", (q) => q.eq("userId", userId))
+		.collect();
+
+	const achievements = [];
+	for (const userAchievement of userAchievements) {
+		const achievement = await ctx.db
+			.query("achievements")
+			.filter((q) => q.eq(q.field("id"), userAchievement.achievementId))
+			.first();
+		if (achievement) {
+			achievements.push({
+				id: achievement.id,
+				title: achievement.title,
+				description: achievement.description,
+				icon: achievement.icon,
+				rarity: achievement.rarity,
+				unlockedAt: userAchievement.unlockedAt,
+			});
+		}
+	}
+
+	return achievements;
+}
+
+export const getAllAchievements = query({
+	args: {},
+	handler: async (ctx) => {
+		const achievements = await ctx.db.query("achievements").collect();
+
+		return achievements.map((achievement) => ({
+			id: achievement.id,
+			title: achievement.title,
+			description: achievement.description,
+			icon: achievement.icon,
+			rarity: achievement.rarity,
+			conditionType: achievement.conditionType,
+			conditionValue: achievement.conditionValue,
+			conditionMetadata: achievement.conditionMetadata,
+		}));
+	},
+});
+
+export const getAchievementById = query({
+	args: {
+		id: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const achievement = await ctx.db
+			.query("achievements")
+			.filter((q) => q.eq(q.field("id"), args.id))
+			.first();
+
+		return achievement;
+	},
+});
+
+export const internalGetUserAchievements = internalQuery({
+	args: {
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		return listUserAchievements(ctx, args.userId);
+	},
+});
+
+export const getUserAchievements = query({
+	args: {},
+	handler: async (ctx) => {
+		try {
+			const userId = await getAuthenticatedUserId(ctx);
+			if (!userId) {
+				return [];
+			}
+
+			return listUserAchievements(ctx, userId);
+		} catch {
+			return [];
+		}
+	},
+});
+
+export const getUserGameSessions = query({
+	args: {
+		limit: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const userId = await getAuthenticatedUserId(ctx);
+		if (!userId) {
+			return [];
+		}
+		const { limit = 10 } = args;
+
+		const sessions = await ctx.db
+			.query("gameSessions")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.order("desc")
+			.take(limit);
+
+		return sessions.map((session) => ({
+			id: session._id,
+			levelId: session.levelId,
+			startedAt: session.startedAt,
+			endedAt: session.endedAt,
+			score: session.score,
+			livesUsed: session.livesUsed,
+			hintsUsed: session.hintsUsed,
+			completed: session.completed,
+			userPrompt: session.userPrompt,
+			aiResponse: session.aiResponse,
+			createdAt: session.createdAt,
+		}));
+	},
+});
+
+// Get analytics for levels (completion rates, average scores, etc.)
+export const getLevelAnalytics = query({
+	args: {
+		levelId: v.optional(v.string()),
+		startTime: v.optional(v.number()),
+		endTime: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { levelId, startTime, endTime } = args;
+
+		let query = ctx.db.query("gameSessions");
+
+		if (levelId) {
+			query = query.filter((q) => q.eq(q.field("levelId"), levelId));
+		}
+
+		if (startTime) {
+			query = query.filter((q) => q.gte(q.field("startedAt"), startTime));
+		}
+
+		if (endTime) {
+			query = query.filter((q) => q.lte(q.field("startedAt"), endTime));
+		}
+
+		const sessions = await query.collect();
+
+		if (sessions.length === 0) {
+			return {
+				totalAttempts: 0,
+				completionRate: 0,
+				averageScore: 0,
+				averageTime: 0,
+				totalHints: 0,
+			};
+		}
+
+		const completedSessions = sessions.filter((s) => s.completed);
+		const totalScore = sessions.reduce((sum, s) => sum + s.score, 0);
+		const totalTime = sessions
+			.filter((s) => s.endedAt)
+			.reduce((sum, s) => sum + (s.endedAt! - s.startedAt), 0);
+		const totalHints = sessions.reduce((sum, s) => sum + s.hintsUsed, 0);
+
+		return {
+			totalAttempts: sessions.length,
+			completionRate: completedSessions.length / sessions.length,
+			averageScore: totalScore / sessions.length,
+			averageTime:
+				totalTime / Math.max(1, sessions.filter((s) => s.endedAt).length),
+			totalHints,
+		};
+	},
+});
+
+// ===== GENERATED IMAGES STORAGE =====
+
+export const getImageUrl = query({
+	args: { imageId: v.id("generatedImages") },
+	handler: async (ctx, args) => {
+		const image = await ctx.db.get(args.imageId);
+		if (!image) {
+			throw new Error("Image not found");
+		}
+
+		const url = await ctx.storage.getUrl(image.fileId);
+		return {
+			url,
+			metadata: {
+				prompt: image.prompt,
+				model: image.model,
+				createdAt: image.createdAt,
+				mimeType: image.mimeType,
+				size: image.size,
+			},
+		};
+	},
+});
+
+export const getUserImages = query({
+	args: {
+		userId: v.string(),
+		appId: v.optional(v.string()),
+		limit: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { userId, appId, limit = 20 } = args;
+
+		let query = ctx.db
+			.query("generatedImages")
+			.withIndex("by_user", (q) => q.eq("userId", userId));
+
+		if (appId) {
+			query = query.filter((q) => q.eq(q.field("appId"), appId));
+		}
+
+		const images = await query.order("desc").take(limit);
+
+		const imagesWithUrls = await Promise.all(
+			images.map(async (image) => {
+				const url = await ctx.storage.getUrl(image.fileId);
+				return {
+					id: image._id,
+					url,
+					prompt: image.prompt,
+					model: image.model,
+					createdAt: image.createdAt,
+					mimeType: image.mimeType,
+					size: image.size,
+				};
+			}),
+		);
+
+		return imagesWithUrls;
+	},
+});
+
+// ===== FRIENDS SYSTEM QUERIES =====
+
+export const getFriendsLeaderboard = query({
+	args: {
+		limit: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { limit = 50 } = args;
+
+		// Get user ID from auth context (Clerk JWT)
+		const identity = await ctx.auth.getUserIdentity();
+		if (!identity) {
+			throw new Error("Not authenticated");
+		}
+		const userId = identity.subject;
+
+		// Get all accepted friends where this user is either the user or the friend
+		const friendsAsUser = await ctx.db
+			.query("userFriends")
+			.withIndex("by_user_status", (q) =>
+				q.eq("userId", userId).eq("status", "accepted"),
+			)
+			.collect();
+
+		const friendsAsFriend = await ctx.db
+			.query("userFriends")
+			.withIndex("by_friend_status", (q) =>
+				q.eq("friendId", userId).eq("status", "accepted"),
+			)
+			.collect();
+
+		// Combine both lists and get unique friend IDs
+		const friendIds = new Set<string>();
+		friendsAsUser.forEach((f) => friendIds.add(f.friendId));
+		friendsAsFriend.forEach((f) => friendIds.add(f.userId));
+
+		const friendsLeaderboard = [];
+		for (const friendId of friendIds) {
+			const user = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_id", (q) => q.eq("clerkId", friendId))
+				.first();
+
+			const stats = await ctx.db
+				.query("userStatistics")
+				.withIndex("by_user", (q) => q.eq("userId", friendId))
+				.first();
+
+			if (user && stats) {
+				friendsLeaderboard.push({
+					userId: user._id,
+					clerkId: user.clerkId,
+					name: user.name,
+					avatarUrl: user.avatarUrl,
+					totalXp: stats.totalXp,
+					currentLevel: stats.currentLevel,
+					currentStreak: stats.currentStreak,
+					globalRank: stats.globalRank,
+				});
+			}
+		}
+
+		// Sort by XP descending and assign ranks
+		friendsLeaderboard.sort((a, b) => b.totalXp - a.totalXp);
+		const rankedLeaderboard = friendsLeaderboard.map((friend, index) => ({
+			...friend,
+			friendRank: index + 1,
+		}));
+
+		// Also include the current user in the friends leaderboard
+		const currentUser = await ctx.db
+			.query("users")
+			.withIndex("by_clerk_id", (q) => q.eq("clerkId", userId))
+			.first();
+
+		const currentUserStats = await ctx.db
+			.query("userStatistics")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.first();
+
+		let currentUserRank = null;
+		if (currentUser && currentUserStats) {
+			currentUserRank = {
+				userId: currentUser._id,
+				clerkId: currentUser.clerkId,
+				name: currentUser.name,
+				avatarUrl: currentUser.avatarUrl,
+				totalXp: currentUserStats.totalXp,
+				currentLevel: currentUserStats.currentLevel,
+				currentStreak: currentUserStats.currentStreak,
+				globalRank: currentUserStats.globalRank,
+				friendRank:
+					rankedLeaderboard.findIndex((f) => f.clerkId === userId) + 1 ||
+					rankedLeaderboard.length + 1,
+				isCurrentUser: true,
+			};
+		}
+
+		return {
+			leaderboard: rankedLeaderboard.slice(0, limit),
+			currentUser: currentUserRank,
+			totalFriends: friendIds.size,
+		};
+	},
+});
+
+export const getFriendRequests = query({
+	args: {},
+	handler: async (ctx) => {
+		// Get user ID from auth context (Clerk JWT)
+		const identity = await ctx.auth.getUserIdentity();
+		if (!identity) {
+			throw new Error("Not authenticated");
+		}
+		const userId = identity.subject;
+
+		const requests = await ctx.db
+			.query("userFriends")
+			.withIndex("by_friend_status", (q) =>
+				q.eq("friendId", userId).eq("status", "pending"),
+			)
+			.collect();
+
+		const detailedRequests = [];
+		for (const request of requests) {
+			const sender = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_id", (q) => q.eq("clerkId", request.userId))
+				.first();
+
+			if (sender) {
+				detailedRequests.push({
+					requestId: request._id,
+					senderId: sender.clerkId,
+					senderName: sender.name,
+					senderAvatar: sender.avatarUrl,
+					requestedAt: request.requestedAt,
+				});
+			}
+		}
+
+		return detailedRequests;
+	},
+});
+
+export const getMyFriends = query({
+	args: {
+		limit: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const { limit = 100 } = args;
+
+		// Get user ID from auth context (Clerk JWT)
+		const identity = await ctx.auth.getUserIdentity();
+		if (!identity) {
+			throw new Error("Not authenticated");
+		}
+		const userId = identity.subject;
+
+		const friendsAsUser = await ctx.db
+			.query("userFriends")
+			.withIndex("by_user_status", (q) =>
+				q.eq("userId", userId).eq("status", "accepted"),
+			)
+			.collect();
+
+		const friendsAsFriend = await ctx.db
+			.query("userFriends")
+			.withIndex("by_friend_status", (q) =>
+				q.eq("friendId", userId).eq("status", "accepted"),
+			)
+			.collect();
+
+		const friendIds = new Set<string>();
+		friendsAsUser.forEach((f) => friendIds.add(f.friendId));
+		friendsAsFriend.forEach((f) => friendIds.add(f.userId));
+
+		const friends = [];
+		for (const friendId of Array.from(friendIds).slice(0, limit)) {
+			const user = await ctx.db
+				.query("users")
+				.withIndex("by_clerk_id", (q) => q.eq("clerkId", friendId))
+				.first();
+
+			const stats = await ctx.db
+				.query("userStatistics")
+				.withIndex("by_user", (q) => q.eq("userId", friendId))
+				.first();
+
+			if (user) {
+				friends.push({
+					userId: user._id,
+					clerkId: user.clerkId,
+					name: user.name,
+					avatarUrl: user.avatarUrl,
+					totalXp: stats?.totalXp || 0,
+					currentLevel: stats?.currentLevel || 1,
+				});
+			}
+		}
+
+		return friends;
+	},
+});

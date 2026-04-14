@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ensure root elements have height for React Native Web flex layout */
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  overflow: hidden;
+}
+#root {
+  display: flex;
+  height: 100%;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --on-background: 240 10% 3.9%;
+    --surface: 0 0% 98%;
+    --on-surface: 240 10% 3.9%;
+    --surface-variant: 240 4.8% 95.9%;
+    --on-surface-variant: 240 3.8% 46.1%;
+    --surface-elevated: 0 0% 100%;
+    --primary: 25 100% 50%;
+    --on-primary: 0 0% 100%;
+    --secondary: 235 100% 63%;
+    --on-secondary: 0 0% 100%;
+    --outline: 240 5.9% 90%;
+    --error: 0 84.2% 60.2%;
+    --success: 142.1 76.2% 36.3%;
+    --info: 221.2 83.2% 53.3%;
+    --warning: 38 92.2% 50%;
+  }
+
+  .dark:root {
+    --background: 240 10% 3.9%;
+    --on-background: 0 0% 98%;
+    --surface: 240 10% 3.9%;
+    --on-surface: 0 0% 98%;
+    --surface-variant: 240 3.7% 15.9%;
+    --on-surface-variant: 240 5% 64.9%;
+    --surface-elevated: 240 10% 3.9%;
+    --primary: 25 100% 50%;
+    --on-primary: 0 0% 100%;
+    --secondary: 235 100% 63%;
+    --on-secondary: 0 0% 100%;
+    --outline: 240 3.7% 15.9%;
+    --error: 0 62.8% 30.6%;
+    --success: 142.1 70.6% 45.3%;
+    --info: 217.2 91.2% 59.8%;
+    --warning: 48 96% 89%;
+  }
+}

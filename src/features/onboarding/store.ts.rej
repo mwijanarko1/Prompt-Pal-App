@@ -1,0 +1,21 @@
+@@ -57,15 +52,10 @@
+ 
+ const STEP_ORDER: OnboardingStep[] = [
+   'welcome',
+-  'story-intro',
+-  | 'concept-1'
+-  | 'practice-1'
+-  | 'concept-2'
+-  | 'practice-2'
+-  | 'concept-3'
+-  | 'practice-3'
+-  | 'challenge'
+-  | 'generating'
+-  | 'results'
++  'rule-1',
++  'rule-2',
++  'rule-3',
++  'advanced',
++  'transformation',
+   'module-selection',
+   'complete',
