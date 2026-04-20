@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useSubscriptionStore } from "@/features/subscription/store";
+import { logPaywallHit, logPricingPageViewed } from "@/lib/analytics";
 import {
 	configureRevenueCat,
 	getCustomerInfo,
@@ -101,6 +102,13 @@ export default function PaywallScreen() {
 		applyStatus(status);
 		return status;
 	}, [applyStatus]);
+
+	useEffect(() => {
+		logPricingPageViewed({ required: isRequired });
+		if (isRequired) {
+			logPaywallHit({ required: true });
+		}
+	}, [isRequired]);
 
 	useEffect(() => {
 		if (!subscriptionAvailable) {

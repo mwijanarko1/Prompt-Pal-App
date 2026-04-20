@@ -56,7 +56,7 @@ export function CompleteScreen() {
 
 	const handleStart = () => {
 		void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-		completeOnboarding();
+		completeOnboarding("completed");
 	};
 
 	const earnedBadges =

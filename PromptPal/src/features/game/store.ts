@@ -3,9 +3,37 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import * as SecureStore from "expo-secure-store";
 import { convexHttpClient } from "@/lib/convex-client";
 import { api } from "../../../convex/_generated/api.js";
+import { logDifficultyLevelUnlocked } from "@/lib/analytics";
 import { logger } from "@/lib/logger";
 
 export type ChallengeType = "image" | "code" | "copywriting";
+
+const parseLevelAnalytics = (levelId: string) => {
+	const match = levelId.match(/^(image|code|copywriting)-\d+-(easy|medium|hard)$/);
+	if (!match) {
+		return {};
+	}
+
+	const lessonType = match[1];
+	const difficultyLabel = match[2];
+	const moduleId =
+		lessonType === "image"
+			? "image-generation"
+			: lessonType === "code"
+				? "coding-logic"
+				: "copywriting";
+
+	return {
+		lessonType,
+		difficulty:
+			difficultyLabel === "easy"
+				? "beginner"
+				: difficultyLabel === "medium"
+					? "intermediate"
+					: "advanced",
+		moduleId,
+	};
+};
 
 // Data-only version of GameState for backend communication
 export interface GameStateData {
@@ -217,6 +245,10 @@ export const useGameStore = create<GameState>()(
 				if (!unlockedLevels.includes(levelId)) {
 					const newUnlockedLevels = [...unlockedLevels, levelId];
 					set({ unlockedLevels: newUnlockedLevels });
+					logDifficultyLevelUnlocked({
+						levelId,
+						...parseLevelAnalytics(levelId),
+					});
 
 					// Sync unlocked levels to backend
 					try {
@@ -260,6 +292,12 @@ export const useGameStore = create<GameState>()(
 							set({
 								completedLevels: newCompletedLevels,
 								unlockedLevels: [...currentUnlocked, ...newlyUnlocked],
+							});
+							newlyUnlocked.forEach((unlockedLevelId) => {
+								logDifficultyLevelUnlocked({
+									levelId: unlockedLevelId,
+									...parseLevelAnalytics(unlockedLevelId),
+								});
 							});
 							logger.info("GameStore", "Level completed & next unlocked", {
 								completed: levelId,

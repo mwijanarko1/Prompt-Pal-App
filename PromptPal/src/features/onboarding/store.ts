@@ -21,6 +21,7 @@ export interface OnboardingState {
 	// Navigation
 	currentStep: OnboardingStep;
 	hasCompletedOnboarding: boolean;
+	lastCompletionReason: "completed" | "skipped" | null;
 
 	// User inputs
 	userPrompt: string;
@@ -46,7 +47,7 @@ export interface OnboardingState {
 	setCurrentStep: (step: OnboardingStep) => void;
 	goToNextStep: () => void;
 	goToPreviousStep: () => void;
-	completeOnboarding: () => void;
+	completeOnboarding: (reason?: "completed" | "skipped") => void;
 	setUserPrompt: (prompt: string) => void;
 	setSelectedStyle: (style: string) => void;
 	setSelectedModule: (moduleId: string | null) => void;
@@ -76,6 +77,8 @@ const STEP_ORDER: OnboardingStep[] = [
 	"results",
 	"complete",
 ];
+
+export const ONBOARDING_STEP_ORDER = STEP_ORDER;
 
 // Use SecureStore on native, localStorage on web (expo-secure-store is not available on web)
 const secureStorage = {
@@ -114,6 +117,7 @@ export const useOnboardingStore = create<OnboardingState>()(
 		(set, get) => ({
 			currentStep: "welcome",
 			hasCompletedOnboarding: false,
+			lastCompletionReason: null,
 			userPrompt: "",
 			selectedStyle: "",
 			selectedContext: [],
@@ -145,8 +149,12 @@ export const useOnboardingStore = create<OnboardingState>()(
 				}
 			},
 
-			completeOnboarding: () =>
-				set({ hasCompletedOnboarding: true, currentStep: "complete" }),
+			completeOnboarding: (reason = "completed") =>
+				set({
+					hasCompletedOnboarding: true,
+					currentStep: "complete",
+					lastCompletionReason: reason,
+				}),
 
 			setUserPrompt: (prompt) => set({ userPrompt: prompt }),
 			setSelectedStyle: (style) => set({ selectedStyle: style }),
@@ -185,6 +193,7 @@ export const useOnboardingStore = create<OnboardingState>()(
 				set({
 					currentStep: "welcome",
 					hasCompletedOnboarding: false,
+					lastCompletionReason: null,
 					userPrompt: "",
 					selectedStyle: "",
 					selectedContext: [],

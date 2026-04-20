@@ -1,6 +1,13 @@
-import { View, StyleSheet, Text, TouchableOpacity } from "react-native";
-import { useOnboardingStore } from "./store";
+import { useEffect, useRef } from "react";
+import { AppState, View, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { useOnboardingStore, ONBOARDING_STEP_ORDER } from "./store";
 import { ONBOARDING_COLORS } from "./theme";
+import {
+	logOnboardingAbandoned,
+	logOnboardingCompleted,
+	logOnboardingStarted,
+	logOnboardingStepCompleted,
+} from "@/lib/analytics";
 
 // Screens
 import { WelcomeScreen } from "./screens/WelcomeScreen";
@@ -25,8 +32,78 @@ import { CompleteScreen } from "./screens/CompleteScreen";
  * story-driven, gamified onboarding experience.
  */
 export function OnboardingFlow() {
-	const { currentStep, hasCompletedOnboarding, goToNextStep, goToPreviousStep } =
-		useOnboardingStore();
+	const {
+		currentStep,
+		hasCompletedOnboarding,
+		lastCompletionReason,
+		goToNextStep,
+		goToPreviousStep,
+	} = useOnboardingStore();
+	const hasTrackedStartRef = useRef(false);
+	const hasTrackedAbandonmentRef = useRef(false);
+	const previousStepRef = useRef(currentStep);
+
+	useEffect(() => {
+		const stepIndex = ONBOARDING_STEP_ORDER.indexOf(currentStep) + 1;
+		const totalSteps = ONBOARDING_STEP_ORDER.length;
+
+		if (!hasTrackedStartRef.current) {
+			hasTrackedStartRef.current = true;
+			logOnboardingStarted({
+				step: currentStep,
+				stepIndex,
+				totalSteps,
+			});
+			previousStepRef.current = currentStep;
+			return;
+		}
+
+		if (previousStepRef.current !== currentStep) {
+			const previousStepIndex =
+				ONBOARDING_STEP_ORDER.indexOf(previousStepRef.current) + 1;
+			logOnboardingStepCompleted({
+				step: previousStepRef.current,
+				stepIndex: previousStepIndex,
+				totalSteps,
+			});
+			previousStepRef.current = currentStep;
+		}
+	}, [currentStep]);
+
+	useEffect(() => {
+		if (!hasCompletedOnboarding || lastCompletionReason !== "completed") {
+			return;
+		}
+
+		hasTrackedAbandonmentRef.current = true;
+		logOnboardingCompleted({
+			step: "complete",
+			stepIndex: ONBOARDING_STEP_ORDER.indexOf("complete") + 1,
+			totalSteps: ONBOARDING_STEP_ORDER.length,
+		});
+	}, [hasCompletedOnboarding, lastCompletionReason]);
+
+	useEffect(() => {
+		const subscription = AppState.addEventListener("change", (nextAppState) => {
+			if (
+				nextAppState !== "active" &&
+				!hasCompletedOnboarding &&
+				!hasTrackedAbandonmentRef.current
+			) {
+				hasTrackedAbandonmentRef.current = true;
+				logOnboardingAbandoned({
+					step: previousStepRef.current,
+					stepIndex: ONBOARDING_STEP_ORDER.indexOf(previousStepRef.current) + 1,
+					totalSteps: ONBOARDING_STEP_ORDER.length,
+					reason: "backgrounded",
+				});
+			}
+		});
+
+		return () => {
+			subscription.remove();
+		};
+	}, [hasCompletedOnboarding]);
 
 	// Don't render if onboarding is complete
 	if (hasCompletedOnboarding) {

@@ -5,6 +5,7 @@ import {
 	useSignInWithApple,
 } from "@clerk/clerk-expo";
 import { Link, Redirect, useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import {
 	Text,
 	View,
@@ -14,12 +15,13 @@ import {
 	Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { GoogleIcon } from "@/components/GoogleIcon";
 import { AuthField } from "@/components/auth/AuthField";
 import * as WebBrowser from "expo-web-browser";
 import { logger } from "@/lib/logger";
+import { logLandingPageViewed } from "@/lib/analytics";
 import {
 	getClerkErrorMessage,
 	getOAuthRedirectCandidates,
@@ -37,14 +39,62 @@ const useWarmUpBrowser = () => {
 
 WebBrowser.maybeCompleteAuthSession();
 
+const getAttributionParams = (queryParams?: Record<string, unknown>) => {
+	const readString = (...keys: string[]) => {
+		for (const key of keys) {
+			const value = queryParams?.[key];
+			if (typeof value === "string" && value.trim()) {
+				return value.trim();
+			}
+		}
+
+		return undefined;
+	};
+
+	return {
+		source: readString("utm_source", "source"),
+		medium: readString("utm_medium", "medium"),
+		campaign: readString("utm_campaign", "campaign"),
+		referrer: readString("referrer"),
+	};
+};
+
 export default function SignInScreen() {
 	const { isSignedIn, isLoaded: isAuthLoaded } = useAuth();
 	const { signIn, setActive, isLoaded } = useSignIn();
 	const { startSSOFlow } = useSSO();
 	const { startAppleAuthenticationFlow } = useSignInWithApple();
 	const router = useRouter();
+	const hasTrackedLandingPageRef = useRef(false);
 
 	useWarmUpBrowser();
+
+	useEffect(() => {
+		let isMounted = true;
+
+		const trackLandingPage = async () => {
+			if (hasTrackedLandingPageRef.current) {
+				return;
+			}
+
+			const initialUrl = await Linking.getInitialURL().catch(() => null);
+			const parsedUrl = initialUrl ? Linking.parse(initialUrl) : null;
+			const attribution = getAttributionParams(
+				parsedUrl?.queryParams as Record<string, unknown> | undefined,
+			);
+
+			if (isMounted) {
+				hasTrackedLandingPageRef.current = true;
+				logLandingPageViewed(attribution);
+			}
+		};
+
+		void trackLandingPage();
+
+		return () => {
+			isMounted = false;
+		};
+	}, []);
 
 	// If already signed in (e.g. from race with tabs redirect), go straight to app
 	if (isAuthLoaded && isSignedIn) {

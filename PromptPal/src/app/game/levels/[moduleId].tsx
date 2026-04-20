@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
 	View,
 	Text,
@@ -17,6 +17,7 @@ import { Card, ProgressBar } from "@/components/ui";
 import { useGameStore } from "@/features/game/store";
 import { useUserProgressStore } from "@/features/user/store";
 import { Level } from "@/features/game/store";
+import { logTopicCompleted } from "@/lib/analytics";
 import { logger } from "@/lib/logger";
 
 export default function LevelsScreen() {
@@ -28,6 +29,7 @@ export default function LevelsScreen() {
 	const [backendCompletedIds, setBackendCompletedIds] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const hasTrackedTopicCompletedRef = useRef(false);
 
 	const module = useMemo(
 		() => learningModules.find((m) => m.id === moduleId),
@@ -60,11 +62,33 @@ export default function LevelsScreen() {
 			levels.length > 0 &&
 			Math.abs(actualProgress - (module?.progress || 0)) >= 1
 		) {
+			if (actualProgress < 100) {
+				hasTrackedTopicCompletedRef.current = false;
+			}
 			useUserProgressStore
 				.getState()
 				.updateModuleProgress(moduleId as string, actualProgress);
 		}
 	}, [actualProgress, moduleId, module?.progress, levels.length]);
+
+	useEffect(() => {
+		if (
+			!moduleId ||
+			levels.length === 0 ||
+			actualProgress < 100 ||
+			hasTrackedTopicCompletedRef.current
+		) {
+			return;
+		}
+
+		hasTrackedTopicCompletedRef.current = true;
+		logTopicCompleted({
+			moduleId: moduleId as string,
+			title: module?.title,
+			topic: module?.topic,
+			progress: actualProgress,
+		});
+	}, [actualProgress, levels.length, module?.title, module?.topic, moduleId]);
 
 	useEffect(() => {
 		const loadLevels = async () => {

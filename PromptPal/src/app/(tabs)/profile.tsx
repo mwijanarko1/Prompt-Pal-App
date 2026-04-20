@@ -18,6 +18,7 @@ import { useColorScheme } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import { clearAuth, convexHttpClient, refreshAuth } from "@/lib/convex-client";
+import { logProfileViewed, logProgressViewed } from "@/lib/analytics";
 import { useUserProgressStore } from "@/features/user/store";
 import { useOnboardingStore } from "@/features/onboarding/store";
 import { api } from "../../../convex/_generated/api.js";
@@ -166,6 +167,8 @@ export default function ProfileScreen() {
 	const [isProfileLoading, setIsProfileLoading] = useState(true);
 	const subscriptionTier = useSubscriptionStore((state) => state.tier);
 	const managementUrl = useSubscriptionStore((state) => state.managementUrl);
+	const [hasTrackedProfileViewed, setHasTrackedProfileViewed] = useState(false);
+	const [hasTrackedProgressViewed, setHasTrackedProgressViewed] = useState(false);
 
 	useEffect(() => {
 		if (!canQueryProfile) {
@@ -272,6 +275,39 @@ export default function ProfileScreen() {
 	const planName = isPro ? "Premium Pro" : "Explorer Free";
 	const tierTitle = isPro ? "PROMPT MASTER" : "PROMPT NOVICE";
 	const subscriptionAvailable = isSubscriptionFeatureAvailable();
+
+	useEffect(() => {
+		if (isLoading || hasTrackedProfileViewed) {
+			return;
+		}
+
+		logProfileViewed({
+			tier: isPro ? "pro" : "free",
+			level,
+		});
+		setHasTrackedProfileViewed(true);
+	}, [hasTrackedProfileViewed, isLoading, isPro, level]);
+
+	useEffect(() => {
+		if (isLoading || hasTrackedProgressViewed) {
+			return;
+		}
+
+		logProgressViewed({
+			level,
+			totalPrompts,
+			avgAccuracy: Number(avgAccuracy),
+			textUsagePercent: Math.round(textUsagePercent),
+		});
+		setHasTrackedProgressViewed(true);
+	}, [
+		avgAccuracy,
+		hasTrackedProgressViewed,
+		isLoading,
+		level,
+		textUsagePercent,
+		totalPrompts,
+	]);
 
 	const renderAchievementItem = useCallback(
 		({ item }: { item: any }) => (

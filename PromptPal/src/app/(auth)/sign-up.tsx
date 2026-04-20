@@ -22,6 +22,7 @@ import { AuthField } from "@/components/auth/AuthField";
 import { GoogleIcon } from "@/components/GoogleIcon";
 import * as WebBrowser from "expo-web-browser";
 import { logger } from "@/lib/logger";
+import { logSignUp } from "@/lib/analytics";
 import {
 	getClerkErrorMessage,
 	getOAuthRedirectCandidates,
@@ -38,6 +39,19 @@ const useWarmUpBrowser = () => {
 };
 
 WebBrowser.maybeCompleteAuthSession();
+
+const getCreatedUserId = (value: unknown) => {
+	if (
+		value &&
+		typeof value === "object" &&
+		"createdUserId" in value &&
+		typeof value.createdUserId === "string"
+	) {
+		return value.createdUserId;
+	}
+
+	return undefined;
+};
 
 export default function SignUpScreen() {
 	const { isSignedIn, isLoaded: isAuthLoaded } = useAuth();
@@ -147,6 +161,10 @@ export default function SignUpScreen() {
 				signUpAttempt.status === "complete" &&
 				signUpAttempt.createdSessionId
 			) {
+				logSignUp({
+					method: "email",
+					userId: getCreatedUserId(signUpAttempt),
+				});
 				await setActive({ session: signUpAttempt.createdSessionId });
 				setTimeout(() => router.replace("/(tabs)"), 500);
 				return;
@@ -218,6 +236,10 @@ export default function SignUpScreen() {
 			// If verification was completed, set the session to active
 			// and redirect the user
 			if (signUpAttempt.status === "complete") {
+				logSignUp({
+					method: "email",
+					userId: getCreatedUserId(signUpAttempt),
+				});
 				await setActive({ session: signUpAttempt.createdSessionId });
 				// Auth layout Redirect will navigate when isSignedIn propagates.
 				// Defer navigation to avoid race where layout still sees isSignedIn=false.
@@ -258,6 +280,10 @@ export default function SignUpScreen() {
 						ssoAttempt.signUp?.createdSessionId;
 
 					if (createdSessionId) {
+						logSignUp({
+							method: "google",
+							userId: getCreatedUserId(ssoAttempt.signUp),
+						});
 						await ssoAttempt.setActive?.({ session: createdSessionId });
 						setTimeout(() => router.replace("/(tabs)"), 500);
 						return;
@@ -326,6 +352,10 @@ export default function SignUpScreen() {
 				const appleAttempt = await startAppleAuthenticationFlow();
 
 				if (appleAttempt.createdSessionId && appleAttempt.setActive) {
+					logSignUp({
+						method: "apple",
+						userId: getCreatedUserId(appleAttempt),
+					});
 					await appleAttempt.setActive({
 						session: appleAttempt.createdSessionId,
 					});
@@ -350,6 +380,10 @@ export default function SignUpScreen() {
 						ssoAttempt.signUp?.createdSessionId;
 
 					if (createdSessionId) {
+						logSignUp({
+							method: "apple",
+							userId: getCreatedUserId(ssoAttempt.signUp),
+						});
 						await ssoAttempt.setActive?.({ session: createdSessionId });
 						setTimeout(() => router.replace("/(tabs)"), 500);
 						return;

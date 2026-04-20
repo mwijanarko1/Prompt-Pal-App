@@ -23,6 +23,7 @@ import { useOnboardingStore } from "../store";
 import { ONBOARDING_COLORS } from "../theme";
 import { useConvexAI } from "@/hooks/useConvexAI";
 import { getAIErrorPresentation } from "@/lib/aiErrors";
+import { logQuizAnswerSubmitted } from "@/lib/analytics";
 import { delay } from "../utils/practiceEvaluation";
 
 const ONBOARDING_CODE_LEVEL_ID = "code-11-hard";
@@ -138,6 +139,14 @@ export function Practice2Screen() {
 				takeaway: passed ? LOCAL_TAKEAWAY : undefined,
 				score:
 					typeof evaluation.score === "number" ? evaluation.score : undefined,
+			});
+			logQuizAnswerSubmitted({
+				quizId: "onboarding-practice",
+				questionId: "practice-2",
+				answerLength: localPrompt.trim().length,
+				score:
+					typeof evaluation.score === "number" ? evaluation.score : undefined,
+				isCorrect: passed,
 			});
 
 			if (passed) {

@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { AppState } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ClerkProviderWrapper, useAuth } from "@/lib/clerk";
@@ -9,15 +10,23 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { clearAuth, refreshAuth } from "@/lib/convex-client";
+import {
+	initializeAnalytics,
+	logSessionEnded,
+	logSessionStarted,
+} from "@/lib/analytics";
 import { useSubscriptionStore } from "@/features/subscription/store";
 import {
 	configureRevenueCat,
 	getCustomerInfo,
+	getEntitlementKey,
 	getManagementUrl,
 	isProEntitled,
 	isSubscriptionFeatureAvailable,
 	syncCurrentUserSubscription,
 } from "@/lib/subscriptions";
+import { trackRevenueLifecycle, trackUsageLimitApproachingOnce } from "@/lib/revenueAnalytics";
+import { useUsage } from "@/lib/usage";
 import "../app/global.css";
 
 const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
@@ -66,6 +75,9 @@ function AppInitializer() {
 	const resetSubscriptionForSignedOut = useSubscriptionStore(
 		(state) => state.resetForSignedOut,
 	);
+	const usage = useUsage();
+	const sessionStartRef = useRef<number | null>(null);
+	const hasStartedSessionRef = useRef(false);
 
 	useEffect(() => {
 		if (!isLoaded) {
@@ -109,6 +121,8 @@ function AppInitializer() {
 			try {
 				await refreshAuth();
 				await configureRevenueCat(userId);
+				const customerInfo = await getCustomerInfo().catch(() => null);
+				await trackRevenueLifecycle(customerInfo, getEntitlementKey());
 				const status = await syncCurrentUserSubscription();
 				if (!cancelled) {
 					applySubscriptionStatus(status);
@@ -154,6 +168,10 @@ function AppInitializer() {
 		userId,
 	]);
 
+	useEffect(() => {
+		void trackUsageLimitApproachingOnce(usage);
+	}, [usage]);
+
 	// Validate environment variables on app startup (non-blocking in development)
 	useEffect(() => {
 		try {
@@ -162,6 +180,41 @@ function AppInitializer() {
 			// Avoid hard-aborting startup from environment validation in release builds.
 			console.error("[Environment]", error);
 		}
+	}, []);
+
+	useEffect(() => {
+		initializeAnalytics();
+	}, []);
+
+	useEffect(() => {
+		if (!hasStartedSessionRef.current) {
+			hasStartedSessionRef.current = true;
+			sessionStartRef.current = Date.now();
+			logSessionStarted({ source: "app_launch" });
+		}
+
+		const subscription = AppState.addEventListener("change", (nextState) => {
+			if (nextState === "active") {
+				sessionStartRef.current = Date.now();
+				logSessionStarted({ source: "app_foreground" });
+				return;
+			}
+
+			if (sessionStartRef.current) {
+				logSessionEnded({
+					durationSeconds: Math.max(
+						1,
+						Math.round((Date.now() - sessionStartRef.current) / 1000),
+					),
+					reason: nextState,
+				});
+				sessionStartRef.current = null;
+			}
+		});
+
+		return () => {
+			subscription.remove();
+		};
 	}, []);
 
 	return (

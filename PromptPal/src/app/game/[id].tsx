@@ -28,6 +28,12 @@ import { useConvexAI } from "@/hooks/useConvexAI";
 import { convexHttpClient } from "@/lib/convex-client";
 import { api } from "../../../convex/_generated/api.js";
 import { getAIErrorPresentation } from "@/lib/aiErrors";
+import {
+	logFirstLessonStarted,
+	logLessonCompleted,
+	logLessonFailed,
+	logLessonStarted,
+} from "@/lib/analytics";
 import { logger } from "@/lib/logger";
 import { NanoAssistant } from "@/lib/nanoAssistant";
 import { useUser } from "@clerk/clerk-expo";
@@ -190,8 +196,25 @@ export default function GameScreen() {
 	const [moduleLevels, setModuleLevels] = useState<Level[]>([]);
 	const inputAccessoryId = "promptInputAccessory";
 
-	const { loseLife, startLevel, completeLevel, syncToBackend } = useGameStore();
+	const { loseLife, startLevel, completeLevel, syncToBackend, completedLevels } =
+		useGameStore();
 	const { updateStreak, addXP, spendXP, xp } = useUserProgressStore();
+	const hasTrackedLessonStartRef = useRef(false);
+
+	const getLessonAnalyticsPayload = useCallback(
+		(score?: number) => ({
+			lessonId: level?.id || String(id),
+			lessonType: level?.type,
+			moduleId:
+				level?.moduleId ||
+				(level?.type ? getModuleIdFromLevelType(level.type) : undefined),
+			difficulty: level?.difficulty,
+			score,
+			passingScore: level?.passingScore,
+			attemptNumber: attemptHistory.length + 1,
+		}),
+		[attemptHistory.length, id, level],
+	);
 
 	const checklistItems = useMemo(() => getLevelChecklistItems(level), [level]);
 	const beginnerLocked = useMemo(
@@ -374,6 +397,20 @@ export default function GameScreen() {
 			loadLevel();
 		}
 	}, [id, startLevel, user?.id]);
+
+	useEffect(() => {
+		if (!level || hasTrackedLessonStartRef.current) {
+			return;
+		}
+
+		hasTrackedLessonStartRef.current = true;
+		const payload = getLessonAnalyticsPayload();
+		logLessonStarted(payload);
+
+		if (completedLevels.length === 0) {
+			logFirstLessonStarted(payload);
+		}
+	}, [completedLevels.length, getLessonAnalyticsPayload, level]);
 
 	useEffect(() => {
 		const nextPrompt = getInitialPromptStateForLevel(level);
@@ -628,6 +665,7 @@ export default function GameScreen() {
 				}
 
 				if (finalScore >= level.passingScore) {
+					logLessonCompleted(getLessonAnalyticsPayload(finalScore));
 					if (user?.id) {
 						const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
 						await convexHttpClient.mutation(api.mutations.updateLevelProgress, {
@@ -647,6 +685,7 @@ export default function GameScreen() {
 					await completeLevel(level.id);
 					syncToBackend().catch(() => {}); // Persist progress immediately
 				} else {
+					logLessonFailed(getLessonAnalyticsPayload(finalScore));
 					// User didn't pass - lose a life
 					await loseLife();
 
@@ -766,6 +805,7 @@ export default function GameScreen() {
 				}
 
 				if (userPassed) {
+					logLessonCompleted(getLessonAnalyticsPayload(finalScore));
 					if (user?.id) {
 						const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
 						await convexHttpClient.mutation(api.mutations.updateLevelProgress, {
@@ -784,6 +824,7 @@ export default function GameScreen() {
 					await completeLevel(level.id);
 					syncToBackend().catch(() => {}); // Persist progress immediately
 				} else {
+					logLessonFailed(getLessonAnalyticsPayload(finalScore));
 					await loseLife();
 				}
 			} else if (level.type === "copywriting") {
@@ -863,6 +904,7 @@ export default function GameScreen() {
 				}
 
 				if (finalScore >= level.passingScore) {
+					logLessonCompleted(getLessonAnalyticsPayload(finalScore));
 					if (user?.id) {
 						const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
 						await convexHttpClient.mutation(api.mutations.updateLevelProgress, {
@@ -882,6 +924,7 @@ export default function GameScreen() {
 					await completeLevel(level.id);
 					syncToBackend().catch(() => {}); // Persist progress immediately
 				} else {
+					logLessonFailed(getLessonAnalyticsPayload(finalScore));
 					await loseLife();
 				}
 			}

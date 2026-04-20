@@ -3,7 +3,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { ProgressBar } from "@/components/ui";
-import { useOnboardingStore, getStepProgress } from "../store";
+import { logOnboardingAbandoned } from "@/lib/analytics";
+import {
+	useOnboardingStore,
+	getStepProgress,
+	ONBOARDING_STEP_ORDER,
+} from "../store";
 import { ONBOARDING_COLORS } from "../theme";
 
 interface OnboardingScreenWrapperProps {
@@ -29,7 +34,13 @@ export function OnboardingScreenWrapper({
 					text: "Skip",
 					style: "destructive",
 					onPress: () => {
-						completeOnboarding();
+						logOnboardingAbandoned({
+							step: currentStep,
+							stepIndex: ONBOARDING_STEP_ORDER.indexOf(currentStep) + 1,
+							totalSteps: ONBOARDING_STEP_ORDER.length,
+							reason: "skipped",
+						});
+						completeOnboarding("skipped");
 					},
 				},
 			],

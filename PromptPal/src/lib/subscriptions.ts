@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import Purchases, {
 	LOG_LEVEL,
+	type CustomerInfo,
 	type PurchasesPackage,
 } from "react-native-purchases";
 import { convexHttpClient } from "@/lib/convex-client";
@@ -24,13 +25,6 @@ const PRIVACY_POLICY_URL =
 let isConfigured = false;
 let configuredAppUserId: string | null = null;
 let hasLoggedExpoGoFallback = false;
-
-type CustomerInfoLike = {
-	entitlements?: {
-		active?: Record<string, unknown>;
-	};
-	managementURL?: string | null;
-};
 
 type SubscriptionSyncResponse = {
 	tier: SubscriptionTier;
@@ -117,22 +111,22 @@ export async function configureRevenueCat(
 	return true;
 }
 
-export async function getCustomerInfo(): Promise<CustomerInfoLike | null> {
+export async function getCustomerInfo(): Promise<CustomerInfo | null> {
 	if (!isConfigured) {
 		return null;
 	}
 
-	return (await Purchases.getCustomerInfo()) as CustomerInfoLike;
+	return await Purchases.getCustomerInfo();
 }
 
 export function isProEntitled(
-	customerInfo: CustomerInfoLike | null | undefined,
+	customerInfo: CustomerInfo | null | undefined,
 ): boolean {
 	return getTierFromCustomerInfo(customerInfo, ENTITLEMENT_KEY) === "pro";
 }
 
 export function getManagementUrl(
-	customerInfo: CustomerInfoLike | null | undefined,
+	customerInfo: CustomerInfo | null | undefined,
 ): string | null {
 	return typeof customerInfo?.managementURL === "string"
 		? customerInfo.managementURL
@@ -228,7 +222,7 @@ export async function getSubscriptionPackageOptions(): Promise<
 
 export async function purchaseSubscriptionPackage(
 	packageIdentifier: string,
-): Promise<CustomerInfoLike> {
+): Promise<CustomerInfo> {
 	const packages = await getCurrentOfferingPackages();
 	const targetPackage = packages.find(
 		(candidate) => candidate.identifier === packageIdentifier,
@@ -239,13 +233,17 @@ export async function purchaseSubscriptionPackage(
 	}
 
 	const purchaseResult = await Purchases.purchasePackage(targetPackage);
-	return purchaseResult.customerInfo as CustomerInfoLike;
+	return purchaseResult.customerInfo;
 }
 
-export async function restorePurchases(): Promise<CustomerInfoLike> {
+export async function restorePurchases(): Promise<CustomerInfo> {
 	if (!isConfigured) {
 		throw new Error("RevenueCat is not configured");
 	}
 
-	return (await Purchases.restorePurchases()) as CustomerInfoLike;
+	return await Purchases.restorePurchases();
+}
+
+export function getEntitlementKey(): string {
+	return ENTITLEMENT_KEY;
 }
