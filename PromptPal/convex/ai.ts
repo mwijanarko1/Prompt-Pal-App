@@ -127,6 +127,29 @@ function createAIError(
 	});
 }
 
+/** Extract a JSON object from model output (plain JSON, fenced ```json```, or first `{...}` block). */
+function parseJsonObjectFromModelText(text: string): unknown {
+	const trimmed = text.trim();
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		// try other shapes
+	}
+	const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+	if (fence?.[1]) {
+		try {
+			return JSON.parse(fence[1].trim());
+		} catch {
+			// fall through to brace extraction
+		}
+	}
+	const brace = trimmed.match(/\{[\s\S]*\}/);
+	if (brace?.[0]) {
+		return JSON.parse(brace[0]);
+	}
+	throw new SyntaxError("No JSON object in model text");
+}
+
 function normalizeImageEvaluation(raw: unknown): ImageEvaluation {
 	const candidate =
 		raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -744,6 +767,18 @@ export const evaluateCopySubmission = action({
 			grading.criteria &&
 			grading.criteria.length > 0
 		) {
+			const promptAssessment = assessCopyPromptQuality({
+				userPrompt: args.userPrompt,
+				publicReferences: [
+					args.visibleBrief,
+					level.title,
+					level.description,
+					level.briefTitle,
+					...(args.visibleHints || []),
+				],
+				checklist: level.promptChecklist,
+			});
+
 			const judgePrompt = buildCopyLlmJudgePrompt(
 				args.userPrompt,
 				trimmedText,
@@ -760,10 +795,13 @@ export const evaluateCopySubmission = action({
 				generated.text,
 				grading.criteria,
 			);
-			const { score, passed: conditionMet } = computeLlmJudgeScore(
+			const { score: judgeScore, passed: conditionMet } = computeLlmJudgeScore(
 				passed,
 				grading.criteria,
 				grading.passingCondition ?? "All required criteria pass",
+			);
+			const blendedScore = Math.round(
+				judgeScore * 0.8 + promptAssessment.score * 0.2,
 			);
 			const failState = level.failState as { nudge?: string } | undefined;
 			const successState = level.successState as
@@ -780,18 +818,21 @@ export const evaluateCopySubmission = action({
 					feedbackLines.push(`${c.id}: ${reasons[c.id]}`);
 				}
 			}
+			for (const line of promptAssessment.feedback) {
+				if (line) feedbackLines.push(line);
+			}
 			const metrics = grading.criteria.map((c) => ({
 				name: c.id.replace(/_/g, " "),
 				value: passed[c.id] ? 100 : 0,
 			}));
 			return {
-				score,
+				score: blendedScore,
 				metrics: metrics.map((m) => ({ label: m.name, value: m.value })),
 				feedback:
 					feedbackLines.length > 0 ? feedbackLines : ["Evaluation complete."],
 				wordCount,
 				withinLimit: true,
-				promptQualityScore: score,
+				promptQualityScore: promptAssessment.score,
 			};
 		}
 
@@ -1134,10 +1175,12 @@ Return your response as JSON with this exact format:
 
 		const durationMs = Date.now() - startedAt;
 
-		// Parse the AI response as JSON
+		// Parse the AI response as JSON (models often wrap JSON in markdown fences)
 		let evaluation: ImageEvaluation;
 		try {
-			evaluation = normalizeImageEvaluation(JSON.parse(result.text));
+			evaluation = normalizeImageEvaluation(
+				parseJsonObjectFromModelText(result.text),
+			);
 		} catch {
 			evaluation = defaultImageEvaluation("Unable to parse AI evaluation response.");
 		}

@@ -1,5 +1,5 @@
 import { useAction } from "convex/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	ActivityIndicator,
 	Pressable,
@@ -27,6 +27,7 @@ import {
 	logSuperpromptQuotaBlocked,
 	logSuperpromptRefineTapped,
 	logSuperpromptTrainNudgeTapped,
+	logUsageLimitApproaching,
 } from "@/lib/analytics";
 
 const CATEGORIES: { id: GenerateCategory; label: string }[] = [
@@ -60,6 +61,19 @@ export default function GenerateTab() {
 
 	const ideaTrimmed = idea.trim();
 	const canGenerate = ideaTrimmed.length > 0 && !loading;
+
+	useEffect(() => {
+		if (!usageHint || usageHint.remaining > 3 || usageHint.remaining <= 0) {
+			return;
+		}
+
+		logUsageLimitApproaching({
+			remaining: usageHint.remaining,
+			limit: usageHint.limit,
+			tier: usageHint.tier,
+			category,
+		});
+	}, [category, usageHint]);
 
 	const runGenerate = useCallback(
 		async (input: {

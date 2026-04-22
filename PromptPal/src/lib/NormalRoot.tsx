@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ClerkProviderWrapper, useAuth } from "@/lib/clerk";
@@ -9,6 +10,12 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { clearAuth, refreshAuth } from "@/lib/convex-client";
+import {
+	initializeAnalytics,
+	logAppOpen,
+	logSessionEnded,
+	logSessionStarted,
+} from "@/lib/analytics";
 import { useSubscriptionStore } from "@/features/subscription/store";
 import {
 	configureRevenueCat,
@@ -54,6 +61,8 @@ function ConvexProviderWrapper({ children }: { children: React.ReactNode }) {
  */
 function AppInitializer() {
 	const { isLoaded, isSignedIn, userId } = useAuth();
+	const sessionStartedAtRef = useRef(Date.now());
+	const isAnalyticsSessionActiveRef = useRef(false);
 	const beginSubscriptionSync = useSubscriptionStore(
 		(state) => state.beginSync,
 	);
@@ -66,6 +75,64 @@ function AppInitializer() {
 	const resetSubscriptionForSignedOut = useSubscriptionStore(
 		(state) => state.resetForSignedOut,
 	);
+
+	useEffect(() => {
+		let cancelled = false;
+
+		void initializeAnalytics()
+			.then(() => {
+				if (!cancelled) {
+					logAppOpen();
+				}
+			})
+			.catch(() => undefined);
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		const startAnalyticsSession = () => {
+			if (isAnalyticsSessionActiveRef.current) {
+				return;
+			}
+
+			isAnalyticsSessionActiveRef.current = true;
+			sessionStartedAtRef.current = Date.now();
+			logSessionStarted();
+		};
+
+		const endAnalyticsSession = (reason: AppStateStatus | "unmount") => {
+			if (!isAnalyticsSessionActiveRef.current) {
+				return;
+			}
+
+			isAnalyticsSessionActiveRef.current = false;
+			logSessionEnded({
+				durationMs: Date.now() - sessionStartedAtRef.current,
+				reason,
+			});
+		};
+
+		startAnalyticsSession();
+
+		const subscription = AppState.addEventListener("change", (nextState) => {
+			if (nextState === "active") {
+				startAnalyticsSession();
+				return;
+			}
+
+			if (nextState === "background" || nextState === "inactive") {
+				endAnalyticsSession(nextState);
+			}
+		});
+
+		return () => {
+			subscription.remove();
+			endAnalyticsSession("unmount");
+		};
+	}, []);
 
 	useEffect(() => {
 		if (!isLoaded) {

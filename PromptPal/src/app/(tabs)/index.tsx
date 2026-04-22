@@ -1,14 +1,20 @@
+import { useEffect } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
+	logLandingPageViewed,
 	logSuperpromptHomeGenerateTapped,
 	logSuperpromptHomeTrainTapped,
 } from "@/lib/analytics";
 
 export default function HomeScreen() {
 	const router = useRouter();
+
+	useEffect(() => {
+		logLandingPageViewed({ route: "/(tabs)" });
+	}, []);
 
 	return (
 		<SafeAreaView

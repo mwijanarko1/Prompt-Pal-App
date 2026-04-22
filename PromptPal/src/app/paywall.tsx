@@ -15,6 +15,12 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useSubscriptionStore } from "@/features/subscription/store";
 import {
+	logPaywallHit,
+	logPricingPageViewed,
+	logSubscriptionStarted,
+	logTrialStarted,
+} from "@/lib/analytics";
+import {
 	configureRevenueCat,
 	getCustomerInfo,
 	getLegalUrls,
@@ -81,6 +87,13 @@ export default function PaywallScreen() {
 	);
 
 	const unsupportedCopy = useMemo(getUnsupportedPlatformCopy, []);
+
+	useEffect(() => {
+		logPricingPageViewed({ required: isRequired });
+		logPaywallHit({
+			trigger: isRequired ? "subscription_required" : "upgrade_screen",
+		});
+	}, [isRequired]);
 
 	const goAfterEntitlement = useCallback(() => {
 		if (isRequired) {
@@ -164,12 +177,32 @@ export default function PaywallScreen() {
 	const handlePurchase = useCallback(
 		async (packageIdentifier: string) => {
 			setProcessingIdentifier(packageIdentifier);
+			const selectedOption = packageOptions.find(
+				(option) => option.identifier === packageIdentifier,
+			);
 
 			try {
 				await purchaseSubscriptionPackage(packageIdentifier);
 				const status = await syncAfterPurchaseChange();
 
 				if (status.tier === "pro") {
+					logSubscriptionStarted({
+						packageIdentifier,
+						source: "paywall",
+					});
+					if (
+						/\b(trial|free)\b/i.test(
+							[
+								selectedOption?.identifier,
+								selectedOption?.title,
+								selectedOption?.description,
+							]
+								.filter(Boolean)
+								.join(" "),
+						)
+					) {
+						logTrialStarted({ productId: packageIdentifier });
+					}
 					Alert.alert("Success", "Your subscription is active.", [
 						{ text: "OK", onPress: goAfterEntitlement },
 					]);
@@ -187,6 +220,10 @@ export default function PaywallScreen() {
 						tier: "pro",
 						managementUrl: getManagementUrl(customerInfo),
 					});
+					logSubscriptionStarted({
+						packageIdentifier,
+						source: "paywall_local_customer_info",
+					});
 					Alert.alert(
 						"Purchase complete",
 						"Your subscription is active on this device. Backend syncing will retry the next time the app connects.",
@@ -199,7 +236,7 @@ export default function PaywallScreen() {
 				setProcessingIdentifier(null);
 			}
 		},
-		[applyStatus, goAfterEntitlement, syncAfterPurchaseChange],
+		[applyStatus, goAfterEntitlement, packageOptions, syncAfterPurchaseChange],
 	);
 
 	const handleRestorePurchases = useCallback(async () => {

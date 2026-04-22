@@ -3,6 +3,18 @@ export interface ChecklistMatchResult {
 	coverage: number;
 }
 
+/** Map spelling variants to one token so checklist items match user input. */
+const CANONICAL_TOKEN: Record<string, string> = {
+	colour: "color",
+	colours: "colors",
+	gray: "grey",
+	grays: "greys",
+};
+
+function canonicalizeToken(token: string): string {
+	return CANONICAL_TOKEN[token] ?? token;
+}
+
 const STOPWORDS = new Set([
 	"a",
 	"an",
@@ -53,7 +65,8 @@ export function tokenizeChecklistText(text: string): string[] {
 }
 
 export function uniqueChecklistTokens(text: string): Set<string> {
-	return new Set(tokenizeChecklistText(text));
+	const tokens = tokenizeChecklistText(text).map(canonicalizeToken);
+	return new Set(tokens);
 }
 
 export function calculateTokenCoverage(

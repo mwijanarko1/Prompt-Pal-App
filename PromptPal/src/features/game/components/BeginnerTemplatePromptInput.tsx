@@ -8,13 +8,18 @@ import React, {
 import { Text, TextInput, View } from "react-native";
 import {
 	composePromptFromScaffoldSlots,
+	isBeginnerSlotContentMeaningful,
 	parseScaffoldPlaceholders,
 } from "@/features/game/utils/scaffold";
 
 export interface BeginnerTemplatePromptInputProps {
 	template: string;
 	onChangePrompt: (text: string) => void;
-	/** Fires when every slot has non-whitespace text (for submit gating). */
+	/** Slot values only (joined), for checklist matching — excludes fixed scaffold text. */
+	onSlotValuesJoinedChange?: (joinedSlotText: string) => void;
+	/** Per-slot values (same order as `[hint]` placeholders), for ordinal checklist UI. */
+	onSlotValuesArrayChange?: (values: string[]) => void;
+	/** Fires when every slot has meaningful text — not a single letter/punctuation-only (submit gating). */
 	onAllSlotsFilledChange?: (allFilled: boolean) => void;
 	onPromptFocus?: () => void;
 	inputAccessoryViewID?: string;
@@ -28,6 +33,8 @@ export interface BeginnerTemplatePromptInputProps {
 export function BeginnerTemplatePromptInput({
 	template,
 	onChangePrompt,
+	onSlotValuesJoinedChange,
+	onSlotValuesArrayChange,
 	onAllSlotsFilledChange,
 	onPromptFocus,
 	inputAccessoryViewID,
@@ -52,9 +59,18 @@ export function BeginnerTemplatePromptInput({
 			onAllSlotsFilledChange?.(true);
 			return;
 		}
-		const filled = slots.every((s) => s.trim().length > 0);
+		const filled = slots.every((s) => isBeginnerSlotContentMeaningful(s));
 		onAllSlotsFilledChange?.(filled);
 	}, [hints.length, slots, onAllSlotsFilledChange]);
+
+	useEffect(() => {
+		const joined = slots
+			.map((s) => s.trim())
+			.filter(Boolean)
+			.join(" ");
+		onSlotValuesArrayChange?.(slots);
+		onSlotValuesJoinedChange?.(joined);
+	}, [slots, onSlotValuesJoinedChange, onSlotValuesArrayChange, hints.length]);
 
 	const setSlotAt = useCallback(
 		(index: number, text: string) => {

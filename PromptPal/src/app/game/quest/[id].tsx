@@ -60,8 +60,18 @@ import { getChecklistMatchResult } from "@/lib/scaffolding/checklistMatching";
 import {
 	getInitialPromptStateForLevel,
 	getLevelChecklistItems,
+	getOrdinalMatchedChecklistItemsForBeginnerTemplate,
 	isBeginnerTemplateLocked,
 } from "@/features/game/utils/scaffold";
+import {
+	logDifficultyLevelUnlocked,
+	logFirstLessonStarted,
+	logLessonCompleted,
+	logLessonFailed,
+	logLessonStarted,
+	logQuizAnswerSubmitted,
+	logTopicCompleted,
+} from "@/lib/analytics";
 
 const { height: screenHeight } = Dimensions.get("window");
 
@@ -164,6 +174,9 @@ export default function QuestScreen() {
 		{ start: number; end?: number } | undefined
 	>(undefined);
 	const [beginnerSlotsFilled, setBeginnerSlotsFilled] = useState(true);
+	const [beginnerSlotTextForChecklist, setBeginnerSlotTextForChecklist] =
+		useState("");
+	const [beginnerSlotValues, setBeginnerSlotValues] = useState<string[]>([]);
 
 	// Refs for keyboard scrolling
 	const scrollViewRef = useRef<ScrollView>(null);
@@ -171,6 +184,7 @@ export default function QuestScreen() {
 	const promptInputRef = useRef<TextInput>(null);
 	const hasEditedPromptRef = useRef(false);
 	const shouldJumpToTemplateRef = useRef(false);
+	const trackedStartedLevelIdsRef = useRef(new Set<string>());
 	const scrollYRef = useRef(0);
 	const [keyboardHeight, setKeyboardHeight] = useState(0);
 	const [isLoading, setIsLoading] = useState(true);
@@ -213,10 +227,27 @@ export default function QuestScreen() {
 		() => isBeginnerTemplateLocked(level),
 		[level],
 	);
-	const matchedChecklistItems = useMemo(
-		() => getChecklistMatchResult(prompt, checklistItems).matchedItems,
-		[prompt, checklistItems],
-	);
+	const matchedChecklistItems = useMemo(() => {
+		if (beginnerLocked && level?.scaffoldTemplate) {
+			const ordinal = getOrdinalMatchedChecklistItemsForBeginnerTemplate(
+				level.scaffoldTemplate,
+				checklistItems,
+				beginnerSlotValues,
+			);
+			if (ordinal !== null) {
+				return ordinal;
+			}
+		}
+		const source = beginnerLocked ? beginnerSlotTextForChecklist : prompt;
+		return getChecklistMatchResult(source, checklistItems).matchedItems;
+	}, [
+		beginnerLocked,
+		beginnerSlotTextForChecklist,
+		beginnerSlotValues,
+		level?.scaffoldTemplate,
+		prompt,
+		checklistItems,
+	]);
 	const noHintsLeft = level
 		? NanoAssistant.getHintsRemaining(level.id, level.difficulty) === 0
 		: false;
@@ -262,7 +293,27 @@ export default function QuestScreen() {
 					};
 
 					setLevel(processedLevel);
+					setBeginnerSlotTextForChecklist("");
+					setBeginnerSlotValues([]);
 					startLevel(processedLevel.id);
+					if (!trackedStartedLevelIdsRef.current.has(processedLevel.id)) {
+						const moduleId =
+							processedLevel.moduleId ||
+							getModuleIdFromLevelType(processedLevel.type || "image");
+						const lessonBase = {
+							lessonId: processedLevel.id,
+							lessonType: processedLevel.type || "unknown",
+							moduleId,
+							topic: processedLevel.moduleTitle,
+							difficulty: processedLevel.difficulty,
+							isDailyQuest: true,
+						};
+						trackedStartedLevelIdsRef.current.add(processedLevel.id);
+						logLessonStarted(lessonBase);
+						if (useGameStore.getState().completedLevels.length === 0) {
+							logFirstLessonStarted(lessonBase);
+						}
+					}
 					// Reset hints
 					NanoAssistant.resetHintsForLevel(processedLevel.id);
 					setHints([]);
@@ -326,6 +377,8 @@ export default function QuestScreen() {
 	useEffect(() => {
 		const nextPrompt = getInitialPromptStateForLevel(level);
 		setPrompt(nextPrompt);
+		setBeginnerSlotTextForChecklist("");
+		setBeginnerSlotValues([]);
 		setPromptSelection(undefined);
 		hasEditedPromptRef.current = false;
 		setBeginnerSlotsFilled(!isBeginnerTemplateLocked(level));
@@ -382,6 +435,14 @@ export default function QuestScreen() {
 
 	const handleBeginnerSlotsFilledChange = useCallback((filled: boolean) => {
 		setBeginnerSlotsFilled(filled);
+	}, []);
+
+	const handleBeginnerSlotValuesJoined = useCallback((joined: string) => {
+		setBeginnerSlotTextForChecklist(joined);
+	}, []);
+
+	const handleBeginnerSlotValuesArray = useCallback((values: string[]) => {
+		setBeginnerSlotValues(values);
 	}, []);
 
 	// Keyboard handling - keep input visible and avoid unexpected dismissals
@@ -479,6 +540,105 @@ export default function QuestScreen() {
 		setShowHelpModal(false);
 	}, [level]);
 
+	const getLessonAnalyticsBase = useCallback(() => {
+		if (!level) {
+			return null;
+		}
+
+		return {
+			lessonId: level.id,
+			lessonType: level.type || "unknown",
+			moduleId: level.moduleId || getModuleIdFromLevelType(level.type || "image"),
+			topic: level.moduleTitle,
+			difficulty: level.difficulty,
+			isDailyQuest: true,
+		};
+	}, [level]);
+
+	const logCurrentLessonSubmission = useCallback(() => {
+		const base = getLessonAnalyticsBase();
+		if (!base) {
+			return;
+		}
+
+		logQuizAnswerSubmitted({
+			...base,
+			questionId: quest?.id ?? level?.id ?? base.lessonId,
+			answerLength: prompt.trim().length,
+			attemptCount: attemptHistory.length + 1,
+		});
+	}, [
+		attemptHistory.length,
+		getLessonAnalyticsBase,
+		level?.id,
+		prompt,
+		quest?.id,
+	]);
+
+	const logCurrentLessonOutcome = useCallback(
+		(finalScore: number) => {
+			const base = getLessonAnalyticsBase();
+			if (!base || !level) {
+				return;
+			}
+
+			const attemptCount = attemptHistory.length + 1;
+			const isPassing = finalScore >= level.passingScore;
+			if (isPassing) {
+				logLessonCompleted({
+					...base,
+					score: finalScore,
+					passingScore: level.passingScore,
+					attemptCount,
+					xpEarned: quest?.xpReward || 50,
+				});
+
+				const completedLevelIds = new Set([
+					...useGameStore.getState().completedLevels,
+					level.id,
+				]);
+				if (
+					moduleLevels.length > 0 &&
+					moduleLevels.every((moduleLevel) =>
+						completedLevelIds.has(moduleLevel.id),
+					)
+				) {
+					logTopicCompleted({
+						moduleId: base.moduleId,
+						topic: base.topic,
+						completedLessons: moduleLevels.length,
+						totalLessons: moduleLevels.length,
+					});
+				}
+
+				const sortedModuleLevels = [...moduleLevels].sort(
+					(a, b) => (a.order || 0) - (b.order || 0),
+				);
+				const currentIndex = sortedModuleLevels.findIndex(
+					(moduleLevel) => moduleLevel.id === level.id,
+				);
+				const nextLevel =
+					currentIndex >= 0 ? sortedModuleLevels[currentIndex + 1] : undefined;
+				if (nextLevel && nextLevel.difficulty !== level.difficulty) {
+					logDifficultyLevelUnlocked({
+						difficulty: nextLevel.difficulty,
+						levelId: nextLevel.id,
+						moduleId: base.moduleId,
+					});
+				}
+				return;
+			}
+
+			logLessonFailed({
+				...base,
+				score: finalScore,
+				passingScore: level.passingScore,
+				attemptCount,
+			});
+		},
+		[attemptHistory.length, getLessonAnalyticsBase, level, moduleLevels, quest],
+	);
+
 	if (isLoading) {
 		return (
 			<SafeAreaView className="flex-1 bg-background items-center justify-center">
@@ -523,6 +683,7 @@ export default function QuestScreen() {
 			return; // Already completed today's quest
 		}
 
+		logCurrentLessonSubmission();
 		setIsGenerating(true);
 		try {
 			if (level.type === "image") {
@@ -551,6 +712,7 @@ export default function QuestScreen() {
 
 				const evaluation = evaluationResult.evaluation;
 				const finalScore = evaluation.score;
+				logCurrentLessonOutcome(finalScore);
 
 				setLastScore(finalScore);
 				setFeedback(evaluation.feedback || []);
@@ -668,6 +830,7 @@ export default function QuestScreen() {
 
 				const finalScore = evaluation.score;
 				const userPassed = finalScore >= level.passingScore;
+				logCurrentLessonOutcome(finalScore);
 
 				setLastScore(finalScore);
 				setFeedback(evaluation.feedback || []);
@@ -797,6 +960,7 @@ export default function QuestScreen() {
 				});
 
 				const finalScore = copyScoringResult.score;
+				logCurrentLessonOutcome(finalScore);
 
 				setLastScore(finalScore);
 				setFeedback(copyScoringResult.feedback || []);
@@ -1179,6 +1343,8 @@ export default function QuestScreen() {
 				scaffoldTemplate={level.scaffoldTemplate}
 				beginnerTemplateLocked={beginnerLocked}
 				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
+				onBeginnerSlotValuesJoinedChange={handleBeginnerSlotValuesJoined}
+				onBeginnerSlotValuesArrayChange={handleBeginnerSlotValuesArray}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1278,6 +1444,8 @@ export default function QuestScreen() {
 				scaffoldTemplate={level.scaffoldTemplate}
 				beginnerTemplateLocked={beginnerLocked}
 				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
+				onBeginnerSlotValuesJoinedChange={handleBeginnerSlotValuesJoined}
+				onBeginnerSlotValuesArrayChange={handleBeginnerSlotValuesArray}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1394,6 +1562,8 @@ export default function QuestScreen() {
 							<BeginnerTemplatePromptInput
 								template={level.scaffoldTemplate}
 								onChangePrompt={handlePromptChange}
+								onSlotValuesJoinedChange={handleBeginnerSlotValuesJoined}
+								onSlotValuesArrayChange={handleBeginnerSlotValuesArray}
 								onAllSlotsFilledChange={handleBeginnerSlotsFilledChange}
 								onPromptFocus={handlePromptFocus}
 								inputAccessoryViewID={
@@ -1582,6 +1752,7 @@ export default function QuestScreen() {
 													: undefined,
 										};
 										setLevel(processedLevel);
+										setBeginnerSlotTextForChecklist("");
 										startLevel(processedLevel.id);
 										NanoAssistant.resetHintsForLevel(processedLevel.id);
 										setHints([]);

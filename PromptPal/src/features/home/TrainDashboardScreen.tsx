@@ -9,6 +9,7 @@ import {
 	useCallback,
 	memo,
 	useMemo,
+	useRef,
 	ComponentProps,
 } from "react";
 import { useGameStore } from "@/features/game/store";
@@ -16,7 +17,7 @@ import {
 	useUserProgressStore,
 	getOverallProgress,
 } from "@/features/user/store";
-import { logDailyQuestStart } from "@/lib/analytics";
+import { logDailyQuestStart, logProgressViewed } from "@/lib/analytics";
 import { SignOutButton } from "@/components/SignOutButton";
 import { Modal, ProgressBar, StatCard } from "@/components/ui";
 import { Ionicons } from "@expo/vector-icons";
@@ -328,6 +329,7 @@ export function TrainDashboardScreen() {
 	const { user } = useUser();
 	const { isLoaded, isSignedIn } = useAuth();
 	const router = useRouter();
+	const hasTrackedProgressViewRef = useRef(false);
 
 	const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 	const { completedLevels } = useGameStore();
@@ -385,6 +387,20 @@ export function TrainDashboardScreen() {
 			loadFromBackend(user.id);
 		}
 	}, [isLoaded, isSignedIn, loadFromBackend, user?.id]);
+
+	useEffect(() => {
+		if (!isLoaded || !isSignedIn || hasTrackedProgressViewRef.current) {
+			return;
+		}
+
+		hasTrackedProgressViewRef.current = true;
+		logProgressViewed({
+			source: "train_dashboard",
+			level,
+			xp,
+			progressPercentage: overallProgress.percentage,
+		});
+	}, [isLoaded, isSignedIn, level, overallProgress.percentage, xp]);
 
 	const renderModuleItem = useCallback(
 		({ item }: { item: LearningModule }) => {

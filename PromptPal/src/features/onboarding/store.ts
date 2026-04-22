@@ -2,6 +2,12 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import {
+	logOnboardingAbandoned,
+	logOnboardingCompleted,
+	logOnboardingStepCompleted,
+	logQuizAnswerSubmitted,
+} from "@/lib/analytics";
 
 export type OnboardingStep =
 	| "welcome"
@@ -47,6 +53,7 @@ export interface OnboardingState {
 	goToNextStep: () => void;
 	goToPreviousStep: () => void;
 	completeOnboarding: () => void;
+	abandonOnboarding: (reason?: string) => void;
 	setUserPrompt: (prompt: string) => void;
 	setSelectedStyle: (style: string) => void;
 	setSelectedModule: (moduleId: string | null) => void;
@@ -76,6 +83,15 @@ const STEP_ORDER: OnboardingStep[] = [
 	"results",
 	"complete",
 ];
+
+function logStepCompleted(step: OnboardingStep) {
+	const progress = getStepProgress(step);
+	logOnboardingStepCompleted({
+		stepName: step,
+		stepNumber: progress.current,
+		totalSteps: progress.total,
+	});
+}
 
 // Use SecureStore on native, localStorage on web (expo-secure-store is not available on web)
 const secureStorage = {
@@ -127,12 +143,23 @@ export const useOnboardingStore = create<OnboardingState>()(
 			concept1Answer: null,
 			concept2Matches: {},
 
-			setCurrentStep: (step) => set({ currentStep: step }),
+			setCurrentStep: (step) => {
+				const { currentStep } = get();
+				const currentIndex = STEP_ORDER.indexOf(currentStep);
+				const nextIndex = STEP_ORDER.indexOf(step);
+
+				if (nextIndex > currentIndex) {
+					logStepCompleted(currentStep);
+				}
+
+				set({ currentStep: step });
+			},
 
 			goToNextStep: () => {
 				const { currentStep } = get();
 				const currentIndex = STEP_ORDER.indexOf(currentStep);
 				if (currentIndex < STEP_ORDER.length - 1) {
+					logStepCompleted(currentStep);
 					set({ currentStep: STEP_ORDER[currentIndex + 1] });
 				}
 			},
@@ -145,8 +172,28 @@ export const useOnboardingStore = create<OnboardingState>()(
 				}
 			},
 
-			completeOnboarding: () =>
-				set({ hasCompletedOnboarding: true, currentStep: "complete" }),
+			completeOnboarding: () => {
+				const { selectedModule, xpEarned } = get();
+				logOnboardingCompleted({
+					stepsCompleted: STEP_ORDER.length,
+					totalSteps: STEP_ORDER.length,
+					selectedModule,
+					xpEarned,
+				});
+				set({ hasCompletedOnboarding: true, currentStep: "complete" });
+			},
+
+			abandonOnboarding: (reason = "skip") => {
+				const { currentStep } = get();
+				const progress = getStepProgress(currentStep);
+				logOnboardingAbandoned({
+					stepName: currentStep,
+					stepNumber: progress.current,
+					totalSteps: progress.total,
+					reason,
+				});
+				set({ hasCompletedOnboarding: true, currentStep: "complete" });
+			},
 
 			setUserPrompt: (prompt) => set({ userPrompt: prompt }),
 			setSelectedStyle: (style) => set({ selectedStyle: style }),
@@ -174,12 +221,27 @@ export const useOnboardingStore = create<OnboardingState>()(
 					xpEarned: state.xpEarned + amount,
 				})),
 
-			setConcept1Answer: (answer) => set({ concept1Answer: answer }),
+			setConcept1Answer: (answer) => {
+				logQuizAnswerSubmitted({
+					lessonId: "onboarding",
+					lessonType: "onboarding",
+					questionId: "concept-1",
+					answerLength: answer?.length,
+				});
+				set({ concept1Answer: answer });
+			},
 
-			setConcept2Match: (style, description) =>
+			setConcept2Match: (style, description) => {
+				logQuizAnswerSubmitted({
+					lessonId: "onboarding",
+					lessonType: "onboarding",
+					questionId: `concept-2-${style}`,
+					answerLength: description.length,
+				});
 				set((state) => ({
 					concept2Matches: { ...state.concept2Matches, [style]: description },
-				})),
+				}));
+			},
 
 			resetOnboarding: () =>
 				set({
