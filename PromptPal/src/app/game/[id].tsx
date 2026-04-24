@@ -56,6 +56,7 @@ import {
 	getOrdinalMatchedChecklistItemsForBeginnerTemplate,
 	isBeginnerTemplateLocked,
 } from "@/features/game/utils/scaffold";
+import { buildImageEvaluationRequest } from "@/features/game/utils/imageEvaluationRequest";
 import {
 	logDifficultyLevelUnlocked,
 	logFirstLessonStarted,
@@ -731,6 +732,8 @@ export default function GameScreen() {
 				// Step 1: Generate image
 				const generateResult = await generateImage(prompt);
 				const generatedImageUrl = generateResult.imageUrl;
+				const generatedStorageId =
+					(generateResult as { storageId?: string }).storageId ?? undefined;
 
 				if (!generatedImageUrl) {
 					throw new Error("Failed to generate image: no image URL returned");
@@ -744,14 +747,19 @@ export default function GameScreen() {
 					throw new Error("No target image URL available for evaluation");
 				}
 
-				const evaluationResult = await evaluateImage({
-					taskId: level.id,
-					userImageUrl: generatedImageUrl,
-					expectedImageUrl: level.targetImageUrlForEvaluation,
-					hiddenPromptKeywords: level.hiddenPromptKeywords,
-					style: level.style,
-					userPrompt: prompt,
-				});
+				const evaluationResult = await evaluateImage(
+					buildImageEvaluationRequest({
+						levelId: level.id,
+						targetImageUrlForEvaluation: level.targetImageUrlForEvaluation,
+						hiddenPromptKeywords: level.hiddenPromptKeywords,
+						style: level.style,
+						prompt,
+						generateResult: {
+							imageUrl: generatedImageUrl,
+							storageId: generatedStorageId,
+						},
+					}),
+				);
 
 				const evaluation = evaluationResult.evaluation;
 				const finalScore = evaluation.score;
@@ -1106,7 +1114,14 @@ export default function GameScreen() {
 			activeTab === "target"
 				? level.targetImageUrl
 				: generatedImage || level.targetImageUrl;
-		const isLocalAsset = activeTab === "target" && typeof imageUri === "number";
+		const resolvedSource =
+			typeof imageUri === "number"
+				? imageUri
+				: typeof imageUri === "string"
+					? { uri: imageUri }
+					: imageUri && typeof imageUri === "object" && "uri" in imageUri
+						? (imageUri as { uri: string; width?: number; height?: number })
+						: undefined;
 
 		return (
 			<View className="px-6 pt-4 pb-6">
@@ -1124,10 +1139,10 @@ export default function GameScreen() {
 					<View className="aspect-square relative">
 						{imageUri ? (
 							<Image
-								source={isLocalAsset ? imageUri : { uri: imageUri as string }}
+								source={resolvedSource}
 								className="w-full h-full"
 								resizeMode="cover"
-								onError={(error) => {}}
+								onError={() => {}}
 							/>
 						) : (
 							<View className="w-full h-full bg-surfaceVariant items-center justify-center">

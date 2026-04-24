@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "@/lib/zustand-middleware";
 import * as SecureStore from "expo-secure-store";
 import { convexHttpClient } from "@/lib/convex-client";
 import { api } from "../../../convex/_generated/api.js";

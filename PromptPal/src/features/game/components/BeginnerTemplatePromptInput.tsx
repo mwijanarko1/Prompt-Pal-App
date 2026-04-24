@@ -110,7 +110,6 @@ export function BeginnerTemplatePromptInput({
 							onFocus={i === 0 ? onPromptFocus : undefined}
 							placeholder={hints[i]}
 							placeholderTextColor="#9CA3AF"
-							multiline
 							scrollEnabled={false}
 							inputAccessoryViewID={inputAccessoryViewID}
 							accessibilityLabel={hints[i]}

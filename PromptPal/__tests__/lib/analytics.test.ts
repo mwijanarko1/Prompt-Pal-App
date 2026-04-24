@@ -1,31 +1,68 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
 type AnalyticsModule = typeof import("@/lib/analytics");
+type AnalyticsPlatform = "ios" | "web";
 
-function loadAnalytics() {
+function loadAnalytics(options?: {
+	platform?: AnalyticsPlatform;
+	throwOnAmplitudeImport?: boolean;
+	throwOnSessionReplayImport?: boolean;
+}) {
 	jest.resetModules();
 
+	const platform = options?.platform ?? "ios";
 	const mockInit = jest.fn(() => ({ promise: Promise.resolve() }));
 	const mockAdd = jest.fn(() => ({ promise: Promise.resolve() }));
 	const mockTrack = jest.fn(() => ({ promise: Promise.resolve() }));
 	const mockSessionReplayPlugin = jest.fn(function SessionReplayPlugin() {});
 
-	jest.doMock(
-		"@amplitude/analytics-react-native",
-		() => ({
-			add: mockAdd,
-			init: mockInit,
-			track: mockTrack,
-		}),
-		{ virtual: true },
-	);
-	jest.doMock(
-		"@amplitude/plugin-session-replay-react-native",
-		() => ({
-			SessionReplayPlugin: mockSessionReplayPlugin,
-		}),
-		{ virtual: true },
-	);
+	jest.doMock("react-native", () => {
+		return {
+			Platform: {
+				OS: platform,
+				select: jest.fn(
+					(values: Record<string, unknown>) =>
+						values[platform] ?? values.default,
+				),
+			},
+		};
+	});
+	if (options?.throwOnAmplitudeImport) {
+		jest.doMock(
+			"@amplitude/analytics-react-native",
+			() => {
+				throw new Error("web should not load native amplitude analytics");
+			},
+			{ virtual: true },
+		);
+	} else {
+		jest.doMock(
+			"@amplitude/analytics-react-native",
+			() => ({
+				add: mockAdd,
+				init: mockInit,
+				track: mockTrack,
+			}),
+			{ virtual: true },
+		);
+	}
+	if (options?.throwOnSessionReplayImport) {
+		jest.doMock(
+			"@amplitude/plugin-session-replay-react-native",
+			() => {
+				throw new Error("web should not load session replay");
+			},
+			{ virtual: true },
+		);
+	} else {
+		jest.doMock(
+			"@amplitude/plugin-session-replay-react-native",
+			() => ({
+				SessionReplayPlugin: mockSessionReplayPlugin,
+			}),
+			{ virtual: true },
+		);
+	}
 	jest.doMock("@/lib/logger", () => ({
 		logger: {
 			info: jest.fn(),
@@ -196,5 +233,19 @@ describe("analytics", () => {
 			"profile_updated",
 			"progress_viewed",
 		]);
+	});
+
+	it("does not import native Amplitude modules on web", async () => {
+		const { analytics, mockTrack } = loadAnalytics({
+			platform: "web",
+			throwOnAmplitudeImport: true,
+			throwOnSessionReplayImport: true,
+		});
+
+		await expect(analytics.initializeAnalytics()).resolves.toBeUndefined();
+
+		analytics.logSignUp({ method: "email", source: "web-sign-up" });
+
+		expect(mockTrack).not.toHaveBeenCalled();
 	});
 });

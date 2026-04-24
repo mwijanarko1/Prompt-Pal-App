@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/lib/convexApi";
 import { isAppAIErrorData } from "@/lib/aiErrors";
 import { learningModuleIdForCategory } from "@/features/superprompts/categoryModuleMap";
+import { resolveLearningModuleRouteId } from "@/lib/constants";
 import type {
 	GenerateCategory,
 	RefineMode,
@@ -229,7 +230,7 @@ export default function GenerateTab() {
 		);
 	}, [usageHint]);
 
-	const modulePath = `/game/levels/${learningModuleIdForCategory(category)}`;
+	const modulePath = `/game/levels/${resolveLearningModuleRouteId(learningModuleIdForCategory(category))}`;
 
 	return (
 		<SafeAreaView

@@ -1,11 +1,15 @@
-import * as amplitude from "@amplitude/analytics-react-native";
-import { SessionReplayPlugin } from "@amplitude/plugin-session-replay-react-native";
+import { Platform } from "react-native";
 import { logger } from "@/lib/logger";
 
 const DEFAULT_AMPLITUDE_API_KEY = "dd2cd7602b39b322b689b6809f589860";
 const AMPLITUDE_API_KEY = DEFAULT_AMPLITUDE_API_KEY;
 
 let analyticsInitializationPromise: Promise<void> | null = null;
+let amplitudeModule: typeof import("@amplitude/analytics-react-native") | null | undefined;
+let sessionReplayPlugin:
+	| (typeof import("@amplitude/plugin-session-replay-react-native"))["SessionReplayPlugin"]
+	| null
+	| undefined;
 
 type AnalyticsPropertyValue = string | number | boolean;
 type AnalyticsEventProperties = Record<string, AnalyticsPropertyValue>;
@@ -27,17 +31,74 @@ function compactProperties(
 	);
 }
 
+function isWebPlatform(): boolean {
+	return Platform.OS === "web";
+}
+
+function loadAmplitudeModule() {
+	if (isWebPlatform()) {
+		return null;
+	}
+
+	if (amplitudeModule !== undefined) {
+		return amplitudeModule;
+	}
+
+	try {
+		amplitudeModule = require("@amplitude/analytics-react-native") as typeof import("@amplitude/analytics-react-native");
+		return amplitudeModule;
+	} catch (error: unknown) {
+		logger.warn("Analytics", "Amplitude module failed to load", {
+			error: getErrorMessage(error),
+		});
+		amplitudeModule = null;
+		return null;
+	}
+}
+
+function loadSessionReplayPlugin() {
+	if (isWebPlatform()) {
+		return null;
+	}
+
+	if (sessionReplayPlugin !== undefined) {
+		return sessionReplayPlugin;
+	}
+
+	try {
+		sessionReplayPlugin = (
+			require("@amplitude/plugin-session-replay-react-native") as typeof import("@amplitude/plugin-session-replay-react-native")
+		).SessionReplayPlugin;
+		return sessionReplayPlugin;
+	} catch (error: unknown) {
+		logger.warn("Analytics", "Session replay plugin failed to load", {
+			error: getErrorMessage(error),
+		});
+		sessionReplayPlugin = null;
+		return null;
+	}
+}
+
 export function initializeAnalytics(): Promise<void> {
 	if (analyticsInitializationPromise) {
 		return analyticsInitializationPromise;
 	}
 
-	analyticsInitializationPromise = amplitude
-		.init(AMPLITUDE_API_KEY)
-		.promise.then(() => amplitude.add(new SessionReplayPlugin()).promise)
-		.then(() => {
-			logger.info("Analytics", "Amplitude initialized");
-		})
+	analyticsInitializationPromise = (async () => {
+		const amplitude = loadAmplitudeModule();
+		if (!amplitude) {
+			return;
+		}
+
+		await amplitude.init(AMPLITUDE_API_KEY).promise;
+
+		const SessionReplayPlugin = loadSessionReplayPlugin();
+		if (SessionReplayPlugin) {
+			await amplitude.add(new SessionReplayPlugin()).promise;
+		}
+
+		logger.info("Analytics", "Amplitude initialized");
+	})()
 		.catch((error: unknown) => {
 			analyticsInitializationPromise = null;
 			logger.warn("Analytics", "Amplitude initialization failed", {
@@ -54,12 +115,29 @@ export const logEvent = (
 	params?: AnalyticsEventProperties,
 ) => {
 	logger.info("Analytics", name, params);
-	void amplitude.track(name, params).promise.catch((error: unknown) => {
+
+	if (isWebPlatform()) {
+		return;
+	}
+
+	try {
+		const amplitude = loadAmplitudeModule();
+		if (!amplitude) {
+			return;
+		}
+
+		void amplitude.track(name, params).promise.catch((error: unknown) => {
+			logger.warn("Analytics", "Amplitude event tracking failed", {
+				error: getErrorMessage(error),
+				event: name,
+			});
+		});
+	} catch (error: unknown) {
 		logger.warn("Analytics", "Amplitude event tracking failed", {
 			error: getErrorMessage(error),
 			event: name,
 		});
-	});
+	}
 };
 
 export const logSignUp = (params: {

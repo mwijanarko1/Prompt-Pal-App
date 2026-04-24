@@ -63,6 +63,7 @@ import {
 	getOrdinalMatchedChecklistItemsForBeginnerTemplate,
 	isBeginnerTemplateLocked,
 } from "@/features/game/utils/scaffold";
+import { buildImageEvaluationRequest } from "@/features/game/utils/imageEvaluationRequest";
 import {
 	logDifficultyLevelUnlocked,
 	logFirstLessonStarted,
@@ -689,6 +690,8 @@ export default function QuestScreen() {
 			if (level.type === "image") {
 				const generateResult = await generateImage(prompt);
 				const generatedImageUrl = generateResult.imageUrl;
+				const generatedStorageId =
+					(generateResult as { storageId?: string }).storageId ?? undefined;
 
 				if (!generatedImageUrl) {
 					throw new Error("Failed to generate image: no image URL returned");
@@ -701,14 +704,19 @@ export default function QuestScreen() {
 					throw new Error("No target image URL available for evaluation");
 				}
 
-				const evaluationResult = await evaluateImage({
-					taskId: level.id,
-					userImageUrl: generatedImageUrl,
-					expectedImageUrl: level.targetImageUrlForEvaluation,
-					hiddenPromptKeywords: level.hiddenPromptKeywords,
-					style: level.style,
-					userPrompt: prompt,
-				});
+				const evaluationResult = await evaluateImage(
+					buildImageEvaluationRequest({
+						levelId: level.id,
+						targetImageUrlForEvaluation: level.targetImageUrlForEvaluation,
+						hiddenPromptKeywords: level.hiddenPromptKeywords,
+						style: level.style,
+						prompt,
+						generateResult: {
+							imageUrl: generatedImageUrl,
+							storageId: generatedStorageId,
+						},
+					}),
+				);
 
 				const evaluation = evaluationResult.evaluation;
 				const finalScore = evaluation.score;

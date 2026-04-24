@@ -21,6 +21,7 @@ import { useGameStore } from "@/features/game/store";
 import { useUserProgressStore } from "@/features/user/store";
 import { Level } from "@/features/game/store";
 import { logger } from "@/lib/logger";
+import { SHOW_IMAGE_GENERATION_MODULE } from "@/lib/constants";
 
 export default function LevelsScreen() {
 	const { moduleId } = useLocalSearchParams();
@@ -36,6 +37,17 @@ export default function LevelsScreen() {
 		() => learningModules.find((m) => m.id === moduleId),
 		[learningModules, moduleId],
 	);
+
+	useEffect(() => {
+		const id = Array.isArray(moduleId) ? moduleId[0] : moduleId;
+		if (
+			typeof id === "string" &&
+			id === "image-generation" &&
+			!SHOW_IMAGE_GENERATION_MODULE
+		) {
+			router.replace("/(tabs)");
+		}
+	}, [moduleId, router]);
 
 	// Merge backend (userProgress) + game store: userProgress is source of truth for module progress
 	const effectiveCompletedLevels = useMemo(() => {

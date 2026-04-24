@@ -1,5 +1,5 @@
-import { TrainDashboardScreen } from "@/features/home/TrainDashboardScreen";
+import { Redirect } from "expo-router";
 
 export default function TrainTab() {
-	return <TrainDashboardScreen />;
+	return <Redirect href="/(tabs)" />;
 }

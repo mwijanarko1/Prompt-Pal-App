@@ -19,6 +19,8 @@ import type * as coding_lessons_data from "../coding_lessons_data.js";
 import type * as copywriting_lessons_data from "../copywriting_lessons_data.js";
 import type * as crons from "../crons.js";
 import type * as geminiClient from "../geminiClient.js";
+import type * as imageEvaluation from "../imageEvaluation.js";
+import type * as imageGeneration from "../imageGeneration.js";
 import type * as levels_data from "../levels_data.js";
 import type * as mutations from "../mutations.js";
 import type * as queries from "../queries.js";
@@ -47,6 +49,8 @@ declare const fullApi: ApiFromModules<{
   copywriting_lessons_data: typeof copywriting_lessons_data;
   crons: typeof crons;
   geminiClient: typeof geminiClient;
+  imageEvaluation: typeof imageEvaluation;
+  imageGeneration: typeof imageGeneration;
   levels_data: typeof levels_data;
   mutations: typeof mutations;
   queries: typeof queries;

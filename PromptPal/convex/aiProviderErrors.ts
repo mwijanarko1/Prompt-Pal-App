@@ -71,6 +71,18 @@ export function toProviderErrorData(error: unknown): AppAIErrorData {
 			statusCode: 429,
 		};
 	}
+	if (
+		fallbackMessage.toLowerCase().includes("api key not found") ||
+		fallbackMessage.toLowerCase().includes("valid api key")
+	) {
+		return {
+			code: "AI_PROVIDER_UNAVAILABLE",
+			message:
+				"AI generation is unavailable because the Gemini API key is not configured on the backend.",
+			retryable: false,
+			provider: "gemini",
+		};
+	}
 
 	return {
 		code: "AI_REQUEST_FAILED",

@@ -24,6 +24,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api.js";
 import { isDailyQuestLevelId } from "@/features/levels/data";
+import { SHOW_IMAGE_GENERATION_MODULE } from "@/lib/constants";
 
 // Local type definitions for UI components
 export interface LearningModule {
@@ -343,6 +344,10 @@ export function TrainDashboardScreen() {
 	} = useUserProgressStore();
 	const overallProgress = getOverallProgress(xp);
 
+	const dailyQuestVisible =
+		currentQuest != null &&
+		(SHOW_IMAGE_GENERATION_MODULE || currentQuest.questType !== "image");
+
 	// Use useQuery for reactive level data
 	const allLevels =
 		useQuery(api.queries.getLevels, { appId: "prompt-pal" }) || [];
@@ -535,7 +540,7 @@ export function TrainDashboardScreen() {
 				</View>
 
 				{/* Daily Quest */}
-				{currentQuest && (
+				{dailyQuestVisible && currentQuest && (
 					<View className="px-6">
 						<QuestCard quest={currentQuest} />
 					</View>

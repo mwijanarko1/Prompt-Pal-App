@@ -1,6 +1,7 @@
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { logger } from "@/lib/logger";
+import { SHOW_IMAGE_GENERATION_MODULE } from "@/lib/constants";
 
 export const handleDeepLink = (url: string) => {
 	try {
@@ -19,7 +20,15 @@ export const handleDeepLink = (url: string) => {
 				logger.warn("DeepLinking", "Missing id parameter for module link");
 				return;
 			}
-			router.push(`/game/levels/${queryParams.id}`);
+			const moduleLinkId = String(queryParams.id);
+			if (
+				moduleLinkId === "image-generation" &&
+				!SHOW_IMAGE_GENERATION_MODULE
+			) {
+				router.push("/(tabs)");
+				return;
+			}
+			router.push(`/game/levels/${moduleLinkId}`);
 		}
 	} catch (error) {
 		logger.error("DeepLinking", error, { operation: "handleDeepLink", url });

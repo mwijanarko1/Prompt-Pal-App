@@ -10,6 +10,8 @@ import {
 	refundQuotaUsage,
 } from "./aiQuotaHelpers";
 import { google } from "./geminiClient";
+import { buildEvaluationImageParts } from "./imageEvaluation";
+import { generatePromptPalImage, toGeminiAspectRatio } from "./imageGeneration";
 import { generateTextWithQuota, type TextQuotaCheck } from "./textQuotaGeneration";
 import { CodeScoringService } from "../src/lib/scoring/codeScoring";
 import {
@@ -41,6 +43,8 @@ type GenerateTextResult = {
 
 type GenerateImageResult = {
 	imageUrl: string;
+	storageId: string;
+	mimeType: string;
 	remainingQuota: number;
 	limit: number;
 	tier: "free" | "pro";
@@ -918,6 +922,7 @@ export const generateImage = action({
 	handler: async (ctx, args): Promise<GenerateImageResult> => {
 		const identity = await ctx.auth.getUserIdentity();
 		if (!identity) throw new Error("Not authenticated");
+		const debugRunId = `generateImage-${Date.now()}`;
 
 		if (args.prompt.length > MAX_PROMPT_LENGTH) {
 			throw new ConvexError<AppAIErrorData>({
@@ -944,19 +949,129 @@ export const generateImage = action({
 				retryable: false,
 			});
 		}
+		// #region agent log
+		fetch("http://127.0.0.1:7539/ingest/62502dbc-932f-4650-8d3c-bcc65e44f0d6", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-Debug-Session-Id": "139464",
+			},
+			body: JSON.stringify({
+				sessionId: "139464",
+				runId: debugRunId,
+				hypothesisId: "H1-H2",
+				location: "convex/ai.ts:generateImage:postQuotaCheck",
+				message: "generateImage reached provider call with allowed quota",
+				data: {
+					userIdPresent: Boolean(identity.subject),
+					promptLength: args.prompt.length,
+					remainingQuota: quotaCheck.remaining,
+					quotaLimit: quotaCheck.limit,
+					quotaTier: quotaCheck.tier,
+				},
+				timestamp: Date.now(),
+			}),
+		}).catch(() => {});
+		// #endregion
 
 		const startedAt = Date.now();
 		const requestId = crypto.randomUUID();
-		let result;
+		let imageFile;
 
 		try {
-			result = await aiGenerateText({
-				model: google("gemini-2.5-flash-image"),
+			// #region agent log
+			fetch("http://127.0.0.1:7539/ingest/62502dbc-932f-4650-8d3c-bcc65e44f0d6", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Debug-Session-Id": "139464",
+				},
+				body: JSON.stringify({
+					sessionId: "139464",
+					runId: debugRunId,
+					hypothesisId: "H1-H3",
+					location: "convex/ai.ts:generateImage:beforeProviderCall",
+					message: "calling dedicated image generation API",
+					data: {
+						model: "gemini-2.5-flash-image",
+						aspectRatio: toGeminiAspectRatio(args.size),
+						maxRetries: 0,
+						requestId,
+					},
+					timestamp: Date.now(),
+				}),
+			}).catch(() => {});
+			// #endregion
+			imageFile = await generatePromptPalImage({
 				prompt: args.prompt,
-				maxRetries: 0,
+				size: args.size,
 			});
+			// #region agent log
+			fetch("http://127.0.0.1:7539/ingest/62502dbc-932f-4650-8d3c-bcc65e44f0d6", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Debug-Session-Id": "139464",
+				},
+				body: JSON.stringify({
+					sessionId: "139464",
+					runId: debugRunId,
+					hypothesisId: "H4",
+					location: "convex/ai.ts:generateImage:afterProviderCall",
+					message: "provider call returned result",
+					data: {
+						hasImage: Boolean(imageFile),
+						mediaType: imageFile?.mediaType ?? null,
+					},
+					timestamp: Date.now(),
+				}),
+			}).catch(() => {});
+			// #endregion
 		} catch (error) {
 			const durationMs = Date.now() - startedAt;
+			const normalizedError =
+				error && typeof error === "object"
+					? (error as {
+							name?: unknown;
+							message?: unknown;
+							statusCode?: unknown;
+							cause?: unknown;
+					  })
+					: undefined;
+			// #region agent log
+			fetch("http://127.0.0.1:7539/ingest/62502dbc-932f-4650-8d3c-bcc65e44f0d6", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Debug-Session-Id": "139464",
+				},
+				body: JSON.stringify({
+					sessionId: "139464",
+					runId: debugRunId,
+					hypothesisId: "H1-H2-H3-H5",
+					location: "convex/ai.ts:generateImage:providerCatch",
+					message: "provider call failed before error mapping",
+					data: {
+						requestId,
+						durationMs,
+						errorName:
+							typeof normalizedError?.name === "string"
+								? normalizedError.name
+								: "unknown",
+						errorMessage:
+							typeof normalizedError?.message === "string"
+								? normalizedError.message
+								: getErrorMessage(error),
+						errorStatusCode:
+							typeof normalizedError?.statusCode === "number"
+								? normalizedError.statusCode
+								: null,
+						hasCause: Boolean(normalizedError?.cause),
+					},
+					timestamp: Date.now(),
+				}),
+			}).catch(() => {});
+			// #endregion
 
 			await refundQuotaUsage(ctx, {
 				userId: identity.subject,
@@ -973,16 +1088,41 @@ export const generateImage = action({
 				durationMs,
 				errorMessage: getErrorMessage(error),
 			});
+			// #region agent log
+			fetch("http://127.0.0.1:7539/ingest/62502dbc-932f-4650-8d3c-bcc65e44f0d6", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Debug-Session-Id": "139464",
+				},
+				body: JSON.stringify({
+					sessionId: "139464",
+					runId: debugRunId,
+					hypothesisId: "H5",
+					location: "convex/ai.ts:generateImage:throwMappedError",
+					message: "throwing mapped provider error to client",
+					data: {
+						requestId,
+						mappedError: toProviderErrorData(error),
+					},
+					timestamp: Date.now(),
+				}),
+			}).catch(() => {});
+			// #endregion
 
-			throw new ConvexError<AppAIErrorData>(toProviderErrorData(error));
+			const mappedError = toProviderErrorData(error);
+			const providerDetail = getErrorMessage(error).slice(0, 280);
+			const debugMappedError: AppAIErrorData =
+				mappedError.code === "AI_REQUEST_FAILED"
+					? {
+							...mappedError,
+							message: `${mappedError.message} Provider detail: ${providerDetail}`,
+					  }
+					: mappedError;
+			throw new ConvexError<AppAIErrorData>(debugMappedError);
 		}
 
 		const durationMs = Date.now() - startedAt;
-
-		// Extract image from result.files
-		const imageFile = result.files?.find((file) =>
-			file.mediaType?.startsWith("image/"),
-		);
 		if (!imageFile) {
 			throw new Error("No image generated");
 		}
@@ -1030,6 +1170,8 @@ export const generateImage = action({
 
 		return {
 			imageUrl,
+			storageId: imageId,
+			mimeType: imageFile.mediaType || "image/png",
 			remainingQuota: quotaCheck.remaining,
 			limit: quotaCheck.limit,
 			tier: quotaCheck.tier,
@@ -1041,6 +1183,7 @@ export const evaluateImage = action({
 	args: {
 		taskId: v.string(),
 		userImageUrl: v.string(),
+		userImageStorageId: v.optional(v.id("_storage")),
 		expectedImageUrl: v.string(),
 		hiddenPromptKeywords: v.optional(v.array(v.string())),
 		style: v.optional(v.string()),
@@ -1137,6 +1280,13 @@ Return your response as JSON with this exact format:
 		let result;
 
 		try {
+			const [expectedImagePart, userImagePart] =
+				await buildEvaluationImageParts({
+					ctx,
+					expectedImageUrl: args.expectedImageUrl,
+					userImageUrl: args.userImageUrl,
+					userImageStorageId: args.userImageStorageId,
+				});
 			result = await aiGenerateText({
 				model: google("gemini-2.5-flash"),
 				messages: [
@@ -1144,8 +1294,8 @@ Return your response as JSON with this exact format:
 						role: "user",
 						content: [
 							{ type: "text", text: evaluationPrompt },
-							{ type: "image", image: new URL(args.expectedImageUrl) },
-							{ type: "image", image: new URL(args.userImageUrl) },
+							expectedImagePart,
+							userImagePart,
 						],
 					},
 				],
@@ -1169,8 +1319,16 @@ Return your response as JSON with this exact format:
 				durationMs,
 				errorMessage: getErrorMessage(error),
 			});
-
-			throw new ConvexError<AppAIErrorData>(toProviderErrorData(error));
+			const mappedError = toProviderErrorData(error);
+			const providerDetail = getErrorMessage(error).slice(0, 280);
+			const debugMappedError: AppAIErrorData =
+				mappedError.code === "AI_REQUEST_FAILED"
+					? {
+							...mappedError,
+							message: `${mappedError.message} Provider detail: ${providerDetail}`,
+					  }
+					: mappedError;
+			throw new ConvexError<AppAIErrorData>(debugMappedError);
 		}
 
 		const durationMs = Date.now() - startedAt;
