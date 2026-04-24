@@ -9,12 +9,17 @@ import {
 	Text,
 	View,
 } from "react-native";
-import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { useSubscriptionStore } from "@/features/subscription/store";
+import {
+	logPaywallHit,
+	logPricingPageViewed,
+	logSubscriptionStarted,
+	logTrialStarted,
+} from "@/lib/analytics";
 import {
 	configureRevenueCat,
 	getCustomerInfo,
@@ -22,6 +27,7 @@ import {
 	getManagementUrl,
 	getSubscriptionPackageOptions,
 	isProEntitled,
+	isRunningInExpoGo,
 	isSubscriptionFeatureAvailable,
 	purchaseSubscriptionPackage,
 	restorePurchases,
@@ -30,7 +36,7 @@ import {
 } from "@/lib/subscriptions";
 
 function getUnsupportedPlatformCopy() {
-	if (Platform.OS === "ios" && Constants.executionEnvironment === "storeClient") {
+	if (Platform.OS === "ios" && isRunningInExpoGo()) {
 		return {
 			title: "Subscriptions need a development build",
 			body: "PromptPal Pro purchases are not available inside Expo Go. Use a development build or RevenueCat Test Store to test subscription flows.",
@@ -81,6 +87,13 @@ export default function PaywallScreen() {
 	);
 
 	const unsupportedCopy = useMemo(getUnsupportedPlatformCopy, []);
+
+	useEffect(() => {
+		logPricingPageViewed({ required: isRequired });
+		logPaywallHit({
+			trigger: isRequired ? "subscription_required" : "upgrade_screen",
+		});
+	}, [isRequired]);
 
 	const goAfterEntitlement = useCallback(() => {
 		if (isRequired) {
@@ -164,12 +177,32 @@ export default function PaywallScreen() {
 	const handlePurchase = useCallback(
 		async (packageIdentifier: string) => {
 			setProcessingIdentifier(packageIdentifier);
+			const selectedOption = packageOptions.find(
+				(option) => option.identifier === packageIdentifier,
+			);
 
 			try {
 				await purchaseSubscriptionPackage(packageIdentifier);
 				const status = await syncAfterPurchaseChange();
 
 				if (status.tier === "pro") {
+					logSubscriptionStarted({
+						packageIdentifier,
+						source: "paywall",
+					});
+					if (
+						/\b(trial|free)\b/i.test(
+							[
+								selectedOption?.identifier,
+								selectedOption?.title,
+								selectedOption?.description,
+							]
+								.filter(Boolean)
+								.join(" "),
+						)
+					) {
+						logTrialStarted({ productId: packageIdentifier });
+					}
 					Alert.alert("Success", "Your subscription is active.", [
 						{ text: "OK", onPress: goAfterEntitlement },
 					]);
@@ -187,6 +220,10 @@ export default function PaywallScreen() {
 						tier: "pro",
 						managementUrl: getManagementUrl(customerInfo),
 					});
+					logSubscriptionStarted({
+						packageIdentifier,
+						source: "paywall_local_customer_info",
+					});
 					Alert.alert(
 						"Purchase complete",
 						"Your subscription is active on this device. Backend syncing will retry the next time the app connects.",
@@ -199,7 +236,7 @@ export default function PaywallScreen() {
 				setProcessingIdentifier(null);
 			}
 		},
-		[applyStatus, goAfterEntitlement, syncAfterPurchaseChange],
+		[applyStatus, goAfterEntitlement, packageOptions, syncAfterPurchaseChange],
 	);
 
 	const handleRestorePurchases = useCallback(async () => {

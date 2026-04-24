@@ -1,5 +1,5 @@
-import { Platform } from "react-native";
-import Constants from "expo-constants";
+import { NativeModules, Platform } from "react-native";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import Purchases, {
 	LOG_LEVEL,
 	type PurchasesPackage,
@@ -24,6 +24,22 @@ const PRIVACY_POLICY_URL =
 let isConfigured = false;
 let configuredAppUserId: string | null = null;
 let hasLoggedExpoGoFallback = false;
+
+/**
+ * Expo Go is StoreClient without expo-dev-client. `appOwnership` may be null on newer SDKs,
+ * which would incorrectly allow RevenueCat.configure and produce "Invalid API key" noise.
+ */
+export function isRunningInExpoGo(): boolean {
+	if (Constants.appOwnership === "expo") {
+		return true;
+	}
+	const isStoreClient =
+		Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+	const hasDevLauncher = Boolean(
+		(NativeModules as { EXDevLauncher?: unknown }).EXDevLauncher,
+	);
+	return isStoreClient && !hasDevLauncher;
+}
 
 type CustomerInfoLike = {
 	entitlements?: {
@@ -62,11 +78,8 @@ export function getLegalUrls() {
 }
 
 export function isSubscriptionFeatureAvailable(): boolean {
-	return (
-		Platform.OS === "ios" &&
-		Boolean(IOS_API_KEY) &&
-		Constants.executionEnvironment !== "storeClient"
-	);
+	// Expo Go cannot use native store billing; dev / prod builds use standalone or bare.
+	return Platform.OS === "ios" && Boolean(IOS_API_KEY) && !isRunningInExpoGo();
 }
 
 export function isSubscriptionGateEnabled(): boolean {
@@ -83,7 +96,7 @@ export async function configureRevenueCat(
 		if (
 			Platform.OS === "ios" &&
 			Boolean(IOS_API_KEY) &&
-			Constants.executionEnvironment === "storeClient" &&
+			isRunningInExpoGo() &&
 			!hasLoggedExpoGoFallback
 		) {
 			console.info(
@@ -96,10 +109,18 @@ export async function configureRevenueCat(
 
 	if (!isConfigured) {
 		Purchases.setLogLevel(LOG_LEVEL.WARN);
-		await Purchases.configure({
-			apiKey: IOS_API_KEY,
-			appUserID: appUserId || undefined,
-		});
+		try {
+			await Purchases.configure({
+				apiKey: IOS_API_KEY,
+				appUserID: appUserId || undefined,
+			});
+		} catch (error) {
+			console.warn(
+				"[RevenueCat] configure failed (invalid key or unsupported runtime).",
+				error,
+			);
+			return false;
+		}
 		isConfigured = true;
 		configuredAppUserId = appUserId ?? null;
 		return true;

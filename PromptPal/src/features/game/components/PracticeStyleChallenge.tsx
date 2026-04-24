@@ -16,6 +16,7 @@ import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { Button, Card, Input, Badge } from "@/components/ui";
 import { BeginnerTemplatePromptInput } from "@/features/game/components/BeginnerTemplatePromptInput";
 import { PromptScaffoldHelper } from "@/features/game/components/PromptScaffold";
+import { WebViewerCloseButton } from "@/features/game/components/WebViewerCloseButton";
 
 type Tone = "neutral" | "accent" | "warning" | "secondary";
 
@@ -43,6 +44,10 @@ interface PracticeStyleChallengeProps {
 	/** Beginner + template: fixed scaffold text, editable `[slot]` fields only. */
 	beginnerTemplateLocked?: boolean;
 	onBeginnerTemplateSlotsFilledChange?: (allFilled: boolean) => void;
+	/** Beginner template: slot text only (for live checklist), forwarded to the slot inputs. */
+	onBeginnerSlotValuesJoinedChange?: (joinedSlotText: string) => void;
+	/** Per-slot values for ordinal checklist matching (beginner locked template). */
+	onBeginnerSlotValuesArrayChange?: (values: string[]) => void;
 	checklistItems?: string[];
 	matchedChecklistItems?: string[];
 	charCount: number;
@@ -136,6 +141,8 @@ export function PracticeStyleChallenge({
 	scaffoldTemplate,
 	beginnerTemplateLocked = false,
 	onBeginnerTemplateSlotsFilledChange,
+	onBeginnerSlotValuesJoinedChange,
+	onBeginnerSlotValuesArrayChange,
 	checklistItems,
 	matchedChecklistItems,
 	charCount,
@@ -226,18 +233,21 @@ export function PracticeStyleChallenge({
 						edges={["top", "bottom"]}
 						className="flex-1 bg-background"
 					>
-						<View className="flex-1 relative">
-							{/* Close button overlays the preview content */}
-							<TouchableOpacity
+						{/*
+							Render preview first, then the close control so it stays above the WebView
+							on Android (later siblings win touch order). WebView must not cover the button.
+						*/}
+						<View
+							className="flex-1 relative"
+							style={{ pointerEvents: "box-none" }}
+						>
+							<View className="flex-1" collapsable={false}>
+								{fullScreenTargetPreview}
+							</View>
+							<WebViewerCloseButton
 								onPress={() => setIsPreviewFullScreen(false)}
-								className="absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-surfaceVariant/60 items-center justify-center"
-								accessibilityRole="button"
-								accessibilityLabel="Close full screen preview"
-							>
-								<Ionicons name="close" size={18} color="#6B7280" />
-							</TouchableOpacity>
-
-							{fullScreenTargetPreview}
+								top={Math.max(insets.top, 8) + 4}
+							/>
 						</View>
 					</SafeAreaView>
 				</Modal>
@@ -367,6 +377,8 @@ export function PracticeStyleChallenge({
 							<BeginnerTemplatePromptInput
 								template={scaffoldTemplate}
 								onChangePrompt={onChangePrompt}
+								onSlotValuesJoinedChange={onBeginnerSlotValuesJoinedChange}
+								onSlotValuesArrayChange={onBeginnerSlotValuesArrayChange}
 								onAllSlotsFilledChange={onBeginnerTemplateSlotsFilledChange}
 								onPromptFocus={onPromptFocus}
 								inputAccessoryViewID={inputAccessoryViewID}

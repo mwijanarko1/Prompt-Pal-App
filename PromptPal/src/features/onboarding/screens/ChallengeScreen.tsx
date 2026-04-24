@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	View,
 	Text,
@@ -8,6 +8,7 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	ScrollView,
+	ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -15,51 +16,79 @@ import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { OnboardingScreenWrapper } from "../components/OnboardingScreenWrapper";
 import { useOnboardingStore } from "../store";
 import { ONBOARDING_COLORS } from "../theme";
+import { useConvexAI } from "@/hooks/useConvexAI";
+import { getAIErrorPresentation } from "@/lib/aiErrors";
+
+/** Same deliverable as GeneratingScreen / copy lesson brief (visible task). */
+const ONBOARDING_TASK_BRIEF =
+	"Write a one-sentence tagline for Blackout Coffee Co. Audience: people who train before dawn. Tone: raw, no-nonsense.";
 
 export function ChallengeScreen() {
 	const { goToNextStep, setUserPrompt } = useOnboardingStore();
+	const { evaluateOnboardingPrompt } = useConvexAI();
 	const [localPrompt, setLocalPrompt] = useState("");
+	const [isChecking, setIsChecking] = useState(false);
+	const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (advanceTimerRef.current) {
+				clearTimeout(advanceTimerRef.current);
+			}
+		};
+	}, []);
+
 	const [feedback, setFeedback] = useState<{
 		hasSubject: boolean;
 		hasStyle: boolean;
-		hasContext: boolean;
+		hasGuardrail: boolean;
 		text: string;
 	} | null>(null);
 
-	const checkPrompt = () => {
+	const checkPrompt = async () => {
+		const trimmed = localPrompt.trim();
+		if (!trimmed || isChecking) return;
+
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+		setIsChecking(true);
+		setFeedback(null);
 
-		const lower = localPrompt.toLowerCase();
-		const hasSubject = /tagline|headline|text|copy|title|coffee/i.test(lower);
-		const hasStyle = /professional|funny|catchy|minimalist|modern|expert/i.test(
-			lower,
-		);
-		const hasGuardrail =
-			/keep|don't change|without breaking|exactly as|only fix/i.test(lower);
-
-		const missing = [];
-		if (!hasSubject) missing.push("subject (what to write)");
-		if (!hasStyle) missing.push("style (tone/specs)");
-		if (!hasGuardrail) missing.push("guardrail (what to protect)");
-
-		if (missing.length > 0) {
-			setFeedback({
-				hasSubject,
-				hasStyle,
-				hasContext: hasGuardrail,
-				text: `You're missing: ${missing.join(", ")}. Add them to complete your prompt!`,
+		try {
+			const result = await evaluateOnboardingPrompt({
+				userPrompt: trimmed,
+				taskBrief: ONBOARDING_TASK_BRIEF,
 			});
-		} else {
+
 			setFeedback({
-				hasSubject: true,
-				hasStyle: true,
-				hasContext: true,
-				text: "Excellent! You've combined Subject, Specificity, and Guardrails! 🚀",
+				hasSubject: result.hasSubject,
+				hasStyle: result.hasStyle,
+				hasGuardrail: result.hasGuardrail,
+				text: result.coachMessage,
 			});
-			setUserPrompt(localPrompt);
-			setTimeout(() => {
-				goToNextStep();
-			}, 1500);
+
+			if (result.passed) {
+				setUserPrompt(trimmed);
+				void Haptics.notificationAsync(
+					Haptics.NotificationFeedbackType.Success,
+				);
+				advanceTimerRef.current = setTimeout(() => {
+					advanceTimerRef.current = null;
+					goToNextStep();
+				}, 1500);
+			} else {
+				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+			}
+		} catch (err: unknown) {
+			const aiError = getAIErrorPresentation(err);
+			setFeedback({
+				hasSubject: false,
+				hasStyle: false,
+				hasGuardrail: false,
+				text: aiError.message,
+			});
+			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+		} finally {
+			setIsChecking(false);
 		}
 	};
 
@@ -145,10 +174,10 @@ export function ChallengeScreen() {
 							</View>
 							<View style={styles.reqRow}>
 								<Ionicons
-									name={feedback?.hasContext ? "checkbox" : "square-outline"}
+									name={feedback?.hasGuardrail ? "checkbox" : "square-outline"}
 									size={20}
 									color={
-										feedback?.hasContext
+										feedback?.hasGuardrail
 											? ONBOARDING_COLORS.success
 											: ONBOARDING_COLORS.textMuted
 									}
@@ -156,7 +185,7 @@ export function ChallengeScreen() {
 								<Text
 									style={[
 										styles.reqText,
-										feedback?.hasContext && styles.reqTextMet,
+										feedback?.hasGuardrail && styles.reqTextMet,
 									]}
 								>
 									Guardrail (e.g. ...keep it under 5 words.)
@@ -173,6 +202,10 @@ export function ChallengeScreen() {
 								onChangeText={(text) => {
 									setLocalPrompt(text);
 									setFeedback(null);
+									if (advanceTimerRef.current) {
+										clearTimeout(advanceTimerRef.current);
+										advanceTimerRef.current = null;
+									}
 								}}
 								multiline
 								numberOfLines={3}
@@ -194,7 +227,7 @@ export function ChallengeScreen() {
 											color:
 												feedback.hasSubject &&
 												feedback.hasStyle &&
-												feedback.hasContext
+												feedback.hasGuardrail
 													? ONBOARDING_COLORS.success
 													: "#EF4444",
 										},
@@ -217,24 +250,34 @@ export function ChallengeScreen() {
 						<TouchableOpacity
 							style={[
 								styles.button,
-								localPrompt.trim().length === 0 && styles.buttonDisabled,
+								(localPrompt.trim().length === 0 || isChecking) &&
+									styles.buttonDisabled,
 							]}
-							onPress={checkPrompt}
+							onPress={() => {
+								void checkPrompt();
+							}}
 							disabled={
 								localPrompt.trim().length === 0 ||
+								isChecking ||
 								(feedback?.hasSubject &&
 									feedback?.hasStyle &&
-									feedback?.hasContext)
+									feedback?.hasGuardrail)
 							}
 							activeOpacity={0.85}
 						>
-							<Text style={styles.buttonText}>Finish Training</Text>
-							<Ionicons
-								name="sparkles"
-								size={20}
-								color="#FFFFFF"
-								style={{ marginLeft: 8 }}
-							/>
+							{isChecking ? (
+								<ActivityIndicator color="#FFFFFF" />
+							) : (
+								<>
+									<Text style={styles.buttonText}>Finish Training</Text>
+									<Ionicons
+										name="sparkles"
+										size={20}
+										color="#FFFFFF"
+										style={{ marginLeft: 8 }}
+									/>
+								</>
+							)}
 						</TouchableOpacity>
 					</View>
 				</ScrollView>

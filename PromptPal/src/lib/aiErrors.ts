@@ -1,4 +1,5 @@
 export type AppAIErrorCode =
+	| "UNAUTHENTICATED"
 	| "APP_QUOTA_EXCEEDED"
 	| "AI_PROVIDER_QUOTA_EXCEEDED"
 	| "AI_PROVIDER_RATE_LIMITED"
@@ -38,6 +39,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isAppAIErrorCode(value: unknown): value is AppAIErrorCode {
 	return (
+		value === "UNAUTHENTICATED" ||
 		value === "APP_QUOTA_EXCEEDED" ||
 		value === "AI_PROVIDER_QUOTA_EXCEEDED" ||
 		value === "AI_PROVIDER_RATE_LIMITED" ||
@@ -86,6 +88,13 @@ function getMessageFromUnknown(error: unknown): string {
 
 function mapKnownErrorCode(error: AppAIErrorData): AIErrorPresentation {
 	switch (error.code) {
+		case "UNAUTHENTICATED":
+			return {
+				code: error.code,
+				title: "Sign In Required",
+				message: error.message,
+				isOperational: true,
+			};
 		case "APP_QUOTA_EXCEEDED":
 			return {
 				code: error.code,

@@ -15,7 +15,7 @@ export function OnboardingScreenWrapper({
 	children,
 	showProgress = true,
 }: OnboardingScreenWrapperProps) {
-	const { currentStep, completeOnboarding } = useOnboardingStore();
+	const { currentStep, abandonOnboarding } = useOnboardingStore();
 	const progress = getStepProgress(currentStep);
 
 	const handleSkip = () => {
@@ -29,7 +29,7 @@ export function OnboardingScreenWrapper({
 					text: "Skip",
 					style: "destructive",
 					onPress: () => {
-						completeOnboarding();
+						abandonOnboarding("skip_button");
 					},
 				},
 			],

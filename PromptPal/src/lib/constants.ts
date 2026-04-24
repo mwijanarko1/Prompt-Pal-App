@@ -1,3 +1,21 @@
+/** When false, Image Generation is omitted from module lists and guarded routes (implementation WIP). */
+export const SHOW_IMAGE_GENERATION_MODULE = false;
+
+export function filterLearningModulesByVisibility<T extends { id: string }>(
+	modules: T[],
+): T[] {
+	if (SHOW_IMAGE_GENERATION_MODULE) return modules;
+	return modules.filter((m) => m.id !== "image-generation");
+}
+
+/** Route id for Train links when image module is hidden (avoids broken navigation). */
+export function resolveLearningModuleRouteId(moduleId: string): string {
+	if (!SHOW_IMAGE_GENERATION_MODULE && moduleId === "image-generation") {
+		return "coding-logic";
+	}
+	return moduleId;
+}
+
 export const XP_PER_LEVEL = 200;
 export const MAX_PROMPT_LENGTH = 4000;
 export const MIN_PROMPT_LENGTH = 1;

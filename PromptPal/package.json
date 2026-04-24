@@ -16,7 +16,10 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.18",
+    "@amplitude/analytics-react-native": "^1.5.52",
+    "@amplitude/plugin-session-replay-react-native": "^0.4.9",
     "@clerk/clerk-expo": "^2.19.18",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "^11.4.1",
     "@shopify/flash-list": "2.0.2",
     "ai": "^6.0.62",

@@ -12,12 +12,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { convexHttpClient } from "@/lib/convex-client";
 import { api } from "../../../../convex/_generated/api.js";
-import { fetchLevelsFromApi } from "@/features/levels/data";
+import {
+	fetchLevelsFromApi,
+	isDailyQuestLevelId,
+} from "@/features/levels/data";
 import { Card, ProgressBar } from "@/components/ui";
 import { useGameStore } from "@/features/game/store";
 import { useUserProgressStore } from "@/features/user/store";
 import { Level } from "@/features/game/store";
 import { logger } from "@/lib/logger";
+import { SHOW_IMAGE_GENERATION_MODULE } from "@/lib/constants";
 
 export default function LevelsScreen() {
 	const { moduleId } = useLocalSearchParams();
@@ -33,6 +37,17 @@ export default function LevelsScreen() {
 		() => learningModules.find((m) => m.id === moduleId),
 		[learningModules, moduleId],
 	);
+
+	useEffect(() => {
+		const id = Array.isArray(moduleId) ? moduleId[0] : moduleId;
+		if (
+			typeof id === "string" &&
+			id === "image-generation" &&
+			!SHOW_IMAGE_GENERATION_MODULE
+		) {
+			router.replace("/(tabs)");
+		}
+	}, [moduleId, router]);
 
 	// Merge backend (userProgress) + game store: userProgress is source of truth for module progress
 	const effectiveCompletedLevels = useMemo(() => {
@@ -100,12 +115,16 @@ export default function LevelsScreen() {
 						);
 					}
 
-					if (moduleLevels.length === 0) {
+					const curriculumLevels = moduleLevels.filter(
+						(l) => !isDailyQuestLevelId(l.id),
+					);
+
+					if (curriculumLevels.length === 0) {
 						setError("No levels found for this module");
 						return;
 					}
 
-					setLevels(moduleLevels as Level[]);
+					setLevels(curriculumLevels as Level[]);
 				} else {
 					setLevels([]);
 					setError(

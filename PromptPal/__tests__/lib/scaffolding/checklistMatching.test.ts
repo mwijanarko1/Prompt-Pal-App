@@ -47,4 +47,15 @@ describe("checklistMatching", () => {
 		expect(result.matchedItems).toEqual(["Navigation links"]);
 		expect(result.coverage).toBeCloseTo(1 / 3);
 	});
+
+	it("treats colour and color as the same token for matching", () => {
+		const promptTokens = uniqueChecklistTokens("primary color and lighting");
+		expect(
+			matchesChecklistItem(
+				"primary color and lighting",
+				promptTokens,
+				"Primary colour",
+			),
+		).toBe(true);
+	});
 });

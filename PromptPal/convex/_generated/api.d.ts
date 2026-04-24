@@ -10,11 +10,17 @@
 
 import type * as achievements from "../achievements.js";
 import type * as ai from "../ai.js";
+import type * as aiConstants from "../aiConstants.js";
+import type * as aiProviderErrors from "../aiProviderErrors.js";
+import type * as aiQuotaHelpers from "../aiQuotaHelpers.js";
 import type * as analytics from "../analytics.js";
 import type * as apps from "../apps.js";
 import type * as coding_lessons_data from "../coding_lessons_data.js";
 import type * as copywriting_lessons_data from "../copywriting_lessons_data.js";
 import type * as crons from "../crons.js";
+import type * as geminiClient from "../geminiClient.js";
+import type * as imageEvaluation from "../imageEvaluation.js";
+import type * as imageGeneration from "../imageGeneration.js";
 import type * as levels_data from "../levels_data.js";
 import type * as mutations from "../mutations.js";
 import type * as queries from "../queries.js";
@@ -23,6 +29,7 @@ import type * as rankings from "../rankings.js";
 import type * as rateLimit from "../rateLimit.js";
 import type * as seed from "../seed.js";
 import type * as subscriptions from "../subscriptions.js";
+import type * as textQuotaGeneration from "../textQuotaGeneration.js";
 
 import type {
   ApiFromModules,
@@ -33,11 +40,17 @@ import type {
 declare const fullApi: ApiFromModules<{
   achievements: typeof achievements;
   ai: typeof ai;
+  aiConstants: typeof aiConstants;
+  aiProviderErrors: typeof aiProviderErrors;
+  aiQuotaHelpers: typeof aiQuotaHelpers;
   analytics: typeof analytics;
   apps: typeof apps;
   coding_lessons_data: typeof coding_lessons_data;
   copywriting_lessons_data: typeof copywriting_lessons_data;
   crons: typeof crons;
+  geminiClient: typeof geminiClient;
+  imageEvaluation: typeof imageEvaluation;
+  imageGeneration: typeof imageGeneration;
   levels_data: typeof levels_data;
   mutations: typeof mutations;
   queries: typeof queries;
@@ -46,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   rateLimit: typeof rateLimit;
   seed: typeof seed;
   subscriptions: typeof subscriptions;
+  textQuotaGeneration: typeof textQuotaGeneration;
 }>;
 
 /**

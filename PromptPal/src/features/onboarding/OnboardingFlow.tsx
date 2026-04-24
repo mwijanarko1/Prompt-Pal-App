@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import { View, StyleSheet, Text, TouchableOpacity } from "react-native";
-import { useOnboardingStore } from "./store";
+import { getStepProgress, useOnboardingStore } from "./store";
 import { ONBOARDING_COLORS } from "./theme";
+import { logOnboardingStarted } from "@/lib/analytics";
 
 // Screens
 import { WelcomeScreen } from "./screens/WelcomeScreen";
@@ -27,6 +29,16 @@ import { CompleteScreen } from "./screens/CompleteScreen";
 export function OnboardingFlow() {
 	const { currentStep, hasCompletedOnboarding, goToNextStep, goToPreviousStep } =
 		useOnboardingStore();
+	const hasTrackedStartRef = useRef(false);
+
+	useEffect(() => {
+		if (hasTrackedStartRef.current || currentStep !== "welcome") {
+			return;
+		}
+
+		hasTrackedStartRef.current = true;
+		logOnboardingStarted({ totalSteps: getStepProgress(currentStep).total });
+	}, [currentStep]);
 
 	// Don't render if onboarding is complete
 	if (hasCompletedOnboarding) {

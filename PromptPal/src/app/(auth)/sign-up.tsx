@@ -26,6 +26,7 @@ import {
 	getClerkErrorMessage,
 	getOAuthRedirectCandidates,
 } from "@/lib/oauthRedirect";
+import { logSignUp } from "@/lib/analytics";
 
 // Browser warming hook for better OAuth UX
 const useWarmUpBrowser = () => {
@@ -148,6 +149,7 @@ export default function SignUpScreen() {
 				signUpAttempt.createdSessionId
 			) {
 				await setActive({ session: signUpAttempt.createdSessionId });
+				logSignUp({ method: "email", source: "email_password" });
 				setTimeout(() => router.replace("/(tabs)"), 500);
 				return;
 			}
@@ -219,6 +221,7 @@ export default function SignUpScreen() {
 			// and redirect the user
 			if (signUpAttempt.status === "complete") {
 				await setActive({ session: signUpAttempt.createdSessionId });
+				logSignUp({ method: "email", source: "email_verification" });
 				// Auth layout Redirect will navigate when isSignedIn propagates.
 				// Defer navigation to avoid race where layout still sees isSignedIn=false.
 				setTimeout(() => router.replace("/(tabs)"), 500);
@@ -259,6 +262,7 @@ export default function SignUpScreen() {
 
 					if (createdSessionId) {
 						await ssoAttempt.setActive?.({ session: createdSessionId });
+						logSignUp({ method: "google", source: "oauth" });
 						setTimeout(() => router.replace("/(tabs)"), 500);
 						return;
 					}
@@ -329,6 +333,7 @@ export default function SignUpScreen() {
 					await appleAttempt.setActive({
 						session: appleAttempt.createdSessionId,
 					});
+					logSignUp({ method: "apple", source: "native_oauth" });
 					setTimeout(() => router.replace("/(tabs)"), 500);
 				}
 
@@ -351,6 +356,7 @@ export default function SignUpScreen() {
 
 					if (createdSessionId) {
 						await ssoAttempt.setActive?.({ session: createdSessionId });
+						logSignUp({ method: "apple", source: "oauth" });
 						setTimeout(() => router.replace("/(tabs)"), 500);
 						return;
 					}

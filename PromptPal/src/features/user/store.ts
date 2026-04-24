@@ -1,12 +1,13 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "@/lib/zustand-middleware";
 import * as SecureStore from "expo-secure-store";
 import { convexHttpClient, refreshAuth } from "@/lib/convex-client";
 import { api } from "../../../convex/_generated/api.js";
 import { getModuleThumbnail } from "@/lib/thumbnails";
+import { filterLearningModulesByVisibility } from "@/lib/constants";
 
 // Default learning modules shown immediately (no API wait needed)
-const getDefaultLearningModules = (): LearningModule[] => [
+const ALL_DEFAULT_LEARNING_MODULES: LearningModule[] = [
 	{
 		id: "coding-logic",
 		category: "Programming",
@@ -64,6 +65,9 @@ const getDefaultLearningModules = (): LearningModule[] => [
 		isLocked: false,
 	},
 ];
+
+const getDefaultLearningModules = (): LearningModule[] =>
+	filterLearningModulesByVisibility(ALL_DEFAULT_LEARNING_MODULES);
 
 export interface LearningModule {
 	id: string;
@@ -282,7 +286,9 @@ export const useUserProgressStore = create<UserProgress>()(
 						? { ...module, progress: Math.min(100, Math.max(0, progress)) }
 						: module,
 				);
-				set({ learningModules: updatedModules });
+				set({
+					learningModules: filterLearningModulesByVisibility(updatedModules),
+				});
 
 				// Sync with backend
 				try {
@@ -405,7 +411,9 @@ export const useUserProgressStore = create<UserProgress>()(
 						};
 					});
 
-					set({ learningModules: modules });
+					set({
+						learningModules: filterLearningModulesByVisibility(modules),
+					});
 
 					// Load current quest
 					const quest = await convexHttpClient.mutation(
@@ -504,7 +512,9 @@ export const useUserProgressStore = create<UserProgress>()(
 								};
 							});
 
-							set({ learningModules: modules });
+							set({
+								learningModules: filterLearningModulesByVisibility(modules),
+							});
 
 							// Load current quest
 							const quest = await convexHttpClient.mutation(
@@ -543,7 +553,9 @@ export const useUserProgressStore = create<UserProgress>()(
 			},
 
 			setLearningModules: (modules: LearningModule[]) => {
-				set({ learningModules: modules });
+				set({
+					learningModules: filterLearningModulesByVisibility(modules),
+				});
 			},
 		}),
 		{
@@ -564,14 +576,19 @@ export const useUserProgressStore = create<UserProgress>()(
 					// Ensure Image Generation is unlocked for existing users.
 					// This module was previously hardcoded as locked, and the
 					// persisted store would keep it locked across app updates.
-					state.learningModules = state.learningModules.map((m) =>
-						m?.id === "image-generation"
-							? {
-									...m,
-									buttonText: m.buttonText === "Locked" ? "Continue Learning" : m.buttonText,
-									isLocked: false,
-								}
-							: m,
+					state.learningModules = filterLearningModulesByVisibility(
+						state.learningModules.map((m) =>
+							m?.id === "image-generation"
+								? {
+										...m,
+										buttonText:
+											m.buttonText === "Locked"
+												? "Continue Learning"
+												: m.buttonText,
+										isLocked: false,
+									}
+								: m,
+						),
 					);
 
 					// Note: We no longer call loadFromBackend() here to avoid double initialization

@@ -1,4 +1,4 @@
-import { useCallback, memo, useEffect, useMemo, useState } from "react";
+import { useCallback, memo, useEffect, useMemo, useRef, useState } from "react";
 import {
 	View,
 	Text,
@@ -26,6 +26,7 @@ import { StatCard } from "@/components/ui";
 import type { UsageStats } from "@/lib/usage";
 import { useSubscriptionStore } from "@/features/subscription/store";
 import { isSubscriptionFeatureAvailable } from "@/lib/subscriptions";
+import { logProfileViewed } from "@/lib/analytics";
 
 const { width } = Dimensions.get("window");
 
@@ -154,6 +155,7 @@ export default function ProfileScreen() {
 	const router = useRouter();
 	const colorScheme = useColorScheme();
 	const isDark = colorScheme === "dark";
+	const hasTrackedProfileViewRef = useRef(false);
 	const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
 	const { level } = useUserProgressStore();
@@ -267,11 +269,24 @@ export default function ProfileScreen() {
 		usage && usage.limits.textCalls > 0
 			? (usage.used.textCalls / usage.limits.textCalls) * 100
 			: 0;
+	const imageUsagePercent =
+		usage && usage.limits.imageCalls > 0
+			? (usage.used.imageCalls / usage.limits.imageCalls) * 100
+			: 0;
 
 	const isPro = usage?.tier === "pro" || subscriptionTier === "pro";
 	const planName = isPro ? "Premium Pro" : "Explorer Free";
 	const tierTitle = isPro ? "PROMPT MASTER" : "PROMPT NOVICE";
 	const subscriptionAvailable = isSubscriptionFeatureAvailable();
+
+	useEffect(() => {
+		if (isLoading || hasTrackedProfileViewRef.current) {
+			return;
+		}
+
+		hasTrackedProfileViewRef.current = true;
+		logProfileViewed({ isPro });
+	}, [isLoading, isPro]);
 
 	const renderAchievementItem = useCallback(
 		({ item }: { item: any }) => (
@@ -456,7 +471,7 @@ export default function ProfileScreen() {
 						<Text className="text-onSurface text-2xl font-black mb-8 px-2">
 							Usage Quota
 						</Text>
-						<View className="flex-row justify-center w-full">
+						<View className="flex-row flex-wrap justify-center w-full gap-x-6 gap-y-8">
 							<CircularProgress
 								size={width * 0.28}
 								percentage={textUsagePercent}
@@ -465,7 +480,14 @@ export default function ProfileScreen() {
 								color="#FF6B00"
 								isDark={isDark}
 							/>
-							{/* Image quota hidden - will be implemented once image generation module is ready */}
+							<CircularProgress
+								size={width * 0.28}
+								percentage={imageUsagePercent}
+								label="Images"
+								subLabel={`${usage?.used.imageCalls || 0}/${usage?.limits.imageCalls || 0}`}
+								color="#4151FF"
+								isDark={isDark}
+							/>
 						</View>
 					</View>
 

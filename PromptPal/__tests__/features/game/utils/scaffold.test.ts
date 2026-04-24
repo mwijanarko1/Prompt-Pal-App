@@ -6,6 +6,8 @@ import {
 	getInitialPromptForLevel,
 	getInitialPromptStateForLevel,
 	getLevelChecklistItems,
+	getOrdinalMatchedChecklistItemsForBeginnerTemplate,
+	isBeginnerSlotContentMeaningful,
 	isBeginnerTemplateLocked,
 	parseScaffoldPlaceholders,
 	shouldShowChecklist,
@@ -126,5 +128,53 @@ describe("scaffold utils", () => {
 				scaffoldTemplate: "Hello [name]",
 			}),
 		).toBe("Hello ");
+	});
+
+	it("ordinal beginner checklist matches filled slots, not label keywords", () => {
+		const template =
+			"Change the header [element] to [new style] and do not modify the [protected areas]";
+		const items = ["Target element", "New style", "Protected areas"];
+		expect(
+			getOrdinalMatchedChecklistItemsForBeginnerTemplate(template, items, [
+				"",
+				"",
+				"",
+			]),
+		).toEqual([]);
+		expect(
+			getOrdinalMatchedChecklistItemsForBeginnerTemplate(template, items, [
+				"Color",
+				"Purple",
+				"Nav",
+			]),
+		).toEqual(items);
+	});
+
+	it("rejects trivial slot input for checklist (under 3-char alnum runs)", () => {
+		expect(isBeginnerSlotContentMeaningful("a")).toBe(false);
+		expect(isBeginnerSlotContentMeaningful("ab")).toBe(false);
+		expect(isBeginnerSlotContentMeaningful("12")).toBe(false);
+		expect(isBeginnerSlotContentMeaningful("!")).toBe(false);
+		expect(isBeginnerSlotContentMeaningful("a!")).toBe(false);
+		expect(isBeginnerSlotContentMeaningful("abc")).toBe(true);
+		expect(isBeginnerSlotContentMeaningful("  Color  ")).toBe(true);
+		expect(isBeginnerSlotContentMeaningful("404")).toBe(true);
+	});
+
+	it("ordinal checklist does not tick for short garbage in slots", () => {
+		const template = "Hello [a] and [b]";
+		const items = ["First", "Second"];
+		expect(
+			getOrdinalMatchedChecklistItemsForBeginnerTemplate(template, items, [
+				"x",
+				"yy",
+			]),
+		).toEqual([]);
+		expect(
+			getOrdinalMatchedChecklistItemsForBeginnerTemplate(template, items, [
+				"Hello",
+				"world",
+			]),
+		).toEqual(items);
 	});
 });
