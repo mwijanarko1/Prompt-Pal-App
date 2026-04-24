@@ -1,575 +1,423 @@
-import { useCallback, memo, useEffect, useMemo, useState } from "react";
-import {
-	View,
-	Text,
-	ScrollView,
-	Pressable,
-	Dimensions,
-	ActivityIndicator,
-	Alert,
-	Linking,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
-import { Image } from "expo-image";
-import { useRouter } from "expo-router";
-import { FlashList } from "@shopify/flash-list";
-import { useColorScheme } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useAuth, useClerk, useUser } from "@clerk/clerk-expo";
-import { clearAuth, convexHttpClient, refreshAuth } from "@/lib/convex-client";
-import { useUserProgressStore } from "@/features/user/store";
-import { useOnboardingStore } from "@/features/onboarding/store";
-import { api } from "../../../convex/_generated/api.js";
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Text, ActivityIndicator, Alert, Linking, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { useUser, useAuth, useClerk } from '@clerk/clerk-expo';
+import { useUserProgressStore } from '@/features/user/store';
+import { StatCapsule } from '@/features/new-ui/components/StatCapsule';
+import { XpIcon, StreakIcon } from '@/features/new-ui/components/CustomIcons';
+import { convexHttpClient, refreshAuth, clearAuth } from "@/lib/convex-client";
+import { api } from "../../../convex/_generated/api";
+import { useRouter } from 'expo-router';
 import Svg, { Circle } from "react-native-svg";
-import { StatCard } from "@/components/ui";
-import type { UsageStats } from "@/lib/usage";
-import { useSubscriptionStore } from "@/features/subscription/store";
-import { isSubscriptionFeatureAvailable } from "@/lib/subscriptions";
 
-const { width } = Dimensions.get("window");
+const { width } = Dimensions.get('window');
 
-// Circular progress component for usage quota
-interface CircularProgressProps {
-	size?: number;
-	strokeWidth?: number;
-	percentage?: number;
-	label?: string;
-	subLabel?: string;
-	color?: string;
-	isDark?: boolean;
-}
+const CircularProgress = ({ size = 80, strokeWidth = 6, percentage = 0, color = "#58CC02" }) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
-const CircularProgress = memo(function CircularProgress({
-	size = 100,
-	strokeWidth = 8,
-	percentage = 0,
-	label = "",
-	subLabel = "",
-	color = "#FF6B00",
-	isDark = true,
-}: CircularProgressProps) {
-	// Guard against invalid percentage
-	const safePercentage =
-		isNaN(percentage) || !isFinite(percentage)
-			? 0
-			: Math.min(100, Math.max(0, percentage));
-	const radius = (size - strokeWidth) / 2;
-	const circumference = radius * 2 * Math.PI;
-	const strokeDashoffset =
-		circumference - (safePercentage / 100) * circumference;
-	const bgStroke = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
-
-	return (
-		<View style={{ width: size, alignItems: "center" }}>
-			<View
-				style={{
-					width: size,
-					height: size,
-					justifyContent: "center",
-					alignItems: "center",
-				}}
-			>
-				<Svg
-					width={size}
-					height={size}
-					style={{ transform: [{ rotate: "-90deg" }] }}
-				>
-					{/* Background Circle */}
-					<Circle
-						cx={size / 2}
-						cy={size / 2}
-						r={radius}
-						stroke={bgStroke}
-						strokeWidth={strokeWidth}
-						fill="none"
-					/>
-					{/* Progress Circle */}
-					<Circle
-						cx={size / 2}
-						cy={size / 2}
-						r={radius}
-						stroke={color}
-						strokeWidth={strokeWidth}
-						strokeDasharray={circumference}
-						strokeDashoffset={strokeDashoffset}
-						strokeLinecap="round"
-						fill="none"
-					/>
-				</Svg>
-				<View style={{ position: "absolute" }}>
-					<Text className="text-onSurface text-xl font-black">
-						{Math.round(safePercentage)}%
-					</Text>
-				</View>
-			</View>
-			<Text className="text-onSurface font-bold mt-3 text-sm">{label}</Text>
-			<Text className="text-onSurfaceVariant text-[10px] font-bold uppercase tracking-widest">
-				{subLabel}
-			</Text>
-		</View>
-	);
-});
-
-interface AchievementBadgeProps {
-	icon: string;
-	label: string;
-	color: string;
-	isLocked?: boolean;
-}
-
-const AchievementBadge = memo(function AchievementBadge({
-	icon,
-	label,
-	color,
-	isLocked = false,
-}: AchievementBadgeProps) {
-	return (
-		<View className="items-center mr-6">
-			<View
-				className={`w-16 h-16 rounded-full items-center justify-center mb-3 ${isLocked ? "bg-surfaceVariant/10" : ""}`}
-				style={{
-					borderWidth: 1,
-					borderColor: isLocked ? "rgba(255,255,255,0.1)" : color,
-					backgroundColor: isLocked ? "transparent" : `${color}15`,
-				}}
-			>
-				<Text style={{ fontSize: 24 }}>{icon}</Text>
-			</View>
-			<Text
-				className={`text-[8px] font-black uppercase tracking-widest text-center ${isLocked ? "text-gray-600" : "text-onSurface"}`}
-				numberOfLines={1}
-				style={{ width: 64 }}
-			>
-				{label}
-			</Text>
-		</View>
-	);
-});
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#F0F0F0" strokeWidth={strokeWidth} fill="none" />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          fill="none"
+        />
+      </Svg>
+      <View style={styles.percentageContainer}>
+        <Text style={styles.percentageText}>{Math.round(percentage)}%</Text>
+      </View>
+    </View>
+  );
+};
 
 export default function ProfileScreen() {
-	const { user } = useUser();
-	const { isLoaded, isSignedIn } = useAuth();
-	const { signOut } = useClerk();
-	const router = useRouter();
-	const colorScheme = useColorScheme();
-	const isDark = colorScheme === "dark";
-	const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const { user } = useUser();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { signOut } = useClerk();
+  const router = useRouter();
+  const { level, xp, currentStreak } = useUserProgressStore();
 
-	const { level } = useUserProgressStore();
-	const canQueryProfile = isLoaded && isSignedIn;
-	const [achievements, setAchievements] = useState<any[]>([]);
-	const [userResults, setUserResults] = useState<{
-		taskResults: Array<{ score?: number }>;
-	}>({ taskResults: [] });
-	const [usage, setUsage] = useState<UsageStats | null>(null);
-	const [isProfileLoading, setIsProfileLoading] = useState(true);
-	const subscriptionTier = useSubscriptionStore((state) => state.tier);
-	const managementUrl = useSubscriptionStore((state) => state.managementUrl);
+  const [loading, setLoading] = useState(true);
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [usage, setUsage] = useState<any>(null);
 
-	useEffect(() => {
-		if (!canQueryProfile) {
-			setAchievements([]);
-			setUserResults({ taskResults: [] });
-			setUsage(null);
-			setIsProfileLoading(true);
-			return;
-		}
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!isLoaded || !isSignedIn) return;
+      try {
+        setLoading(true);
+        const [achievementsData, usageData] = await Promise.all([
+          convexHttpClient.query(api.queries.getUserAchievements, {}),
+          convexHttpClient.query(api.queries.getUserUsage, { appId: "prompt-pal" }),
+        ]);
+        setAchievements(achievementsData || []);
+        setUsage(usageData);
+      } catch (error) {
+        console.error("Failed to load profile data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-		let isCancelled = false;
+    loadProfileData();
+  }, [isLoaded, isSignedIn]);
 
-		const loadProfileData = async () => {
-			setIsProfileLoading(true);
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      clearAuth();
+      router.replace("/(auth)/sign-in");
+    } catch (err) {
+      console.error("Sign out failed:", err);
+    }
+  };
 
-			try {
-				await refreshAuth();
-			} catch {
-				// Continue with best-effort Convex queries.
-			}
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#58CC02" />
+      </View>
+    );
+  }
 
-			try {
-				const [achievementsResult, resultsResult, usageResult] =
-					await Promise.allSettled([
-						convexHttpClient.query(api.queries.getUserAchievements, {}),
-						convexHttpClient.query(api.queries.getUserResults, {
-							appId: "prompt-pal",
-						}),
-						convexHttpClient.query(api.queries.getUserUsage, {
-							appId: "prompt-pal",
-						}),
-					]);
+  const textUsagePercent = usage && usage.limits.textCalls > 0
+    ? (usage.used.textCalls / usage.limits.textCalls) * 100
+    : 0;
 
-				if (isCancelled) {
-					return;
-				}
+  return (
+    <View style={styles.container}>
+      <SafeAreaView style={styles.header} edges={['top']}>
+        <View style={styles.topBar}>
+          <Text style={styles.headerTitle}>Profile</Text>
+          <TouchableOpacity style={styles.settingsButton} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={24} color="#FF4B4B" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
 
-				setAchievements(
-					achievementsResult.status === "fulfilled"
-						? (achievementsResult.value ?? [])
-						: [],
-				);
-				setUserResults(
-					resultsResult.status === "fulfilled"
-						? (resultsResult.value ?? { taskResults: [] })
-						: { taskResults: [] },
-				);
-				setUsage(
-					usageResult.status === "fulfilled" && usageResult.value
-						? usageResult.value
-						: {
-								tier: "free",
-								used: {
-									textCalls: 0,
-									imageCalls: 0,
-									audioSummaries: 0,
-								},
-								limits: {
-									textCalls: 0,
-									imageCalls: 0,
-									audioSummaries: 0,
-								},
-								periodStart: Date.now(),
-								periodEnd: Date.now(),
-							},
-				);
-			} catch (error) {
-				if (!isCancelled) {
-					console.error("Failed to load profile data:", error);
-				}
-			} finally {
-				if (!isCancelled) {
-					setIsProfileLoading(false);
-				}
-			}
-		};
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* User Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarWrapper}>
+            <View style={styles.avatarBorder}>
+              <Image source={{ uri: user?.imageUrl }} style={styles.avatar} />
+            </View>
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelBadgeText}>{level}</Text>
+            </View>
+          </View>
 
-		void loadProfileData();
+          <Text style={styles.userName}>{user?.fullName || 'Architect'}</Text>
+          <Text style={styles.userEmail}>{user?.primaryEmailAddress?.emailAddress}</Text>
 
-		return () => {
-			isCancelled = true;
-		};
-	}, [canQueryProfile]);
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <StreakIcon width={24} height={28} />
+              <Text style={styles.statValue}>{currentStreak}</Text>
+              <Text style={styles.statLabel}>Days</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statItem}>
+              <XpIcon width={24} height={28} />
+              <Text style={styles.statValue}>{xp}</Text>
+              <Text style={styles.statLabel}>Total XP</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statItem}>
+              <Ionicons name="trophy" size={24} color="#FFD700" />
+              <Text style={styles.statValue}>{achievements.length}</Text>
+              <Text style={styles.statLabel}>Awards</Text>
+            </View>
+          </View>
+        </View>
 
-	const isLoading = !isLoaded || isProfileLoading || usage === null;
+        {/* Usage Quota */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Daily Quota</Text>
+          <View style={styles.quotaCard}>
+            <CircularProgress percentage={textUsagePercent} />
+            <View style={styles.quotaInfo}>
+              <Text style={styles.quotaTitle}>Text Prompts</Text>
+              <Text style={styles.quotaSubtitle}>
+                {usage?.used.textCalls} / {usage?.limits.textCalls} used today
+              </Text>
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${textUsagePercent}%` }]} />
+              </View>
+            </View>
+          </View>
+        </View>
 
-	const totalPrompts = userResults?.taskResults?.length || 0;
-	const avgAccuracy = useMemo(() => {
-		if (!userResults?.taskResults?.length) return "0";
-		const sum = userResults.taskResults.reduce(
-			(acc, curr) => acc + (curr.score || 0),
-			0,
-		);
-		return (sum / userResults.taskResults.length).toFixed(1);
-	}, [userResults]);
+        {/* Achievements */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Achievements</Text>
+            <TouchableOpacity><Text style={styles.viewAll}>View All</Text></TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.achievementScroll}>
+            {achievements.length > 0 ? achievements.map((item, index) => (
+              <View key={index} style={styles.badgeItem}>
+                <View style={styles.badgeIconContainer}>
+                   <Text style={{ fontSize: 30 }}>{item.icon || '✨'}</Text>
+                </View>
+                <Text style={styles.badgeName}>{item.title}</Text>
+              </View>
+            )) : (
+              <Text style={styles.emptyText}>No achievements yet. Keep learning!</Text>
+            )}
+          </ScrollView>
+        </View>
 
-	// Usage progress calculations
-	const textUsagePercent =
-		usage && usage.limits.textCalls > 0
-			? (usage.used.textCalls / usage.limits.textCalls) * 100
-			: 0;
-
-	const isPro = usage?.tier === "pro" || subscriptionTier === "pro";
-	const planName = isPro ? "Premium Pro" : "Explorer Free";
-	const tierTitle = isPro ? "PROMPT MASTER" : "PROMPT NOVICE";
-	const subscriptionAvailable = isSubscriptionFeatureAvailable();
-
-	const renderAchievementItem = useCallback(
-		({ item }: { item: any }) => (
-			<AchievementBadge
-				icon={item.icon}
-				label={item.title}
-				color="#FF6B00"
-				isLocked={false}
-			/>
-		),
-		[],
-	);
-
-	const deleteAccount = useCallback(async () => {
-		if (!user || isDeletingAccount) {
-			return;
-		}
-
-		setIsDeletingAccount(true);
-		try {
-			await convexHttpClient.mutation(api.mutations.deleteCurrentUserData, {});
-			await user.delete();
-			try {
-				await signOut();
-				clearAuth();
-			} catch {
-				// User deletion usually invalidates the session; explicit sign-out can fail safely.
-			}
-			router.replace("/");
-		} catch (error) {
-			console.error("Failed to delete account:", error);
-			Alert.alert(
-				"Delete Failed",
-				"We could not delete your account right now. Please try again in a moment.",
-			);
-		} finally {
-			setIsDeletingAccount(false);
-		}
-	}, [isDeletingAccount, router, signOut, user]);
-
-	const handlePlanPress = useCallback(async () => {
-		if (isPro && managementUrl) {
-			const canOpen = await Linking.canOpenURL(managementUrl);
-			if (canOpen) {
-				await Linking.openURL(managementUrl);
-				return;
-			}
-		}
-
-		if (!subscriptionAvailable) {
-			Alert.alert(
-				"Unavailable on this device",
-				"PromptPal Pro purchases are currently available on iOS only.",
-			);
-			return;
-		}
-
-		router.push("/paywall");
-	}, [isPro, managementUrl, router, subscriptionAvailable]);
-
-	const confirmDeleteAccount = useCallback(() => {
-		Alert.alert(
-			"Delete Account",
-			"This permanently deletes your PromptPal account and all associated app data. This action cannot be undone.",
-			[
-				{ text: "Cancel", style: "cancel" },
-				{
-					text: "Delete",
-					style: "destructive",
-					onPress: () => {
-						void deleteAccount();
-					},
-				},
-			],
-		);
-	}, [deleteAccount]);
-
-	if (isLoading) {
-		return (
-			<SafeAreaView
-				collapsable={false}
-				className="flex-1 bg-background items-center justify-center"
-				edges={["top", "left", "right"]}
-			>
-				<ActivityIndicator color="#FF6B00" size="large" />
-				<Text className="text-onSurface mt-4 font-black">
-					Scanning your trajectory…
-				</Text>
-			</SafeAreaView>
-		);
-	}
-
-	return (
-		<SafeAreaView
-			collapsable={false}
-			className="flex-1 bg-background"
-			edges={["top", "left", "right"]}
-		>
-			{/* Fixed Header */}
-			<View className="flex-row justify-center items-center px-6 pt-4 pb-4">
-				<Text className="text-onSurface text-lg font-black uppercase tracking-[3px]">
-					Profile
-				</Text>
-			</View>
-
-			<ScrollView
-				className="flex-1"
-				showsVerticalScrollIndicator={false}
-				contentContainerStyle={{ paddingBottom: 100 }}
-			>
-				<View className="items-center px-6">
-					{/* Avatar Section */}
-					<View className="mb-6 relative">
-						<View className="w-32 h-32 rounded-full border-4 border-primary shadow-glow items-center justify-center p-1">
-							<View className="w-full h-full rounded-full overflow-hidden bg-surfaceVariant">
-								{user?.imageUrl ? (
-									<Image
-										source={{ uri: user.imageUrl }}
-										style={{ width: "100%", height: "100%" }}
-										contentFit="cover"
-									/>
-								) : (
-									<View className="w-full h-full items-center justify-center">
-										<Ionicons name="person" size={60} color="#9CA3AF" />
-									</View>
-								)}
-							</View>
-						</View>
-						<View className="absolute bottom-0 right-0 bg-primary px-3 py-1 rounded-full border-2 border-background">
-							<Text className="text-white text-xs font-black">Lv. {level}</Text>
-						</View>
-					</View>
-
-					{/* User Info */}
-					<Text className="text-onSurface text-3xl font-black mb-1">
-						{user?.fullName || "Architect"}
-					</Text>
-					<View className="flex-row items-center mb-1">
-						<Ionicons name="checkmark-circle" size={16} color="#FF6B00" />
-						<Text className="text-primary text-[10px] font-black uppercase tracking-widest ml-1">
-							{tierTitle}
-						</Text>
-					</View>
-					<Text className="text-onSurfaceVariant text-[10px] font-bold uppercase tracking-widest opacity-60">
-						Member since{" "}
-						{new Date(user?.createdAt || Date.now()).toLocaleDateString(
-							"en-US",
-							{ month: "short", year: "numeric" },
-						)}
-					</Text>
-
-					<View className="w-full mt-8 mb-6 rounded-3xl border border-primary/30 bg-primary/10 p-5">
-						<View className="flex-row items-center justify-between">
-							<View className="flex-1 pr-4">
-								<Text className="text-primary text-[10px] font-black uppercase tracking-widest mb-1">
-									Current Plan
-								</Text>
-								<Text className="text-onSurface text-lg font-black">
-									{planName}
-								</Text>
-								<Text className="text-onSurfaceVariant text-xs mt-1">
-									{subscriptionAvailable
-										? isPro
-											? "Manage your subscription or restore purchases."
-											: "Upgrade on iPhone to unlock PromptPal Pro."
-										: "Subscriptions are currently available on iPhone only."}
-								</Text>
-							</View>
-							<Pressable
-								onPress={() => void handlePlanPress()}
-								className="h-11 rounded-full bg-primary px-5 items-center justify-center"
-							>
-								<Text className="text-white text-[10px] font-black uppercase tracking-widest">
-									{isPro ? "Manage" : "Upgrade"}
-								</Text>
-							</Pressable>
-						</View>
-					</View>
-
-					{/* Usage Quota Section */}
-					<View className="w-full mb-10 mt-10">
-						<Text className="text-onSurface text-2xl font-black mb-8 px-2">
-							Usage Quota
-						</Text>
-						<View className="flex-row justify-center w-full">
-							<CircularProgress
-								size={width * 0.28}
-								percentage={textUsagePercent}
-								label="Text"
-								subLabel={`${usage?.used.textCalls || 0}/${usage?.limits.textCalls || 0}`}
-								color="#FF6B00"
-								isDark={isDark}
-							/>
-							{/* Image quota hidden - will be implemented once image generation module is ready */}
-						</View>
-					</View>
-
-					{/* Achievements Section */}
-					<View className="w-full mb-10">
-						<View className="flex-row justify-between items-end mb-8 px-2">
-							<Text className="text-onSurface text-2xl font-black">
-								Achievements
-							</Text>
-							<Pressable>
-								<Text className="text-primary text-[10px] font-black uppercase tracking-widest">
-									View All
-								</Text>
-							</Pressable>
-						</View>
-
-						{achievements && achievements.length > 0 ? (
-							<FlashList
-								data={achievements}
-								renderItem={renderAchievementItem}
-								keyExtractor={(item) => item.id}
-								horizontal
-								showsHorizontalScrollIndicator={false}
-								contentContainerStyle={{ paddingRight: 20 }}
-							/>
-						) : (
-							<Text className="text-onSurfaceVariant text-xs font-bold uppercase tracking-widest">
-								No achievements yet
-							</Text>
-						)}
-					</View>
-
-					{/* Images Gallery Section - Hidden until image generation module is implemented */}
-
-					{/* Statistics Section */}
-					<View className="w-full mb-8">
-						<Text className="text-onSurface text-2xl font-black mb-8 px-2">
-							Statistics
-						</Text>
-						<View className="flex-row gap-4">
-							<StatCard
-								label="Total Prompts"
-								value={totalPrompts.toLocaleString()}
-								trend="Global Usage"
-								color="#FF6B00"
-								variant="featured"
-							/>
-							<StatCard
-								label="Avg. Accuracy"
-								value={`${avgAccuracy}%`}
-								trend="Performance"
-								color="#4151FF"
-								isSecondary
-								variant="featured"
-							/>
-						</View>
-					</View>
-
-					{/* Developer Tools */}
-					<View className="w-full mb-8 border-t border-surfaceVariant/20 pt-8">
-						<Text className="text-onSurface text-2xl font-black mb-3 px-2">
-							Developer Tools
-						</Text>
-						<Text className="text-onSurfaceVariant text-[11px] font-bold uppercase tracking-widest px-2 mb-5 opacity-80">
-							Debug utilities for testing the app experience.
-						</Text>
-						<Pressable
-							onPress={() => {
-								const { resetOnboarding } = useOnboardingStore.getState();
-								resetOnboarding();
-								Alert.alert(
-									"Onboarding Reset",
-									"The onboarding flow will appear on your next app navigation.",
-								);
-							}}
-							className="rounded-2xl px-5 py-4 border bg-primary/10 border-primary/30 flex-row items-center justify-center"
-						>
-							<Ionicons name="refresh-outline" size={18} color="#FF6B00" />
-							<Text className="text-primary text-center text-sm font-black uppercase tracking-widest ml-2">
-								Replay Onboarding
-							</Text>
-						</Pressable>
-					</View>
-
-					<View className="w-full mb-8 border-t border-surfaceVariant/20 pt-8">
-						<Text className="text-onSurface text-2xl font-black mb-3 px-2">
-							Account
-						</Text>
-						<Text className="text-onSurfaceVariant text-[11px] font-bold uppercase tracking-widest px-2 mb-5 opacity-80">
-							Delete account permanently removes your profile, progress, and app
-							history.
-						</Text>
-						<Pressable
-							onPress={confirmDeleteAccount}
-							disabled={isDeletingAccount}
-							className={`rounded-2xl px-5 py-4 border ${isDeletingAccount ? "bg-red-900/30 border-red-700/40" : "bg-red-600/20 border-red-500/60"}`}
-						>
-							<Text className="text-red-400 text-center text-sm font-black uppercase tracking-widest">
-								{isDeletingAccount ? "Deleting Account..." : "Delete Account"}
-							</Text>
-						</Pressable>
-					</View>
-				</View>
-			</ScrollView>
-		</SafeAreaView>
-	);
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    backgroundColor: '#FFFFFF',
+    zIndex: 10,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    fontFamily: 'DIN Round Pro',
+    textTransform: 'uppercase',
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  profileCard: {
+    alignItems: 'center',
+    backgroundColor: '#F7F7F7',
+    borderRadius: 32,
+    padding: 24,
+    marginBottom: 32,
+    borderWidth: 2,
+    borderColor: '#F0F0F0',
+    borderBottomWidth: 6,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatarBorder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    borderColor: '#58CC02',
+    padding: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 56,
+  },
+  levelBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#58CC02',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  levelBadgeText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 14,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    marginBottom: 4,
+    fontFamily: 'DIN Round Pro',
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontWeight: '700',
+    marginBottom: 24,
+    fontFamily: 'DIN Round Pro',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'space-around',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#EBEBEB',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+  },
+  divider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#EBEBEB',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    fontFamily: 'DIN Round Pro',
+    marginBottom: 16,
+  },
+  viewAll: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#58CC02',
+    textTransform: 'uppercase',
+  },
+  quotaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#F0F0F0',
+    borderBottomWidth: 4,
+  },
+  quotaInfo: {
+    flex: 1,
+    marginLeft: 20,
+  },
+  quotaTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    marginBottom: 4,
+  },
+  quotaSubtitle: {
+    fontSize: 13,
+    color: '#8E8E93',
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  progressBarBg: {
+    height: 8,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 4,
+    width: '100%',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#58CC02',
+    borderRadius: 4,
+  },
+  percentageContainer: {
+    position: 'absolute',
+  },
+  percentageText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#3C3C3C',
+  },
+  achievementScroll: {
+    paddingLeft: 4,
+  },
+  badgeItem: {
+    alignItems: 'center',
+    marginRight: 24,
+    width: 80,
+  },
+  badgeIconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#F7F7F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#EBEBEB',
+  },
+  badgeName: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    textAlign: 'center',
+    fontFamily: 'DIN Round Pro',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+});

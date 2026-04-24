@@ -1,5 +1,6 @@
 import { View, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { useOnboardingStore } from "./store";
+import { usePreOnboardingStore } from "../pre-onboarding/store";
 import { ONBOARDING_COLORS } from "./theme";
 
 // Screens
@@ -27,6 +28,7 @@ import { CompleteScreen } from "./screens/CompleteScreen";
 export function OnboardingFlow() {
 	const { currentStep, hasCompletedOnboarding, goToNextStep, goToPreviousStep } =
 		useOnboardingStore();
+	const { goToLastStep: goToLastPreStep } = usePreOnboardingStore();
 
 	// Don't render if onboarding is complete
 	if (hasCompletedOnboarding) {
@@ -71,7 +73,13 @@ export function OnboardingFlow() {
 				<View style={styles.devNav}>
 					<TouchableOpacity
 						style={[styles.devButton, styles.devButtonLeft]}
-						onPress={goToPreviousStep}
+						onPress={() => {
+							if (currentStep === "welcome") {
+								goToLastPreStep();
+							} else {
+								goToPreviousStep();
+							}
+						}}
 						accessibilityRole="button"
 						accessibilityLabel="Onboarding previous slide"
 					>

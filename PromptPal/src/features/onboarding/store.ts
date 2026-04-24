@@ -42,7 +42,10 @@ export interface OnboardingState {
 	concept1Answer: string | null;
 	concept2Matches: Record<string, string>;
 
+	userId: string | null;
+
 	// Actions
+	setUserId: (userId: string | null) => void;
 	setCurrentStep: (step: OnboardingStep) => void;
 	goToNextStep: () => void;
 	goToPreviousStep: () => void;
@@ -126,6 +129,9 @@ export const useOnboardingStore = create<OnboardingState>()(
 			xpEarned: 0,
 			concept1Answer: null,
 			concept2Matches: {},
+			userId: null,
+
+			setUserId: (userId) => set({ userId }),
 
 			setCurrentStep: (step) => set({ currentStep: step }),
 

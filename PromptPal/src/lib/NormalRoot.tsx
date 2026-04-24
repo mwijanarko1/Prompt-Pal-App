@@ -10,6 +10,10 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { clearAuth, refreshAuth } from "@/lib/convex-client";
 import { useSubscriptionStore } from "@/features/subscription/store";
+import { useOnboardingStore } from "@/features/onboarding/store";
+import { usePreOnboardingStore } from "@/features/pre-onboarding/store";
+import { useConvex } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import {
 	configureRevenueCat,
 	getCustomerInfo,
@@ -66,6 +70,24 @@ function AppInitializer() {
 	const resetSubscriptionForSignedOut = useSubscriptionStore(
 		(state) => state.resetForSignedOut,
 	);
+	const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding);
+	const completeOnboarding = useOnboardingStore(
+		(state) => state.completeOnboarding,
+	);
+	const setOnboardingUserId = useOnboardingStore((state) => state.setUserId);
+	const onboardingUserId = useOnboardingStore((state) => state.userId);
+
+	const resetPreOnboarding = usePreOnboardingStore(
+		(state) => state.resetPreOnboarding,
+	);
+	const completePreOnboarding = usePreOnboardingStore(
+		(state) => state.completePreOnboarding,
+	);
+	const setPreOnboardingUserId = usePreOnboardingStore(
+		(state) => state.setUserId,
+	);
+	const preOnboardingUserId = usePreOnboardingStore((state) => state.userId);
+	const convex = useConvex();
 
 	useEffect(() => {
 		if (!isLoaded) {
@@ -81,7 +103,61 @@ function AppInitializer() {
 
 		clearAuth();
 		resetSubscriptionForSignedOut();
-	}, [isLoaded, isSignedIn, resetSubscriptionForSignedOut]);
+		resetOnboarding();
+		resetPreOnboarding();
+	}, [
+		isLoaded,
+		isSignedIn,
+		resetSubscriptionForSignedOut,
+		resetOnboarding,
+		resetPreOnboarding,
+	]);
+
+	// New User / Returning User detection logic
+	useEffect(() => {
+		if (!isLoaded || !isSignedIn || !userId) {
+			return;
+		}
+
+		if (userId !== onboardingUserId || userId !== preOnboardingUserId) {
+			// Check the backend to decide whether this device should reset or skip onboarding.
+			const syncUserState = async () => {
+				try {
+					const stats = await convex.query(api.queries.getMyUserStatistics);
+					const isNewUser = !stats || stats.totalXp === 0;
+
+					if (isNewUser) {
+						resetOnboarding();
+						resetPreOnboarding();
+					} else {
+						completeOnboarding();
+						completePreOnboarding();
+					}
+
+					// Always set the current userId once checked
+					setOnboardingUserId(userId);
+					setPreOnboardingUserId(userId);
+				} catch (error) {
+					console.error("[Onboarding] Failed to sync user state", error);
+				}
+			};
+
+			void syncUserState();
+		}
+	}, [
+		isLoaded,
+		isSignedIn,
+		userId,
+		onboardingUserId,
+		preOnboardingUserId,
+		resetOnboarding,
+		resetPreOnboarding,
+		completeOnboarding,
+		completePreOnboarding,
+		setOnboardingUserId,
+		setPreOnboardingUserId,
+		convex,
+	]);
 
 	useEffect(() => {
 		if (!isLoaded) {

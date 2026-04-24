@@ -95,13 +95,18 @@ export async function configureRevenueCat(
 	}
 
 	if (!isConfigured) {
-		Purchases.setLogLevel(LOG_LEVEL.WARN);
-		await Purchases.configure({
-			apiKey: IOS_API_KEY,
-			appUserID: appUserId || undefined,
-		});
-		isConfigured = true;
-		configuredAppUserId = appUserId ?? null;
+		try {
+			Purchases.setLogLevel(LOG_LEVEL.WARN);
+			await Purchases.configure({
+				apiKey: IOS_API_KEY,
+				appUserID: appUserId || undefined,
+			});
+			isConfigured = true;
+			configuredAppUserId = appUserId ?? null;
+		} catch (error) {
+			console.warn("[RevenueCat] Failed to configure Purchases. Subscriptions will be unavailable.", error);
+			return false;
+		}
 		return true;
 	}
 

@@ -1,11 +1,16 @@
+import { SubscriptionAccessGuard } from "@/components/SubscriptionAccessGuard";
+import { CartIcon, ProfileIcon, QuestsIcon, RankIcon } from "@/features/new-ui/components/CustomIcons";
+import { OnboardingFlow } from "@/features/onboarding/OnboardingFlow";
+import { useOnboardingStore } from "@/features/onboarding/store";
+import { PreOnboardingFlow } from "@/features/pre-onboarding/PreOnboardingFlow";
+import { usePreOnboardingStore } from "@/features/pre-onboarding/store";
+import { useAuth } from "@clerk/clerk-expo";
 import {
 	DarkTheme,
 	DefaultTheme,
 	ThemeProvider,
 } from "@react-navigation/native";
-import { Redirect } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { Redirect, Tabs } from "expo-router";
 import { useEffect, useState } from "react";
 import {
 	ActivityIndicator,
@@ -15,9 +20,6 @@ import {
 	useColorScheme,
 	View,
 } from "react-native";
-import { OnboardingFlow } from "@/features/onboarding/OnboardingFlow";
-import { useOnboardingStore } from "@/features/onboarding/store";
-import { SubscriptionAccessGuard } from "@/components/SubscriptionAccessGuard";
 
 const TAB_CONTENT_STYLE = { backgroundColor: "transparent" } as const;
 
@@ -50,63 +52,104 @@ function NativeTabShell() {
 
 	return (
 		<ThemeProvider value={navigationTheme}>
-			<NativeTabs
-				backgroundColor="transparent"
-				tintColor={iosDynamicColor("#111827", "#FFFFFF")}
-				labelStyle={{
-					default: {
-						color: iosDynamicColor("#6B7280", "#94A3B8"),
-						fontSize: 12,
+			<Tabs
+				screenOptions={{
+					headerShown: false,
+					tabBarActiveTintColor: "#58CC02",
+					tabBarInactiveTintColor: "#8E8E93",
+					tabBarStyle: {
+						backgroundColor: "#FFFFFF",
+						borderTopWidth: 1,
+						borderTopColor: "#E5E5E5",
+						height: Platform.OS === "ios" ? 88 : 68,
+						paddingBottom: Platform.OS === "ios" ? 30 : 10,
 					},
-					selected: {
-						color: iosDynamicColor("#111827", "#F9FAFB"),
+					tabBarLabelStyle: {
+						fontFamily: "DIN Round Pro",
+						fontWeight: "700",
 						fontSize: 12,
-						fontWeight: "600",
 					},
 				}}
 			>
-				<NativeTabs.Trigger name="index" contentStyle={TAB_CONTENT_STYLE}>
-					<NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-					<NativeTabs.Trigger.Icon
-						sf={{ default: "house", selected: "house.fill" }}
-						md="home"
-					/>
-				</NativeTabs.Trigger>
-				<NativeTabs.Trigger
-					name="library"
-					hidden
-					contentStyle={TAB_CONTENT_STYLE}
-				>
-					<NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
-					<NativeTabs.Trigger.Icon
-						sf={{ default: "book", selected: "book.fill" }}
-						md="menu_book"
-					/>
-				</NativeTabs.Trigger>
-				<NativeTabs.Trigger
+				<Tabs.Screen
+					name="index"
+					options={{
+						tabBarLabel: "Quest",
+						tabBarIcon: ({ color, focused }) => (
+							<QuestsIcon width={24} height={24} isActive={focused} />
+						),
+					}}
+				/>
+				<Tabs.Screen
 					name="ranking"
-					hidden
-					contentStyle={TAB_CONTENT_STYLE}
-				>
-					<NativeTabs.Trigger.Label>Ranking</NativeTabs.Trigger.Label>
-					<NativeTabs.Trigger.Icon
-						sf={{ default: "trophy", selected: "trophy.fill" }}
-						md="emoji_events"
-					/>
-				</NativeTabs.Trigger>
-				<NativeTabs.Trigger name="profile" contentStyle={TAB_CONTENT_STYLE}>
-					<NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
-					<NativeTabs.Trigger.Icon
-						sf={{ default: "person", selected: "person.fill" }}
-						md="person"
-					/>
-				</NativeTabs.Trigger>
-			</NativeTabs>
+					options={{
+						tabBarLabel: "Rank",
+						tabBarIcon: ({ color, focused }) => (
+							<RankIcon width={24} height={24} isActive={focused} />
+						),
+					}}
+				/>
+				<Tabs.Screen
+					name="cart"
+					options={{
+						tabBarLabel: "Cart",
+						tabBarIcon: ({ color, focused }) => (
+							<CartIcon width={24} height={24} isActive={focused} />
+						),
+					}}
+				/>
+				<Tabs.Screen
+					name="profile"
+					options={{
+						tabBarLabel: "Profile",
+						tabBarIcon: ({ color, focused }) => (
+							<ProfileIcon width={24} height={24} isActive={focused} />
+						),
+					}}
+				/>
+				{/* Hidden tabs */}
+				<Tabs.Screen
+					name="library"
+					options={{
+						href: null,
+					}}
+				/>
+			</Tabs>
 		</ThemeProvider>
 	);
 }
 
 function TabsNavigator() {
+	// Pre-onboarding state
+	const hasCompletedPreOnboarding = usePreOnboardingStore(
+		(state) => state.hasCompletedPreOnboarding,
+	);
+	const showNewUI = usePreOnboardingStore((state) => state.showNewUI);
+	const forceSkipOnboarding = usePreOnboardingStore((state) => state.forceSkipOnboarding);
+	const [hasPreHydrated, setHasPreHydrated] = useState(() =>
+		usePreOnboardingStore.persist.hasHydrated(),
+	);
+
+	useEffect(() => {
+		const syncPreHydration = () => {
+			setHasPreHydrated(usePreOnboardingStore.persist.hasHydrated());
+		};
+		syncPreHydration();
+		const unsub =
+			usePreOnboardingStore.persist.onFinishHydration(syncPreHydration);
+		return unsub;
+	}, []);
+
+	useEffect(() => {
+		if (hasPreHydrated) {
+			// Keep the imported UI flow enabled if persisted flags drift out of sync.
+			if (hasCompletedPreOnboarding && (!showNewUI || !forceSkipOnboarding)) {
+				usePreOnboardingStore.getState().finishPreOnboarding();
+			}
+		}
+	}, [hasPreHydrated, hasCompletedPreOnboarding, showNewUI]);
+
+	// Existing onboarding state
 	const hasCompletedOnboarding = useOnboardingStore(
 		(state) => state.hasCompletedOnboarding,
 	);
@@ -118,19 +161,24 @@ function TabsNavigator() {
 		const syncHydrationState = () => {
 			setHasHydrated(useOnboardingStore.persist.hasHydrated());
 		};
-
 		syncHydrationState();
 		const unsubscribe =
 			useOnboardingStore.persist.onFinishHydration(syncHydrationState);
-
 		return unsubscribe;
 	}, []);
 
-	if (!hasHydrated) {
+	// Wait for both stores to hydrate
+	if (!hasPreHydrated || !hasHydrated) {
 		return <TabShellFallback message="Restoring your learning space..." />;
 	}
 
-	if (!hasCompletedOnboarding) {
+	// Show pre-onboarding first (new screens)
+	if (!hasCompletedPreOnboarding) {
+		return <PreOnboardingFlow />;
+	}
+
+	// Then show gamified onboarding
+	if (!hasCompletedOnboarding && !forceSkipOnboarding) {
 		return <OnboardingFlow />;
 	}
 
