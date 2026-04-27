@@ -1,6 +1,6 @@
 # PromptPal
 
-PromptPal is a mobile app for learning prompt engineering through short, replayable game loops. The workspace is organized around the React Native app in `PromptPal/` and supporting project documentation in `docs/`.
+PromptPal is a mobile app for learning prompt engineering through short, replayable game loops. This repository is a single project root: the Expo / React Native app, Convex backend, and assets live here alongside [`docs/`](docs/) (plans, maps, operations) and [`tasks/`](tasks/).
 
 ![Status](https://img.shields.io/badge/Status-Active%20Development-yellow?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Platform-Expo%20%2B%20React%20Native-black?style=for-the-badge)
@@ -16,74 +16,68 @@ The product is built around three learning tracks:
 
 Players progress through levels, submit prompts, receive AI-assisted feedback, and improve over repeated attempts. Authentication is handled through Clerk, backend state and AI orchestration run through Convex, and the client is built with Expo Router, React Native, and TypeScript.
 
-## Current State
+## Current state
 
-The codebase already includes the main app shell, authentication flow, tab navigation, core game state, and Convex-backed AI integration. Recent work has focused on simplifying the app root, stabilizing safe mode, migrating the workspace to Bun, and restructuring scoring logic for the copy module.
+The codebase includes the main app shell, authentication flow, tab navigation, core game state, and Convex-backed AI integration. Recent work has focused on simplifying the app root, stabilizing safe mode, using Bun as the package manager, and restructuring scoring logic for the copy module.
 
-## Recent Progress
+### Recent progress (from `main`)
 
-Based on the latest commits on `main`, the most recent completed work includes:
-
-- Safe mode cleanup and root simplification by removing the old `router-app` tree and consolidating app entry flow
-- Migration from npm to Bun, including lockfile and script updates
-- Convex schema, query, mutation, and AI updates for gameplay and level data
+- Safe mode cleanup and root simplification (consolidated app entry flow)
+- Bun lockfile and script usage alongside Convex schema and gameplay updates
 - Refactoring of copy scoring into `copyScoringCore.ts` and addition of `promptQuality.ts`
-- Tab and game screen updates across home, library, ranking, profile, and both game flows
-- Removal of the AI feedback section from active gameplay screens
+- Tab and game screen updates across home, library, ranking, profile, and game flows
 
-Areas still likely in progress:
+Areas still in motion: expanding level content, end-to-end scoring validation, broader tests, and release polish.
 
-- Expanding level content breadth
-- Hardening and validating scoring quality end to end
-- Broader test coverage and release-readiness work
+For architecture and navigation, see [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md). For App Store compliance notes, see [`docs/ios-app-store-compliance-report.md`](docs/ios-app-store-compliance-report.md).
 
-For the most accurate architecture reference, use [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md).
-
-## Workspace Structure
+## Repository layout
 
 ```text
 .
-├── PromptPal/            # Expo / React Native application
-├── docs/                 # Project documentation and planning
-├── tasks/                # Task tracking and notes
-├── AGENTS.md             # Agent workflow instructions
-└── README.md             # Workspace overview
-```
-
-## App Structure
-
-```text
-PromptPal/
 ├── src/app/              # Expo Router routes and layouts
 ├── src/components/       # Shared UI components
 ├── src/features/         # Feature domains and stores
 ├── src/lib/              # Shared services and utilities
-├── convex/               # Backend schema, queries, and mutations
-├── assets/               # Fonts, images, and static assets
+├── convex/               # Backend schema, queries, mutations, AI
+├── assets/               # Fonts, images, static assets
+├── docs/                 # CODEBASE_MAP, plans, phases, reports, operations
+├── tasks/                # Task tracking and notes
 ├── app.json              # Expo configuration
-└── package.json          # Scripts and dependencies
+├── eas.json              # EAS Build profiles
+├── package.json          # Scripts and dependencies
+└── README.md             # This file
 ```
 
-## Quick Start
+## Quick start
 
-1. Clone the repository and enter the app directory.
+1. Clone the repository and open the project root (no nested `cd` into an app folder).
+
    ```bash
    git clone https://github.com/mwijanarko1/Prompt-Pal-App.git
-   cd Prompt-Pal-App/PromptPal
+   cd Prompt-Pal-App
    ```
+
 2. Install dependencies.
+
    ```bash
    bun install
    ```
+
 3. Copy the environment template and fill in the required values.
+
    ```bash
    cp .env.example .env
    ```
-4. (Convex) Start the Convex development server in a separate terminal.
+
+4. In a separate terminal, start the Convex development server.
+
    ```bash
    bun run convex:dev
    ```
+
 5. Start the Expo development server.
+
    ```bash
    bun start
    ```
@@ -99,13 +93,14 @@ The app expects these public environment variables at minimum:
 - `CONVEX_DEPLOYMENT`
 
 Optional:
+
 - `EXPO_PUBLIC_SAFE_MODE` (set to `1` to force the safe-mode `BootModeScreen` crash isolation screen)
 
-Check the app-level configuration and environment helpers in `PromptPal/` before adding new variables.
+See [`.env.example`](.env.example) and [`src/lib/env.ts`](src/lib/env.ts) when adding variables.
 
-## Common Commands
+## Common commands
 
-From `PromptPal/`:
+From the repository root:
 
 ```bash
 bun start
@@ -113,7 +108,7 @@ bun run convex:dev
 bun run validate-env
 ```
 
-Use the scripts defined in [`PromptPal/package.json`](PromptPal/package.json) as the source of truth.
+Use [`package.json`](package.json) as the source of truth for scripts.
 
 ## Contributing
 
@@ -121,10 +116,12 @@ Keep changes small, typed, and aligned with the existing architecture.
 
 - Use Conventional Commits.
 - Run `bun run validate-env` before opening a PR.
-- Review [`AGENTS.md`](AGENTS.md) and [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md) before making structural changes.
+- Review [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md) before large structural changes.
 
 ## Links
 
 - Repository: [github.com/mwijanarko1/Prompt-Pal-App](https://github.com/mwijanarko1/Prompt-Pal-App)
 - Issues: [GitHub Issues](https://github.com/mwijanarko1/Prompt-Pal-App/issues)
 - Discussions: [GitHub Discussions](https://github.com/mwijanarko1/Prompt-Pal-App/discussions)
+
+Planning history, phased rollout notes, and operational runbooks live under [`docs/plans/`](docs/plans/), [`docs/phases/`](docs/phases/), and [`docs/operations/`](docs/operations/) (including App Store upload and database seeding).
