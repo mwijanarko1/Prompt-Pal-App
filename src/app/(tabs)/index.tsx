@@ -51,17 +51,17 @@ export default function QuestScreen() {
           <View style={styles.statsContainer}>
             <StatCapsule
               icon={<StreakIcon width={16} height={20} />}
-              value={questHome.stats.currentStreak || 0}
+              value={questHome.headerStats.currentStreak}
               color="#FF9600"
             />
             <StatCapsule
               icon={<XpIcon width={16} height={20} />}
-              value={`${questHome.stats.walletXp || 0} XP`}
+              value={`${questHome.headerStats.totalXp} XP`}
               color="#FF9600"
             />
             <StatCapsule
               icon={<Ionicons name="heart" size={20} color="#FF4B4B" />}
-              value={questHome.hearts}
+              value={questHome.headerStats.hearts}
               color="#FF4B4B"
             />
           </View>

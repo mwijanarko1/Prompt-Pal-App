@@ -25,6 +25,18 @@ export const ShareIcon = () => (
   </Svg>
 );
 
+const FreezeIcon = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M12 2V22M12 2L9.5 4.5M12 2L14.5 4.5M12 22L9.5 19.5M12 22L14.5 19.5M3.34 7L20.66 17M3.34 7L6.76 7.92M3.34 7L4.26 10.42M20.66 17L17.24 16.08M20.66 17L19.74 13.58M20.66 7L3.34 17M20.66 7L17.24 7.92M20.66 7L19.74 10.42M3.34 17L6.76 16.08M3.34 17L4.26 13.58"
+      stroke="#FFFFFF"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 type RankOverview = {
   currentStreak: number;
   perfectDays: number;
@@ -158,7 +170,7 @@ export const StreakView = ({ overview }: { overview?: RankOverview }) => {
         <View style={styles.statCard}>
           <View style={styles.statValueRow}>
             <View style={styles.freezeIconBg}>
-              <Ionicons name="chatbubble" size={16} color="#FFFFFF" />
+              <FreezeIcon />
             </View>
             <Text style={styles.statValueText}>{overview?.protectedStreakDays ?? 0}</Text>
           </View>

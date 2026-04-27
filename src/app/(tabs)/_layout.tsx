@@ -1,9 +1,9 @@
 import { SubscriptionAccessGuard } from "@/components/SubscriptionAccessGuard";
-import { CartIcon, ProfileIcon, QuestsIcon, RankIcon } from "@/features/new-ui/components/CustomIcons";
 import { OnboardingFlow } from "@/features/onboarding/OnboardingFlow";
 import { useOnboardingStore } from "@/features/onboarding/store";
 import { PreOnboardingFlow } from "@/features/pre-onboarding/PreOnboardingFlow";
 import { usePreOnboardingStore } from "@/features/pre-onboarding/store";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@clerk/clerk-expo";
 import {
 	DarkTheme,
@@ -75,8 +75,12 @@ function NativeTabShell() {
 					name="index"
 					options={{
 						tabBarLabel: "Quests",
-						tabBarIcon: ({ color, focused }) => (
-							<QuestsIcon width={24} height={24} isActive={focused} />
+						tabBarIcon: ({ color, focused, size }) => (
+							<Ionicons
+								name={focused ? "compass" : "compass-outline"}
+								size={size ?? 24}
+								color={color}
+							/>
 						),
 					}}
 				/>
@@ -84,8 +88,12 @@ function NativeTabShell() {
 					name="ranking"
 					options={{
 						tabBarLabel: "Rank",
-						tabBarIcon: ({ color, focused }) => (
-							<RankIcon width={24} height={24} isActive={focused} />
+						tabBarIcon: ({ color, focused, size }) => (
+							<Ionicons
+								name={focused ? "trophy" : "trophy-outline"}
+								size={size ?? 24}
+								color={color}
+							/>
 						),
 					}}
 				/>
@@ -93,8 +101,12 @@ function NativeTabShell() {
 					name="cart"
 					options={{
 						tabBarLabel: "Store",
-						tabBarIcon: ({ color, focused }) => (
-							<CartIcon width={24} height={24} isActive={focused} />
+						tabBarIcon: ({ color, focused, size }) => (
+							<Ionicons
+								name={focused ? "bag" : "bag-outline"}
+								size={size ?? 24}
+								color={color}
+							/>
 						),
 					}}
 				/>
@@ -102,8 +114,12 @@ function NativeTabShell() {
 					name="profile"
 					options={{
 						tabBarLabel: "Profile",
-						tabBarIcon: ({ color, focused }) => (
-							<ProfileIcon width={24} height={24} isActive={focused} />
+						tabBarIcon: ({ color, focused, size }) => (
+							<Ionicons
+								name={focused ? "person" : "person-outline"}
+								size={size ?? 24}
+								color={color}
+							/>
 						),
 					}}
 				/>

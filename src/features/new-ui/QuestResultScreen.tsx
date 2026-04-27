@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +12,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { buildQuestResultViewModel } from './questBackendViewModels';
 
 interface ResultStatProps {
   label: string;
@@ -52,10 +57,65 @@ const ResultStat = ({ label, value, icon, bannerColor, borderColor }: ResultStat
 
 export const QuestResultScreen = () => {
   const router = useRouter();
+  const params = useLocalSearchParams<{ runId?: string }>();
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const result = useQuery(
+    api.questProduct.getQuestResult,
+    params.runId ? { runId: params.runId as Id<"questRuns"> } : "skip",
+  );
+  const claimQuestRewards = useMutation(api.questProduct.claimQuestRewards);
 
-  const handleClaimXP = () => {
-    router.push('/game/quest-completion');
+  const handleClaimXP = async () => {
+    if (!params.runId || isClaiming) {
+      return;
+    }
+
+    setIsClaiming(true);
+    setErrorMessage(null);
+    try {
+      await claimQuestRewards({ runId: params.runId as Id<"questRuns"> });
+      router.push({
+        pathname: "/game/quest-completion",
+        params: { runId: params.runId },
+      });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to claim this reward.",
+      );
+    } finally {
+      setIsClaiming(false);
+    }
   };
+
+  if (!params.runId) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.stateContainer}>
+          <Text style={styles.stateTitle}>Missing quest result</Text>
+          <TouchableOpacity style={styles.claimButton} onPress={() => router.replace('/(tabs)')}>
+            <Text style={styles.claimButtonText}>BACK TO QUESTS</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!result) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color="#58CC02" />
+          <Text style={styles.stateText}>Loading result...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const resultModel = buildQuestResultViewModel({
+    run: result.run,
+    latestAttempt: result.latestAttempt,
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -71,9 +131,9 @@ export const QuestResultScreen = () => {
 
         {/* Title Area */}
         <View style={styles.textSection}>
-          <Text style={styles.title}>Flawless!</Text>
+          <Text style={styles.title}>{resultModel.title}</Text>
           <Text style={styles.description}>
-            0 mistakes. Your prompt was surgical.
+            {resultModel.description}
           </Text>
         </View>
 
@@ -81,21 +141,21 @@ export const QuestResultScreen = () => {
         <View style={styles.statsRow}>
           <ResultStat
             label="TOTAL XP"
-            value="100"
+            value={String(resultModel.rewardXp)}
             bannerColor="#FFB800"
             borderColor="#FFB800"
             icon={<Ionicons name="flash" size={20} color="#FF9600" style={styles.statIcon} />}
           />
           <ResultStat
             label="GOOD"
-            value="80%"
+            value={`${resultModel.scorePercent}%`}
             bannerColor="#58CC02"
             borderColor="#58CC02"
             icon={<View style={styles.statIcon}><GoodIcon /></View>}
           />
           <ResultStat
             label="SPEEDY"
-            value="1:25"
+            value={resultModel.timeLabel}
             bannerColor="#FF9600"
             borderColor="#FF9600"
             icon={<View style={styles.statIcon}><SpeedyIcon /></View>}
@@ -104,8 +164,15 @@ export const QuestResultScreen = () => {
 
         {/* Actions Area */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.claimButton} onPress={handleClaimXP}>
-            <Text style={styles.claimButtonText}>CLAIM XP</Text>
+          {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+          <TouchableOpacity
+            style={[styles.claimButton, (!resultModel.canClaimReward || isClaiming) && styles.claimButtonDisabled]}
+            onPress={handleClaimXP}
+            disabled={!resultModel.canClaimReward || isClaiming}
+          >
+            <Text style={styles.claimButtonText}>
+              {isClaiming ? "CLAIMING" : resultModel.claimButtonLabel}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.shareButton} onPress={() => { }}>
@@ -127,6 +194,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: 'center',
     paddingBottom: 40,
+  },
+  stateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  stateTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    fontFamily: 'DIN Round Pro',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  stateText: {
+    fontSize: 15,
+    color: '#666',
+    fontFamily: 'DIN Round Pro',
+    textAlign: 'center',
+    marginTop: 10,
   },
   illustrationContainer: {
     width: '100%',
@@ -214,12 +302,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 5,
     borderBottomColor: '#46A302',
   },
+  claimButtonDisabled: {
+    backgroundColor: '#AFAFAF',
+    borderBottomColor: '#8E8E8E',
+  },
   claimButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '900',
     fontFamily: 'DIN Round Pro',
     letterSpacing: 1,
+  },
+  errorText: {
+    color: '#FF4B4B',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'DIN Round Pro',
+    marginBottom: 12,
+    textAlign: 'center',
   },
   shareButton: {
     flexDirection: 'row',

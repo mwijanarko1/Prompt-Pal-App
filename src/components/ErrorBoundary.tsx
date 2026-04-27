@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { logger } from "@/lib/logger";
 
 interface Props {
 	children: ReactNode;
@@ -22,9 +23,10 @@ export class ErrorBoundary extends Component<Props, State> {
 	}
 
 	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-		console.error("ErrorBoundary caught an error:", error, errorInfo);
-		console.error("Error stack:", error.stack);
-		console.error("Error info:", errorInfo);
+		logger.error("ErrorBoundary", error, {
+			componentStack: errorInfo.componentStack,
+			stack: error.stack,
+		});
 	}
 
 	render() {

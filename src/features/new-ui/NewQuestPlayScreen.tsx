@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,7 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { XpIcon } from './components/CustomIcons';
+import { buildQuestPlayViewModel } from './questBackendViewModels';
 
 const SubmitIcon = () => (
   <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -23,11 +28,123 @@ const SubmitIcon = () => (
 
 export const NewQuestPlayScreen = () => {
   const router = useRouter();
+  const params = useLocalSearchParams<{ runId?: string; nodeId?: string }>();
   const [prompt, setPrompt] = useState('');
+  const [activeRunId, setActiveRunId] = useState<string | null>(params.runId ?? null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasStartedRunRef = useRef(false);
+  const questHome = useQuery(
+    api.questProduct.getQuestHome,
+    !params.runId && !params.nodeId ? {} : "skip",
+  );
+  const questRun = useQuery(
+    api.questProduct.getQuestRun,
+    activeRunId ? { runId: activeRunId as Id<"questRuns"> } : "skip",
+  );
+  const startQuestRun = useMutation(api.questProduct.startQuestRun);
+  const submitQuestAttempt = useMutation(api.questProduct.submitQuestAttempt);
+
+  useEffect(() => {
+    if (params.runId) {
+      setActiveRunId(params.runId);
+    }
+  }, [params.runId]);
+
+  useEffect(() => {
+    const startRun = async () => {
+      const nodeId = params.nodeId ?? questHome?.activeNode?.id;
+      if (!nodeId || activeRunId || hasStartedRunRef.current) {
+        return;
+      }
+
+      hasStartedRunRef.current = true;
+      try {
+        const result = await startQuestRun({ nodeId });
+        setActiveRunId(result.runId);
+      } catch (error) {
+        hasStartedRunRef.current = false;
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to start this quest.",
+        );
+      }
+    };
+
+    startRun();
+  }, [activeRunId, params.nodeId, questHome?.activeNode?.id, startQuestRun]);
 
   const handleBack = () => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/(tabs)');
   };
+
+  const handleSubmit = async () => {
+    if (!activeRunId || !prompt.trim() || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await submitQuestAttempt({
+        runId: activeRunId as Id<"questRuns">,
+        submissionPayload: { prompt: prompt.trim() },
+      });
+      router.push({
+        pathname: "/game/quest-result",
+        params: { runId: activeRunId },
+      });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to submit this prompt.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (errorMessage) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.stateContainer}>
+          <Text style={styles.stateTitle}>Quest unavailable</Text>
+          <Text style={styles.stateText}>{errorMessage}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => router.replace('/(tabs)')}>
+            <Text style={styles.retryButtonText}>BACK TO QUESTS</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!questRun) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.stateContainer}>
+          <ActivityIndicator size="large" color="#58CC02" />
+          <Text style={styles.stateText}>Loading quest...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const playModel = buildQuestPlayViewModel({
+    run: questRun.run,
+    node: questRun.node,
+    lesson: questRun.lesson,
+    trackProgressPercent: questHome?.featuredCourse.progress,
+  });
+  const contentPayload = questRun.lesson?.contentPayload as Record<string, unknown> | undefined;
+  const targetPrompt =
+    typeof contentPayload?.requirementBrief === "string"
+      ? contentPayload.requirementBrief
+      : typeof contentPayload?.description === "string"
+        ? contentPayload.description
+        : playModel.subtitle;
+  const heartCount = Math.max(0, Math.min(5, playModel.heartsRemaining));
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -47,57 +164,49 @@ export const NewQuestPlayScreen = () => {
             </TouchableOpacity>
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: '60%' }]} />
+                <View style={[styles.progressFill, { width: `${playModel.progressPercent}%` }]} />
               </View>
             </View>
             <View style={styles.heartsContainer}>
-              <Ionicons name="heart" size={24} color="#FF9600" style={styles.heartIcon} />
-              <Ionicons name="heart" size={24} color="#FF9600" style={styles.heartIcon} />
-              <Ionicons name="heart" size={24} color="#FF9600" style={styles.heartIcon} />
+              {Array.from({ length: heartCount }).map((_, index) => (
+                <Ionicons key={index} name="heart" size={24} color="#FF9600" style={styles.heartIcon} />
+              ))}
             </View>
           </View>
 
           {/* Level Badge */}
           <View style={styles.badgeContainer}>
             <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeText}>LEVEL 1  •  CODING</Text>
+              <Text style={styles.levelBadgeText}>{playModel.levelLabel}</Text>
             </View>
           </View>
 
           {/* Title Area */}
           <View style={styles.titleSection}>
-            <Text style={styles.mainTitle}>One Shoot It</Text>
+            <Text style={styles.mainTitle}>{playModel.title}</Text>
             <Text style={styles.subTitle}>
-              Write a prompt that recreates this button, first try counts.
+              {playModel.subtitle}
             </Text>
           </View>
 
           {/* Target Card */}
           <View style={styles.targetCard}>
-            <Text style={styles.targetLabel}>Match This Exactly</Text>
+            <Text style={styles.targetLabel}>Quest Target</Text>
             <View style={styles.previewContainer}>
-              <TouchableOpacity style={styles.previewButton} activeOpacity={0.8}>
-                <Text style={styles.previewButtonText}>Get Started</Text>
-              </TouchableOpacity>
+              <Text style={styles.targetText}>{targetPrompt}</Text>
             </View>
           </View>
 
           {/* Constraints Section */}
           <View style={styles.constraintsSection}>
-            <Text style={styles.optimalLengthText}>Optimal Length: 12-20 words</Text>
+            <Text style={styles.optimalLengthText}>Checklist</Text>
             <View style={styles.tagsContainer}>
-              <View style={styles.tag}>
-                <Ionicons name="checkmark" size={14} color="#3C3C3C" />
-                <Text style={styles.tagText}>IDENTITY</Text>
-              </View>
-              <View style={styles.tag}>
-                <Ionicons name="checkmark" size={14} color="#3C3C3C" />
-                <Text style={styles.tagText}>CONTEXT</Text>
-              </View>
-              <View style={styles.tag}>
-                <Ionicons name="checkmark" size={14} color="#3C3C3C" />
-                <Text style={styles.tagText}>CONSTRAINT</Text>
-              </View>
+              {playModel.checklistItems.slice(0, 3).map((item) => (
+                <View key={item} style={styles.tag}>
+                  <Ionicons name="checkmark" size={14} color="#3C3C3C" />
+                  <Text style={styles.tagText}>{item.toUpperCase()}</Text>
+                </View>
+              ))}
             </View>
           </View>
 
@@ -107,7 +216,7 @@ export const NewQuestPlayScreen = () => {
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.textInput}
-                placeholder="e.g., Create a pill-shaped button with a cyan gradient background and high-contrast dark text.."
+                placeholder="Write your prompt..."
                 placeholderTextColor="#A0A0A0"
                 multiline
                 value={prompt}
@@ -123,12 +232,16 @@ export const NewQuestPlayScreen = () => {
           <View style={styles.rewardBox}>
             <Text style={styles.rewardLabel}>REWARD</Text>
             <View style={styles.xpBox}>
-              <Text style={styles.rewardValue}>+250 XP</Text>
+              <Text style={styles.rewardValue}>+{playModel.rewardXp} XP</Text>
               <XpIcon width={16} height={18} />
             </View>
           </View>
-          <TouchableOpacity style={styles.submitButton} onPress={() => router.push('/game/quest-result')}>
-            <Text style={styles.submitButtonText}>SUBMIT PROMPT</Text>
+          <TouchableOpacity
+            style={[styles.submitButton, (!prompt.trim() || isSubmitting) && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!prompt.trim() || isSubmitting}
+          >
+            <Text style={styles.submitButtonText}>{isSubmitting ? "SUBMITTING" : "SUBMIT PROMPT"}</Text>
             <SubmitIcon />
           </TouchableOpacity>
         </View>
@@ -146,6 +259,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 40,
+  },
+  stateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  stateTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#3C3C3C',
+    fontFamily: 'DIN Round Pro',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  stateText: {
+    fontSize: 15,
+    color: '#666',
+    fontFamily: 'DIN Round Pro',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#58CC02',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderBottomWidth: 4,
+    borderBottomColor: '#46A302',
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    fontFamily: 'DIN Round Pro',
   },
   header: {
     flexDirection: 'row',
@@ -262,6 +411,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'DIN Round Pro',
   },
+  targetText: {
+    color: '#3C3C3C',
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: 'center',
+    fontWeight: '700',
+    fontFamily: 'DIN Round Pro',
+  },
   constraintsSection: {
     marginBottom: 20,
   },
@@ -360,6 +517,10 @@ const styles = StyleSheet.create({
     // Bottom shadow for the green button
     borderBottomWidth: 4,
     borderBottomColor: '#46A302',
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#AFAFAF',
+    borderBottomColor: '#8E8E8E',
   },
   submitButtonText: {
     color: '#FFFFFF',

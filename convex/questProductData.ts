@@ -111,6 +111,50 @@ export type PerkCatalogSeed = {
 	isActive: boolean;
 };
 
+export type ProfileOverviewAchievementInput = {
+	achievementId: string;
+	unlockedAt: number;
+	achievement: {
+		id: string;
+		title: string;
+		description: string;
+		icon: string;
+		rarity: "common" | "rare" | "epic" | "legendary";
+	} | null;
+};
+
+export type ProfileOverviewUsageInput = {
+	tier: "free" | "pro";
+	used: {
+		textCalls: number;
+		imageCalls: number;
+		audioSummaries: number;
+	};
+	limits: {
+		textCalls: number;
+		imageCalls: number;
+		audioSummaries: number;
+	};
+	periodStart: number;
+	periodEnd: number;
+};
+
+export type FeaturedCourseOverviewInput = {
+	statsLevel: number;
+	activeTrackTitle: string;
+	activeLessonTitle?: string | null;
+	activeNodePathOrder?: number | null;
+	completedNodeCount: number;
+	totalNodeCount: number;
+};
+
+export type HomeHeaderStatsInput = {
+	currentStreak: number;
+	lifetimeXp: number;
+	walletXp: number;
+	hearts: number;
+};
+
 export const DEFAULT_LEARNING_TRACKS: LearningTrackSeed[] = [
 	{
 		id: "image-generation",
@@ -194,6 +238,66 @@ export const DEFAULT_PERK_CATALOG: PerkCatalogSeed[] = [
 
 export function getLevelFromLifetimeXp(lifetimeXp: number) {
 	return Math.max(1, Math.floor(Math.max(0, lifetimeXp) / 200) + 1);
+}
+
+export function buildFeaturedCourseOverview(input: FeaturedCourseOverviewInput) {
+	const timelineLevel = input.activeNodePathOrder ?? input.statsLevel;
+
+	return {
+		level: Math.max(1, Math.floor(timelineLevel)),
+		track: `${input.activeTrackTitle} Track`,
+		title: input.activeLessonTitle ?? "Start your first quest",
+		progress:
+			input.totalNodeCount === 0
+				? 0
+				: Math.round((input.completedNodeCount / input.totalNodeCount) * 100),
+	};
+}
+
+export function buildHomeHeaderStats(input: HomeHeaderStatsInput) {
+	return {
+		currentStreak: input.currentStreak,
+		totalXp: input.lifetimeXp,
+		hearts: input.hearts,
+	};
+}
+
+function buildQuotaMetric(used: number, limit: number) {
+	return {
+		used,
+		limit,
+		remaining: Math.max(0, limit - used),
+		percent: limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0,
+	};
+}
+
+export function buildProfileOverviewUsageQuota(usage: ProfileOverviewUsageInput) {
+	return {
+		tier: usage.tier,
+		textCalls: buildQuotaMetric(usage.used.textCalls, usage.limits.textCalls),
+		imageCalls: buildQuotaMetric(usage.used.imageCalls, usage.limits.imageCalls),
+		periodStart: usage.periodStart,
+		periodEnd: usage.periodEnd,
+	};
+}
+
+export function buildProfileOverviewAchievements(
+	rows: ProfileOverviewAchievementInput[],
+) {
+	return rows.flatMap((row) => {
+		if (!row.achievement) {
+			return [];
+		}
+
+		return {
+			id: row.achievement.id,
+			title: row.achievement.title,
+			description: row.achievement.description,
+			icon: row.achievement.icon,
+			rarity: row.achievement.rarity,
+			unlockedAt: row.unlockedAt,
+		};
+	});
 }
 
 export function getTrackIdForLessonType(type: LessonType): TrackId {

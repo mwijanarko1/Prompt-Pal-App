@@ -4,9 +4,13 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { allLevels } from "./levels_data";
 import {
 	buildDefaultQuestNodes,
+	buildFeaturedCourseOverview,
+	buildHomeHeaderStats,
 	buildLessonDefinitionsFromLegacyLevels,
 	DEFAULT_LEARNING_TRACKS,
 	DEFAULT_PERK_CATALOG,
+	buildProfileOverviewAchievements,
+	buildProfileOverviewUsageQuota,
 	getLevelFromLifetimeXp,
 	type LessonDefinitionSeed,
 	type QuestNodeSeed,
@@ -34,6 +38,14 @@ async function requireUserId(ctx: QueryCtx | MutationCtx) {
 
 function todayKey(now = Date.now()) {
 	return new Date(now).toISOString().slice(0, 10);
+}
+
+function monthDurationMs(now: number) {
+	const currentDate = new Date(now);
+	const year = currentDate.getFullYear();
+	const month = currentDate.getMonth();
+	const daysInMonth = new Date(year, month + 1, 0).getDate();
+	return daysInMonth * 24 * 60 * 60 * 1000;
 }
 
 function monthKey(year: number, month: number, day: number) {
@@ -133,6 +145,75 @@ async function getStats(ctx: QueryCtx | MutationCtx, userId: string | null) {
 		longestStreak: stats?.longestStreak ?? 0,
 		globalRank: stats?.globalRank ?? 0,
 	};
+}
+
+async function getProfileUsageQuota(ctx: QueryCtx, userId: string | null) {
+	const now = Date.now();
+	const oneMonthMs = monthDurationMs(now);
+	const app = await ctx.db
+		.query("apps")
+		.withIndex("by_app_id", (q) => q.eq("id", "prompt-pal"))
+		.first();
+
+	if (!app) {
+		return null;
+	}
+
+	const plan = userId
+		? await ctx.db
+				.query("appPlans")
+				.withIndex("by_user_app", (q) =>
+					q.eq("userId", userId).eq("appId", "prompt-pal"),
+				)
+				.first()
+		: null;
+	const tier = plan?.tier ?? "free";
+	const periodStart = plan?.periodStart ?? now;
+	const hasExpired = plan ? now - plan.periodStart >= oneMonthMs : false;
+	const used =
+		plan && !hasExpired
+			? {
+					textCalls: plan.used.textCalls,
+					imageCalls: plan.used.imageCalls,
+					audioSummaries: plan.used.audioSummaries,
+				}
+			: {
+					textCalls: 0,
+					imageCalls: 0,
+					audioSummaries: 0,
+				};
+	const limits = tier === "pro" ? app.proLimits : app.freeLimits;
+
+	return buildProfileOverviewUsageQuota({
+		tier,
+		used,
+		limits,
+		periodStart,
+		periodEnd: periodStart + oneMonthMs,
+	});
+}
+
+async function getProfileAchievements(ctx: QueryCtx, userId: string | null) {
+	if (!userId) {
+		return [];
+	}
+
+	const rows = await ctx.db
+		.query("userAchievements")
+		.withIndex("by_user", (q) => q.eq("userId", userId))
+		.collect();
+	const achievements = await ctx.db.query("achievements").collect();
+	const achievementsById = new Map(
+		achievements.map((achievement) => [achievement.id, achievement]),
+	);
+
+	return buildProfileOverviewAchievements(
+		rows.map((row) => ({
+			achievementId: row.achievementId,
+			unlockedAt: row.unlockedAt,
+			achievement: achievementsById.get(row.achievementId) ?? null,
+		})),
+	);
 }
 
 async function getOrCreateStats(ctx: MutationCtx, userId: string) {
@@ -310,15 +391,20 @@ export const getQuestHome = query({
 			activeLesson,
 			nodes: roadmapNodes.slice(0, 12),
 			hearts: 5,
-			featuredCourse: {
-				level: stats.level,
-				track: `${track.title} Track`,
-				title: activeLesson?.title ?? "Start your first quest",
-				progress:
-					nodes.length === 0
-						? 0
-						: Math.round((progress.completedNodeIds.length / nodes.length) * 100),
-			},
+			headerStats: buildHomeHeaderStats({
+				currentStreak: stats.currentStreak,
+				lifetimeXp: stats.lifetimeXp,
+				walletXp: stats.walletXp,
+				hearts: 5,
+			}),
+			featuredCourse: buildFeaturedCourseOverview({
+				statsLevel: stats.level,
+				activeTrackTitle: track.title,
+				activeLessonTitle: activeLesson?.title,
+				activeNodePathOrder: activeNode?.pathOrder,
+				completedNodeCount: progress.completedNodeIds.length,
+				totalNodeCount: nodes.length,
+			}),
 		};
 	},
 });
@@ -461,6 +547,8 @@ export const getProfileOverview = query({
 					.withIndex("by_user", (q) => q.eq("userId", userId))
 					.collect()
 			: [];
+		const achievements = await getProfileAchievements(ctx, userId);
+		const usageQuota = await getProfileUsageQuota(ctx, userId);
 
 		return {
 			user: {
@@ -480,8 +568,8 @@ export const getProfileOverview = query({
 					currentNodeOrder: progress?.currentNodeOrder ?? 1,
 				};
 			}),
-			achievements: [],
-			usageQuota: null,
+			achievements,
+			usageQuota,
 		};
 	},
 });

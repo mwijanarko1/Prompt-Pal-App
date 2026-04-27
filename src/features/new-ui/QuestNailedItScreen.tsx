@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,9 +9,51 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { buildNailedItViewModel } from './questBackendViewModels';
 
 export const QuestNailedItScreen = () => {
   const router = useRouter();
+  const params = useLocalSearchParams<{ runId?: string }>();
+  const result = useQuery(
+    api.questProduct.getQuestResult,
+    params.runId ? { runId: params.runId as Id<"questRuns"> } : "skip",
+  );
+  const profile = useQuery(api.questProduct.getProfileOverview, {});
+  const trackOverview = useQuery(
+    api.questProduct.getTrackOverview,
+    result?.run.trackId ? { trackId: result.run.trackId } : "skip",
+  );
+
+  if (!params.runId || !result || !profile || !trackOverview) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.stateContainer}>
+          {!params.runId ? (
+            <Text style={styles.stateText}>Quest summary is unavailable.</Text>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color="#58CC02" />
+              <Text style={styles.stateText}>Loading progress...</Text>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const latestAchievement = [...profile.achievements].sort(
+    (a, b) => (b.unlockedAt ?? 0) - (a.unlockedAt ?? 0),
+  )[0];
+  const nailedItModel = buildNailedItViewModel({
+    rewardXp: result.run.rewardXp,
+    lessonDifficulty: result.lesson?.difficulty,
+    completedNodeCount: trackOverview.progress.completedNodeIds.length,
+    totalNodeCount: trackOverview.nodes.length,
+    latestAchievementTitle: latestAchievement?.title,
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -19,11 +62,11 @@ export const QuestNailedItScreen = () => {
         {/* Status Header */}
         <View style={styles.statusHeader}>
           <View style={styles.statusInfo}>
-            <Text style={styles.levelLabel}>CURRENT LEVEL: ADVANCED</Text>
-            <Text style={styles.progressLabel}>85% COMPLETE</Text>
+            <Text style={styles.levelLabel}>{nailedItModel.levelLabel}</Text>
+            <Text style={styles.progressLabel}>{nailedItModel.progressLabel}</Text>
           </View>
           <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: '85%' }]} />
+            <View style={[styles.progressBarFill, { width: `${nailedItModel.progressPercent}%` }]} />
           </View>
         </View>
 
@@ -39,14 +82,13 @@ export const QuestNailedItScreen = () => {
 
         {/* XP Gains */}
         <View style={styles.xpSection}>
-          <Text style={styles.xpText}>+250 XP</Text>
+          <Text style={styles.xpText}>{nailedItModel.xpLabel}</Text>
         </View>
 
         {/* Description */}
         <View style={styles.descriptionSection}>
           <Text style={styles.descriptionText}>
-            Mastery streak maintained! You've unlocked the{' '}
-            <Text style={styles.badgeText}>Neutral Architect</Text> badge.
+            {nailedItModel.description}
           </Text>
         </View>
 
@@ -73,6 +115,19 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
     alignItems: 'center',
+  },
+  stateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  stateText: {
+    fontSize: 15,
+    color: '#666',
+    fontFamily: 'DIN Round Pro',
+    textAlign: 'center',
+    marginTop: 10,
   },
   statusHeader: {
     width: '100%',

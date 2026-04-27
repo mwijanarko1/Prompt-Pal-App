@@ -19,6 +19,13 @@ export default function ResourceDetailScreen() {
 	const router = useRouter();
 	const { isLoaded, isSignedIn } = useAuth();
 	const { user } = useUser();
+	const goBackOrHome = () => {
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+		router.replace("/(tabs)");
+	};
 
 	const resource = useQuery(
 		api.queries.getLearningResourceById,
@@ -52,10 +59,7 @@ export default function ResourceDetailScreen() {
 				<Text className="text-onSurfaceVariant text-center">
 					Sign in to view this resource.
 				</Text>
-				<Pressable
-					onPress={() => router.back()}
-					className="mt-6 bg-primary px-6 py-3 rounded-full"
-				>
+				<Pressable onPress={goBackOrHome} className="mt-6 bg-primary px-6 py-3 rounded-full">
 					<Text className="text-white font-black">Go Back</Text>
 				</Pressable>
 			</SafeAreaView>
@@ -71,7 +75,7 @@ export default function ResourceDetailScreen() {
 				<View className="px-6 pt-4 pb-2">
 					<View className="flex-row items-center">
 						<Pressable
-							onPress={() => router.back()}
+							onPress={goBackOrHome}
 							className="w-10 h-10 rounded-full bg-surfaceVariant/50 items-center justify-center"
 						>
 							<Ionicons name="chevron-back" size={24} color="#6B7280" />

@@ -4,7 +4,11 @@ declare const expect: any;
 
 import {
 	buildDefaultQuestNodes,
+	buildFeaturedCourseOverview,
+	buildHomeHeaderStats,
 	buildLessonDefinitionsFromLegacyLevels,
+	buildProfileOverviewAchievements,
+	buildProfileOverviewUsageQuota,
 	DEFAULT_LEARNING_TRACKS,
 	DEFAULT_PERK_CATALOG,
 	getLevelFromLifetimeXp,
@@ -77,5 +81,84 @@ describe("quest product domain data", () => {
 		expect(getLevelFromLifetimeXp(0)).toBe(1);
 		expect(getLevelFromLifetimeXp(399)).toBe(2);
 		expect(getLevelFromLifetimeXp(400)).toBe(3);
+	});
+
+	it("uses the active timeline node as the featured course level", () => {
+		const featuredCourse = buildFeaturedCourseOverview({
+			statsLevel: 12,
+			activeTrackTitle: "Coding",
+			activeLessonTitle: "Master component prompts",
+			activeNodePathOrder: 4,
+			completedNodeCount: 3,
+			totalNodeCount: 10,
+		});
+
+		expect(featuredCourse).toMatchObject({
+			level: 4,
+			track: "Coding Track",
+			title: "Master component prompts",
+			progress: 30,
+		});
+	});
+
+	it("maps home header XP from the same lifetime XP shown on profile", () => {
+		const headerStats = buildHomeHeaderStats({
+			currentStreak: 7,
+			lifetimeXp: 1250,
+			walletXp: 25,
+			hearts: 5,
+		});
+
+		expect(headerStats).toEqual({
+			currentStreak: 7,
+			totalXp: 1250,
+			hearts: 5,
+		});
+	});
+
+	it("shapes profile achievements and usage quota from persisted records", () => {
+		const achievements = buildProfileOverviewAchievements([
+			{
+				achievementId: "streak-3",
+				unlockedAt: 1700000000000,
+				achievement: {
+					id: "streak-3",
+					title: "Three-Day Streak",
+					description: "Complete quests three days in a row.",
+					icon: "flame",
+					rarity: "common",
+				},
+			},
+			{
+				achievementId: "missing",
+				unlockedAt: 1700000000001,
+				achievement: null,
+			},
+		]);
+		const quota = buildProfileOverviewUsageQuota({
+			tier: "free",
+			used: { textCalls: 15, imageCalls: 2, audioSummaries: 0 },
+			limits: { textCalls: 50, imageCalls: 10, audioSummaries: 0 },
+			periodStart: 1700000000000,
+			periodEnd: 1702592000000,
+		});
+
+		expect(achievements).toEqual([
+			{
+				id: "streak-3",
+				title: "Three-Day Streak",
+				description: "Complete quests three days in a row.",
+				icon: "flame",
+				rarity: "common",
+				unlockedAt: 1700000000000,
+			},
+		]);
+		expect(quota).toEqual({
+			tier: "free",
+			textCalls: { used: 15, limit: 50, remaining: 35, percent: 30 },
+			imageCalls: { used: 2, limit: 10, remaining: 8, percent: 20 },
+			periodStart: 1700000000000,
+			periodEnd: 1702592000000,
+		});
 	});
 });

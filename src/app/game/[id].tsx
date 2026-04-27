@@ -127,6 +127,14 @@ const normalizeCodeTestResults = (results?: any[]): CodeTestResult[] =>
 export default function GameScreen() {
 	const { id } = useLocalSearchParams();
 	const router = useRouter();
+	const goBackOrHome = () => {
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+		router.replace("/(tabs)");
+	};
+
 	const { user } = useUser();
 	const {
 		generateText,
@@ -573,7 +581,7 @@ export default function GameScreen() {
 							We couldn't find challenge "{id}". It may have been removed or
 							moved.
 						</Text>
-						<Button onPress={() => router.back()} variant="primary">
+						<Button onPress={goBackOrHome} variant="primary">
 							Go Back
 						</Button>
 					</Card>
@@ -948,7 +956,7 @@ export default function GameScreen() {
 									router.push(`/game/levels/${moduleId}`);
 								}
 							} else {
-								router.back();
+								goBackOrHome();
 							}
 						}}
 						className="w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant"
@@ -1643,7 +1651,7 @@ export default function GameScreen() {
 					>
 						Try Again
 					</Button>
-					<Button variant="outline" onPress={() => router.back()}>
+					<Button variant="outline" onPress={goBackOrHome}>
 						Go Back
 					</Button>
 				</View>

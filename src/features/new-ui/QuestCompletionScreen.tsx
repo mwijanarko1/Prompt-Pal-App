@@ -1,12 +1,16 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import Svg, {
   Circle,
   Defs,
@@ -81,10 +85,43 @@ const MedalIcon = () => (
 
 export const QuestCompletionScreen = () => {
   const router = useRouter();
+  const params = useLocalSearchParams<{ runId?: string }>();
+  const result = useQuery(
+    api.questProduct.getQuestResult,
+    params.runId ? { runId: params.runId as Id<"questRuns"> } : "skip",
+  );
 
   const handleContinue = () => {
-    router.push('/game/quest-nailed-it');
+    if (!params.runId) {
+      router.replace('/(tabs)');
+      return;
+    }
+
+    router.push({
+      pathname: "/game/quest-nailed-it",
+      params: { runId: params.runId },
+    });
   };
+
+  if (!params.runId || !result) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.stateContainer}>
+          {!params.runId ? (
+            <Text style={styles.stateText}>Quest completion is unavailable.</Text>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color="#58CC02" />
+              <Text style={styles.stateText}>Loading completion...</Text>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const earnedXp = result.run.rewardXp;
+  const questTitle = result.lesson?.title ?? "Quest";
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -95,7 +132,7 @@ export const QuestCompletionScreen = () => {
             <View style={styles.medalIconContainer}>
               <MedalIcon />
             </View>
-            <Text style={styles.toastText}>+100 XP EARNED</Text>
+            <Text style={styles.toastText}>+{earnedXp} XP EARNED</Text>
           </View>
         </View>
 
@@ -111,6 +148,7 @@ export const QuestCompletionScreen = () => {
         {/* Completion Text */}
         <View style={styles.textSection}>
           <Text style={styles.title}>Quest Complete!</Text>
+          <Text style={styles.questTitle}>{questTitle}</Text>
         </View>
 
         {/* Action Button */}
@@ -133,6 +171,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 25,
+  },
+  stateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  stateText: {
+    fontSize: 15,
+    color: '#666',
+    fontFamily: 'DIN Round Pro',
+    textAlign: 'center',
+    marginTop: 10,
   },
   toastContainer: {
     width: '100%',
@@ -184,6 +235,14 @@ const styles = StyleSheet.create({
     fontSize: 38,
     fontWeight: '900',
     color: '#3C3C3C',
+    fontFamily: 'DIN Round Pro',
+    textAlign: 'center',
+  },
+  questTitle: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#666',
     fontFamily: 'DIN Round Pro',
     textAlign: 'center',
   },

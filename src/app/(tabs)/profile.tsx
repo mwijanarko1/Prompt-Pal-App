@@ -6,6 +6,7 @@ import { Image } from 'expo-image';
 import { useClerk } from '@clerk/clerk-expo';
 import { XpIcon, StreakIcon } from '@/features/new-ui/components/CustomIcons';
 import { clearAuth } from "@/lib/convex-client";
+import { logger } from "@/lib/logger";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from 'expo-router';
 import Svg, { Circle } from "react-native-svg";
@@ -52,7 +53,7 @@ export default function ProfileScreen() {
       clearAuth();
       router.replace("/(auth)/sign-in");
     } catch (err) {
-      console.error("Sign out failed:", err);
+      logger.error("ProfileScreen.handleSignOut", err);
     }
   };
 
@@ -64,7 +65,11 @@ export default function ProfileScreen() {
     );
   }
 
-  const textUsagePercent = 0;
+  const textUsage = profile.usageQuota?.textCalls;
+  const textUsagePercent = textUsage?.percent ?? 0;
+  const textUsageLabel = textUsage
+    ? `${textUsage.used}/${textUsage.limit} prompts used`
+    : "Usage quota is unavailable";
   const avatarUrl = profile.user.avatarUrl;
 
   return (
@@ -132,7 +137,7 @@ export default function ProfileScreen() {
             <View style={styles.quotaInfo}>
               <Text style={styles.quotaTitle}>Text Prompts</Text>
               <Text style={styles.quotaSubtitle}>
-                Usage quota will appear here when the plan service reports it
+                {textUsageLabel}
               </Text>
               <View style={styles.progressBarBg}>
                 <View style={[styles.progressBarFill, { width: `${textUsagePercent}%` }]} />
@@ -148,10 +153,14 @@ export default function ProfileScreen() {
             <TouchableOpacity><Text style={styles.viewAll}>View All</Text></TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.achievementScroll}>
-            {profile.achievements.length > 0 ? profile.achievements.map((item: any, index: number) => (
-              <View key={index} style={styles.badgeItem}>
+            {profile.achievements.length > 0 ? profile.achievements.map((item) => (
+              <View key={item.id} style={styles.badgeItem}>
                 <View style={styles.badgeIconContainer}>
-                   <Text style={{ fontSize: 30 }}>{item.icon || '✨'}</Text>
+                  {item.icon ? (
+                    <Text style={{ fontSize: 30 }}>{item.icon}</Text>
+                  ) : (
+                    <Ionicons name="ribbon" size={30} color="#58CC02" />
+                  )}
                 </View>
                 <Text style={styles.badgeName}>{item.title}</Text>
               </View>

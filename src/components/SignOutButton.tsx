@@ -2,6 +2,7 @@ import { useClerk } from "@clerk/clerk-expo";
 import * as Linking from "expo-linking";
 import { Text, TouchableOpacity, Alert } from "react-native";
 import { clearAuth } from "@/lib/convex-client";
+import { logger } from "@/lib/logger";
 
 interface SignOutButtonProps {
 	className?: string;
@@ -26,7 +27,7 @@ export const SignOutButton = ({
 						clearAuth();
 						Linking.openURL(Linking.createURL("/"));
 					} catch (err) {
-						console.error(JSON.stringify(err, null, 2));
+						logger.error("SignOutButton", err);
 						Alert.alert("Error", "Failed to sign out. Please try again.");
 					}
 				},

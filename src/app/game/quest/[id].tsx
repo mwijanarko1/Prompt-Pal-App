@@ -180,6 +180,14 @@ const normalizeCodeTestResults = (results?: any[]): CodeTestResult[] =>
 export default function QuestScreen() {
 	const { id } = useLocalSearchParams(); // This is the Quest ID
 	const router = useRouter();
+	const goBackOrHome = () => {
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+		router.replace("/(tabs)");
+	};
+
 	const { user } = useUser();
 	const {
 		generateText,
@@ -631,7 +639,7 @@ export default function QuestScreen() {
 							We couldn't find challenge "{id}". It may have been removed or
 							moved.
 						</Text>
-						<Button onPress={() => router.back()} variant="primary">
+						<Button onPress={goBackOrHome} variant="primary">
 							Go Back
 						</Button>
 					</Card>
@@ -1069,7 +1077,7 @@ export default function QuestScreen() {
 		return (
 			<SafeAreaView className="bg-white" edges={["top"]}>
 				<View className="px-6 py-4 flex-row items-center justify-between">
-					<TouchableOpacity onPress={() => router.back()} className="mr-4">
+					<TouchableOpacity onPress={goBackOrHome} className="mr-4">
 						<Ionicons name="chevron-back" size={28} color="#000" />
 					</TouchableOpacity>
 
@@ -1389,7 +1397,7 @@ export default function QuestScreen() {
 				<Ionicons name="alert-circle" size={64} color="#EF4444" />
 				<Text className="text-xl font-bold mt-4">Failed to load quest</Text>
 				<Text className="text-onSurfaceVariant text-center mt-2 mb-8">{error}</Text>
-				<Button onPress={() => router.back()}>Go Back</Button>
+				<Button onPress={goBackOrHome}>Go Back</Button>
 			</SafeAreaView>
 		);
 	}

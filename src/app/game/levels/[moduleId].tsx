@@ -28,6 +28,13 @@ export default function LevelsScreen() {
 	const [backendCompletedIds, setBackendCompletedIds] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const goBackOrHome = () => {
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+		router.replace("/(tabs)");
+	};
 
 	const module = useMemo(
 		() => learningModules.find((m) => m.id === moduleId),
@@ -198,10 +205,7 @@ export default function LevelsScreen() {
 				<Text className="text-onSurface text-xl font-black mb-4">
 					Module not found
 				</Text>
-				<TouchableOpacity
-					className="bg-primary px-8 py-4 rounded-full"
-					onPress={() => router.back()}
-				>
+				<TouchableOpacity className="bg-primary px-8 py-4 rounded-full" onPress={goBackOrHome}>
 					<Text className="text-white font-black">Go Back</Text>
 				</TouchableOpacity>
 			</SafeAreaView>
@@ -214,7 +218,7 @@ export default function LevelsScreen() {
 				<View className="flex-row items-center mb-6 relative">
 					{/* Back button fixed on the left so the title group doesn't get squeezed */}
 					<TouchableOpacity
-						onPress={() => router.back()}
+						onPress={goBackOrHome}
 						className="absolute left-0 w-10 h-10 items-center justify-center rounded-full bg-surfaceVariant/50"
 					>
 						<Ionicons name="arrow-back" size={24} color="#6B7280" />

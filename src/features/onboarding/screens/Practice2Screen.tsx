@@ -23,6 +23,7 @@ import { useOnboardingStore } from "../store";
 import { ONBOARDING_COLORS } from "../theme";
 import { useConvexAI } from "@/hooks/useConvexAI";
 import { getAIErrorPresentation } from "@/lib/aiErrors";
+import { logger } from "@/lib/logger";
 import { delay } from "../utils/practiceEvaluation";
 
 const ONBOARDING_CODE_LEVEL_ID = "code-11-hard";
@@ -151,7 +152,7 @@ export function Practice2Screen() {
 				);
 			}
 		} catch (error) {
-			console.error(error);
+			logger.error("Practice2Screen.runActualCheck", error);
 			const aiError = getAIErrorPresentation(error);
 			setFeedback({
 				success: false,
