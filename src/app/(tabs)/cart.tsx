@@ -1,40 +1,30 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Text, Image } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, ScrollView, TouchableOpacity, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatCapsule } from '@/features/new-ui/components/StatCapsule';
-import { XpIcon, StreakIcon } from '@/features/new-ui/components/CustomIcons';
-import { useUserProgressStore } from '@/features/user/store';
+import { XpIcon } from '@/features/new-ui/components/CustomIcons';
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api.js";
 
-const STORE_ITEMS = [
-  {
-    id: '1',
-    title: 'Streak Freeze',
-    description: 'Protect your streak for one day if you forget to learn.',
-    price: 200,
-    icon: 'snow-outline',
-    color: '#00C3FF',
-  },
-  {
-    id: '2',
-    title: 'Double XP',
-    description: 'Get double XP for the next 30 minutes of learning.',
-    price: 500,
-    icon: 'flash-outline',
-    color: '#FF9600',
-  },
-  {
-    id: '3',
-    title: 'Level Booster',
-    description: 'Instantly skip to the next level in your current track.',
-    price: 1500,
-    icon: 'arrow-up-circle-outline',
-    color: '#58CC02',
-  },
-];
+const PERK_ICON_BY_TYPE: Record<string, { icon: string; color: string }> = {
+  streak_freeze: { icon: "snow-outline", color: "#00C3FF" },
+  extra_heart: { icon: "heart-outline", color: "#FF4B4B" },
+  xp_boost: { icon: "flash-outline", color: "#FF9600" },
+  skip_token: { icon: "arrow-redo-circle-outline", color: "#58CC02" },
+};
 
 export default function CartScreen() {
-  const { currentStreak, xp } = useUserProgressStore();
+  const store = useQuery(api.questProduct.getStoreCatalog, {});
+  const purchasePerk = useMutation(api.questProduct.purchasePerk);
+
+  if (!store) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#58CC02" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -45,7 +35,7 @@ export default function CartScreen() {
           <View style={styles.statsContainer}>
             <StatCapsule 
               icon={<XpIcon width={16} height={20} />} 
-              value={`${xp || 0} XP`} 
+              value={`${store.walletXp || 0} XP`}
               color="#FF9600"
             />
           </View>
@@ -69,21 +59,29 @@ export default function CartScreen() {
 
         <Text style={styles.sectionTitle}>Available Perks</Text>
 
-        {STORE_ITEMS.map((item) => (
-          <TouchableOpacity key={item.id} style={styles.itemCard}>
-            <View style={[styles.itemIconContainer, { backgroundColor: item.color + '20' }]}>
-              <Ionicons name={item.icon as any} size={30} color={item.color} />
+        {store.items.map((item) => {
+          const icon = PERK_ICON_BY_TYPE[item.perkType] ?? { icon: "gift-outline", color: "#58CC02" };
+          return (
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.itemCard, !item.canAfford && styles.itemCardDisabled]}
+            onPress={() => purchasePerk({ perkId: item.slug })}
+            disabled={!item.canAfford}
+          >
+            <View style={[styles.itemIconContainer, { backgroundColor: icon.color + '20' }]}>
+              <Ionicons name={icon.icon as any} size={30} color={icon.color} />
             </View>
             <View style={styles.itemInfo}>
-              <Text style={styles.itemTitle}>{item.title}</Text>
+              <Text style={styles.itemTitle}>{item.name}</Text>
               <Text style={styles.itemDescription}>{item.description}</Text>
+              {item.owned > 0 && <Text style={styles.ownedText}>Owned: {item.owned}</Text>}
             </View>
             <View style={styles.priceTag}>
               <XpIcon width={12} height={14} />
-              <Text style={styles.priceText}>{item.price}</Text>
+              <Text style={styles.priceText}>{item.costXp}</Text>
             </View>
           </TouchableOpacity>
-        ))}
+        )})}
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>More items coming soon!</Text>
@@ -97,6 +95,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     backgroundColor: '#FFFFFF',
@@ -180,6 +184,9 @@ const styles = StyleSheet.create({
     borderColor: '#F0F0F0',
     borderBottomWidth: 4, // 3D effect
   },
+  itemCardDisabled: {
+    opacity: 0.55,
+  },
   itemIconContainer: {
     width: 60,
     height: 60,
@@ -202,6 +209,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#8E8E93',
+    fontFamily: 'DIN Round Pro',
+  },
+  ownedText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#58CC02',
+    marginTop: 4,
     fontFamily: 'DIN Round Pro',
   },
   priceTag: {

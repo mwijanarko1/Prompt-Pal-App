@@ -52,6 +52,7 @@ import { getChecklistMatchResult } from "@/lib/scaffolding/checklistMatching";
 import {
 	getInitialPromptStateForLevel,
 	getLevelChecklistItems,
+	getOrdinalMatchedChecklistItemsForBeginnerTemplate,
 	isBeginnerTemplateLocked,
 } from "@/features/game/utils/scaffold";
 
@@ -154,6 +155,9 @@ export default function GameScreen() {
 		{ start: number; end?: number } | undefined
 	>(undefined);
 	const [beginnerSlotsFilled, setBeginnerSlotsFilled] = useState(true);
+	const [beginnerSlotTextForChecklist, setBeginnerSlotTextForChecklist] =
+		useState("");
+	const [beginnerSlotValues, setBeginnerSlotValues] = useState<string[]>([]);
 
 	// Refs for keyboard scrolling
 	const scrollViewRef = useRef<ScrollView>(null);
@@ -198,10 +202,25 @@ export default function GameScreen() {
 		() => isBeginnerTemplateLocked(level),
 		[level],
 	);
-	const matchedChecklistItems = useMemo(
-		() => getChecklistMatchResult(prompt, checklistItems).matchedItems,
-		[prompt, checklistItems],
-	);
+	const matchedChecklistItems = useMemo(() => {
+		if (beginnerLocked && level?.scaffoldTemplate) {
+			const ordinalMatches = getOrdinalMatchedChecklistItemsForBeginnerTemplate(
+				level.scaffoldTemplate,
+				checklistItems,
+				beginnerSlotValues,
+			);
+			if (ordinalMatches) return ordinalMatches;
+		}
+		const source = beginnerLocked ? beginnerSlotTextForChecklist : prompt;
+		return getChecklistMatchResult(source, checklistItems).matchedItems;
+	}, [
+		beginnerLocked,
+		beginnerSlotTextForChecklist,
+		beginnerSlotValues,
+		checklistItems,
+		level?.scaffoldTemplate,
+		prompt,
+	]);
 	const noHintsLeft = level
 		? NanoAssistant.getHintsRemaining(level.id, level.difficulty) === 0
 		: false;
@@ -378,6 +397,8 @@ export default function GameScreen() {
 	useEffect(() => {
 		const nextPrompt = getInitialPromptStateForLevel(level);
 		setPrompt(nextPrompt);
+		setBeginnerSlotTextForChecklist("");
+		setBeginnerSlotValues([]);
 		setPromptSelection(undefined);
 		hasEditedPromptRef.current = false;
 		setBeginnerSlotsFilled(!isBeginnerTemplateLocked(level));
@@ -475,6 +496,14 @@ export default function GameScreen() {
 
 	const handleBeginnerSlotsFilledChange = useCallback((filled: boolean) => {
 		setBeginnerSlotsFilled(filled);
+	}, []);
+
+	const handleBeginnerSlotValuesJoined = useCallback((joined: string) => {
+		setBeginnerSlotTextForChecklist(joined);
+	}, []);
+
+	const handleBeginnerSlotValuesArray = useCallback((values: string[]) => {
+		setBeginnerSlotValues(values);
 	}, []);
 
 	const handleGetHint = useCallback(async () => {
@@ -1192,6 +1221,8 @@ export default function GameScreen() {
 				scaffoldTemplate={level.scaffoldTemplate}
 				beginnerTemplateLocked={beginnerLocked}
 				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
+				onBeginnerSlotValuesJoinedChange={handleBeginnerSlotValuesJoined}
+				onBeginnerSlotValuesArrayChange={handleBeginnerSlotValuesArray}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1289,6 +1320,8 @@ export default function GameScreen() {
 				scaffoldTemplate={level.scaffoldTemplate}
 				beginnerTemplateLocked={beginnerLocked}
 				onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
+				onBeginnerSlotValuesJoinedChange={handleBeginnerSlotValuesJoined}
+				onBeginnerSlotValuesArrayChange={handleBeginnerSlotValuesArray}
 				checklistItems={checklistItems}
 				matchedChecklistItems={matchedChecklistItems}
 				charCount={charCount}
@@ -1402,6 +1435,8 @@ export default function GameScreen() {
 							<BeginnerTemplatePromptInput
 								template={level.scaffoldTemplate}
 								onChangePrompt={handlePromptChange}
+								onSlotValuesJoinedChange={handleBeginnerSlotValuesJoined}
+								onSlotValuesArrayChange={handleBeginnerSlotValuesArray}
 								onAllSlotsFilledChange={handleBeginnerSlotsFilledChange}
 								onPromptFocus={handlePromptFocus}
 								inputAccessoryViewID={

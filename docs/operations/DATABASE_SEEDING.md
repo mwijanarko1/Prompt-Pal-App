@@ -36,7 +36,7 @@ The copywriting module uses **llm_judge lessons** (prompt-for-copy flow):
 
 ### Seed dev database
 
-From the `PromptPal/` directory:
+From the repository root:
 
 ```bash
 npx convex run seed:seedAll

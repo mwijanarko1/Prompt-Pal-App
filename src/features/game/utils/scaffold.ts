@@ -94,3 +94,40 @@ export function shouldShowChecklist(level?: Level | null): boolean {
 		getLevelChecklistItems(level).length > 0
 	);
 }
+
+/** Minimum consecutive letters/digits to count as a real answer (blocks "ab", "12", single chars). */
+const BEGINNER_SLOT_MIN_ALNUM_RUN = 3;
+
+/**
+ * Whether a slot counts as filled for the live checklist: at least one alphanumeric run of
+ * {@link BEGINNER_SLOT_MIN_ALNUM_RUN} or more, so random two-letter input does not pass.
+ */
+export function isBeginnerSlotContentMeaningful(value: string): boolean {
+	const trimmed = value.trim();
+	if (trimmed.length === 0) return false;
+	const runs = trimmed.match(/[a-zA-Z0-9]+/g) ?? [];
+	return runs.some((run) => run.length >= BEGINNER_SLOT_MIN_ALNUM_RUN);
+}
+
+/**
+ * For beginner locked templates, checklist rows align with `[slot]` order.
+ * Match by filled slots because keyword overlap on slot-only text fails.
+ */
+export function getOrdinalMatchedChecklistItemsForBeginnerTemplate(
+	template: string | undefined,
+	checklistItems: string[],
+	slotValues: string[],
+): string[] | null {
+	if (!template || checklistItems.length === 0) return null;
+	const { hints } = parseScaffoldPlaceholders(template);
+	if (
+		hints.length === 0 ||
+		hints.length !== checklistItems.length ||
+		slotValues.length !== hints.length
+	) {
+		return null;
+	}
+	return checklistItems.filter((_, i) =>
+		isBeginnerSlotContentMeaningful(slotValues[i] ?? ""),
+	);
+}

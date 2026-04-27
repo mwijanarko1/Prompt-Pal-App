@@ -3,8 +3,12 @@ import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StreakView, ShareIcon } from '@/features/ranking/components/StreakView';
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api.js";
 
 export default function RankScreen() {
+  const rankOverview = useQuery(api.questProduct.getRankOverview, {});
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.header} edges={['top']}>
@@ -19,7 +23,7 @@ export default function RankScreen() {
         </View>
       </SafeAreaView>
 
-      <StreakView />
+      <StreakView overview={rankOverview} />
     </View>
   );
 }

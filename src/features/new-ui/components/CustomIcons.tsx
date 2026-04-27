@@ -41,30 +41,30 @@ export const QuestsIcon = ({ width = 24, height = 24, color = "#58CC02", isActiv
   <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
     <Path d="M22 12C22 17.523 17.523 22 12 22C6.477 22 2 17.523 2 12C2 6.477 6.477 2 12 2C17.523 2 22 6.477 22 12Z" fill={isActive ? "#58CC02" : "#E5E5E5"}/>
     <Path d="M13.6931 7.47698L10.9601 8.60198C10.1351 8.94198 9.72306 9.11098 9.41606 9.41698C9.11006 9.72398 8.94006 10.137 8.60106 10.96L7.47606 13.693C6.63206 15.743 6.21006 16.767 6.72106 17.278C7.23106 17.789 8.25706 17.368 10.3061 16.523L13.0391 15.398C13.8631 15.058 14.2751 14.889 14.5821 14.582C14.8891 14.275 15.0581 13.864 15.3971 13.039L16.5221 10.307C17.3661 8.25698 17.7881 7.23298 17.2771 6.72198C16.7671 6.21098 15.7421 6.63198 13.6931 7.47698Z" fill="white"/>
-    <Path d="M12 12V12.01" stroke={isActive ? "#58CC02" : "#E5E5E5"} stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <Path d="M12 12V12.01" stroke={isActive ? "#58CC02" : "#E5E5E5"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
   </Svg>
 );
 
 export const RankIcon = ({ width = 24, height = 24, color = "#3C3C3C", isActive }: IconProps) => (
   <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path d="M2 22H22" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round"/>
-    <Path d="M9.75 4V22H14.25V4C14.25 2.9 13.8 2 12.45 2H11.55C10.2 2 9.75 2.9 9.75 4Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <Path d="M3 10V22H7V10C7 8.9 6.6 8 5.4 8H4.6C3.4 8 3 8.9 3 10Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <Path d="M17 15V22H21V15C21 13.9 20.6 13 19.4 13H18.6C17.4 13 17 13.9 17 15Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <Path d="M2 22H22" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round"/>
+    <Path d="M9.75 4V22H14.25V4C14.25 2.9 13.8 2 12.45 2H11.55C10.2 2 9.75 2.9 9.75 4Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <Path d="M3 10V22H7V10C7 8.9 6.6 8 5.4 8H4.6C3.4 8 3 8.9 3 10Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <Path d="M17 15V22H21V15C21 13.9 20.6 13 19.4 13H18.6C17.4 13 17 13.9 17 15Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </Svg>
 );
 
 export const CartIcon = ({ width = 24, height = 24, color = "#3C3C3C", isActive }: IconProps) => (
   <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path d="M22 12V17C22 20 20 22 17 22H7C4 22 2 20 2 17V12C2 9.28 3.64 7.38 6.19 7.06C6.45 7.02 6.72 7 7 7H17C17.26 7 17.51 7.00999 17.75 7.04999C20.33 7.34999 22 9.26 22 12Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <Path d="M17.7514 7.05C17.5114 7.01 17.2614 7.00001 17.0014 7.00001H7.00141C6.72141 7.00001 6.45141 7.02001 6.19141 7.06001C6.33141 6.78001 6.53141 6.52001 6.77141 6.28001L10.0214 3.02C11.3914 1.66 13.6114 1.66 14.9814 3.02L16.7314 4.79002C17.3714 5.42002 17.7114 6.22 17.7514 7.05Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <Path d="M22 12.5H19C17.9 12.5 17 13.4 17 14.5C17 15.6 17.9 16.5 19 16.5H22" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <Path d="M22 12V17C22 20 20 22 17 22H7C4 22 2 20 2 17V12C2 9.28 3.64 7.38 6.19 7.06C6.45 7.02 6.72 7 7 7H17C17.26 7 17.51 7.00999 17.75 7.04999C20.33 7.34999 22 9.26 22 12Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <Path d="M17.7514 7.05C17.5114 7.01 17.2614 7.00001 17.0014 7.00001H7.00141C6.72141 7.00001 6.45141 7.02001 6.19141 7.06001C6.33141 6.78001 6.53141 6.52001 6.77141 6.28001L10.0214 3.02C11.3914 1.66 13.6114 1.66 14.9814 3.02L16.7314 4.79002C17.3714 5.42002 17.7114 6.22 17.7514 7.05Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <Path d="M22 12.5H19C17.9 12.5 17 13.4 17 14.5C17 15.6 17.9 16.5 19 16.5H22" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </Svg>
 );
 
 export const ProfileIcon = ({ width = 24, height = 24, color = "#3C3C3C", isActive }: IconProps) => (
   <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <Path d="M20.5899 22C20.5899 18.13 16.7399 15 11.9999 15C7.25991 15 3.40991 18.13 3.40991 22" stroke={isActive ? "#58CC02" : "#3C3C3C"} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <Path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <Path d="M20.5899 22C20.5899 18.13 16.7399 15 11.9999 15C7.25991 15 3.40991 18.13 3.40991 22" stroke={isActive ? "#58CC02" : "#3C3C3C"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </Svg>
 );

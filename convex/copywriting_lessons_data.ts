@@ -80,7 +80,7 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[0],
 		title: "Make the tagline specific to one brand",
 		instruction:
-			"Your task: get AI to produce a one-sentence tagline for the coffee brand below. Use the context (brand, audience, tone) to craft your own prompt—don't copy the instruction or context verbatim.",
+			"Your task: get AI to produce a one-sentence tagline for the coffee brand below. Use the context (brand, audience, tone) to craft your own prompt; don't copy the instruction or context verbatim.",
 		hint: "If your prompt just says 'write a tagline for a coffee brand,' AI will write something generic. Think about who drinks this coffee, what makes it different, and what feeling it should leave.",
 		starterContext: {
 			brand: "Blackout Coffee Co.",
@@ -195,7 +195,7 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[2],
 		title: "Ban specific words in your prompt",
 		instruction:
-			"Your task: get AI to write a product description for the standing desk below. Craft a prompt that bans at least four words or phrases AI tends to overuse—and use your own list, don't copy examples.",
+			"Your task: get AI to write a product description for the standing desk below. Craft a prompt that bans at least four words or phrases AI tends to overuse, and use your own list, don't copy examples.",
 		hint: "Think about which words AI always reaches for when describing a product like this. Then ban them in the prompt before it gets the chance.",
 		starterContext: {
 			product: "The Frame Desk",
@@ -308,7 +308,7 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[4],
 		title: "Give AI a specific opinion to argue",
 		instruction:
-			"Your task: get AI to write a LinkedIn post about remote work. Craft a prompt that gives it a specific, arguable position to defend—use the starter context but put it in your own words.",
+			"Your task: get AI to write a LinkedIn post about remote work. Craft a prompt that gives it a specific, arguable position to defend. Use the starter context, but put it in your own words.",
 		hint: "AI without an opinion writes 'remote work has pros and cons.' Give it a real position to defend and a reason why.",
 		starterContext: {
 			author:
@@ -366,7 +366,7 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[5],
 		title: "Fill a framework with specific content",
 		instruction:
-			"Your task: get AI to write a sales email for the project management tool below using PAS. Craft a prompt that explains PAS and supplies specific problem, agitation, and solution from the context—in your own words.",
+			"Your task: get AI to write a sales email for the project management tool below using PAS. Craft a prompt that explains PAS and supplies specific problem, agitation, and solution from the context, in your own words.",
 		hint: "Don't just say 'use PAS.' Give AI the actual content for each section so it fills the framework with real specifics, not placeholders.",
 		starterContext: {
 			product: "Stackr, a project management tool for small agencies",
@@ -543,7 +543,7 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[8],
 		title: "Include a writing sample and point at style elements",
 		instruction:
-			"Your task: paste a writing sample (100+ words) and get AI to write a product announcement in that style. Craft a prompt that points at specific style elements to replicate—sentence structure, punctuation, etc. Use your own words.",
+			"Your task: paste a writing sample (100+ words) and get AI to write a product announcement in that style. Craft a prompt that points at specific style elements to replicate (sentence structure, punctuation, etc.). Use your own words.",
 		hint: "Point AI at specific things in the sample: the sentence structure, the punctuation habits, the vocabulary level, and how the writer opens and closes ideas.",
 		starterContext: {
 			task: "Write a product announcement post in the style of the sample the user provides",
@@ -657,7 +657,7 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[10],
 		title: "Adapt one message for three channels",
 		instruction:
-			"Your task: get AI to adapt the core message below for three channels—Tweet (280 chars), Google ad headline (30 chars), email subject (50 chars). Craft a prompt that spells out the rules for each. Use your own words.",
+			"Your task: get AI to adapt the core message below for three channels: Tweet (280 chars), Google ad headline (30 chars), email subject (50 chars). Craft a prompt that spells out the rules for each. Use your own words.",
 		hint: "A tweet, a Google ad headline, and an email subject line all have different length limits, different reader intents, and different tones. Tell AI all three sets of rules before it writes.",
 		starterContext: {
 			coreMessage:
@@ -729,11 +729,11 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[11],
 		title: "Remove em dashes and formulaic transitions",
 		instruction:
-			"Your task: get AI to rewrite the blog intro below and strip AI tells. Craft a prompt that lists specific patterns to remove—em dashes, formulaic transitions, neat wrap-ups. Use your own words.",
+			"Your task: get AI to rewrite the blog intro below and strip AI tells. Craft a prompt that lists specific patterns to remove: em dashes, formulaic transitions, neat wrap-ups. Use your own words.",
 		hint: "List every specific pattern you want removed. Then tell AI what to replace them with.",
 		starterContext: {
 			originalIntro:
-				"In today's fast-paced world, businesses are constantly looking for ways to stay ahead of the competition. It is important to note that the tools you choose can make or break your success. Moreover, finding the right project management software isn't just about features — it's about finding a solution that truly fits your team's unique needs. In this comprehensive guide, we'll walk you through everything you need to know.",
+				"In today's fast-paced world, businesses are constantly looking for ways to stay ahead of the competition. It is important to note that the tools you choose can make or break your success. Moreover, finding the right project management software isn't just about features; it's about finding a solution that truly fits your team's unique needs. In this comprehensive guide, we'll walk you through everything you need to know.",
 			topic: "How to choose project management software for a small team",
 			targetTone:
 				"Opinionated, skips the preamble, talks to the reader like they're already in the middle of the conversation",
@@ -846,7 +846,7 @@ const copywritingLessonsBase = [
 		hint: "Give AI a specific checklist to run against the copy, not just 'does this sound human?' The checklist should cover banned words, em dashes, uniform sentence length, hedging language, and generic CTAs.",
 		starterContext: {
 			generatedCopy:
-				"Welcome to the future of team collaboration. Our innovative platform is designed to seamlessly integrate with your existing workflow, empowering teams to achieve more together. With a robust suite of features — including real-time messaging, task management, and file sharing — you'll have everything you need to transform the way your team works. Get started today and experience the difference.",
+				"Welcome to the future of team collaboration. Our innovative platform is designed to seamlessly integrate with your existing workflow, empowering teams to achieve more together. With a robust suite of features, including real-time messaging, task management, and file sharing, you'll have everything you need to transform the way your team works. Get started today and experience the difference.",
 			task: "Audit this copy for AI tells and rewrite the sections that fail",
 		},
 		grading: {
@@ -897,7 +897,7 @@ const copywritingLessonsBase = [
 		id: COPY_IDS[14],
 		title: "Produce a full campaign from one prompt",
 		instruction:
-			"Your task: get AI to produce a full campaign from the brief below—headline, subheadline, 3-sentence description, email subject, and CTA. Craft one prompt that sets voice, audience, banned elements, and format for each. Use your own words.",
+			"Your task: get AI to produce a full campaign from the brief below: headline, subheadline, 3-sentence description, email subject, and CTA. Craft one prompt that sets voice, audience, banned elements, and format for each. Use your own words.",
 		hint: "Your prompt needs to do everything at once: set the voice, ban the AI tells, specify the emotion, name the audience, and define the format for each asset. Nothing can be left for AI to guess.",
 		starterContext: {
 			brand: "Drift",

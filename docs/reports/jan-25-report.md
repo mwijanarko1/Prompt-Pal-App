@@ -418,7 +418,7 @@ src/features/user/
 ## 📁 Project Structure Overview
 
 ```
-PromptPal/
+.
 ├── src/
 │   ├── app/                      # Expo Router pages
 │   │   ├── (auth)/               # Auth screens

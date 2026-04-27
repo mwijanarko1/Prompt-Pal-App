@@ -18,6 +18,8 @@ import type * as crons from "../crons.js";
 import type * as levels_data from "../levels_data.js";
 import type * as mutations from "../mutations.js";
 import type * as queries from "../queries.js";
+import type * as questProduct from "../questProduct.js";
+import type * as questProductData from "../questProductData.js";
 import type * as quest_levels_data from "../quest_levels_data.js";
 import type * as rankings from "../rankings.js";
 import type * as rateLimit from "../rateLimit.js";
@@ -41,6 +43,8 @@ declare const fullApi: ApiFromModules<{
   levels_data: typeof levels_data;
   mutations: typeof mutations;
   queries: typeof queries;
+  questProduct: typeof questProduct;
+  questProductData: typeof questProductData;
   quest_levels_data: typeof quest_levels_data;
   rankings: typeof rankings;
   rateLimit: typeof rateLimit;

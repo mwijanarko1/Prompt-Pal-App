@@ -25,15 +25,15 @@ This plan focuses on completing MVP features for release this week. All image ge
 ### Current Status
 
 **Backend:** ✅ Complete
-- [`generateDailyQuestPool`](PromptPal/convex/mutations.ts:1188) - Generates daily quests for all types
-- [`getOrAssignCurrentQuest`](PromptPal/convex/mutations.ts:1256) - Assigns quest to user
-- [`completeDailyQuest`](PromptPal/convex/mutations.ts:860) - Marks quest as completed
+- [`generateDailyQuestPool`](convex/mutations.ts:1188) - Generates daily quests for all types
+- [`getOrAssignCurrentQuest`](convex/mutations.ts:1256) - Assigns quest to user
+- [`completeDailyQuest`](convex/mutations.ts:860) - Marks quest as completed
 - Quest templates defined for image, code, and copywriting (lines 26-42)
 
 **Frontend:** ⚠️ Partial
-- [`QuestCard`](PromptPal/src/app/(tabs)/index.tsx:88-130) - UI component exists
-- [`currentQuest`](PromptPal/src/features/user/store.ts:97) - State exists
-- [`completeQuest`](PromptPal/src/features/user/store.ts:255-276) - Action exists
+- [`QuestCard`](src/app/(tabs)/index.tsx:88-130) - UI component exists
+- [`currentQuest`](src/features/user/store.ts:97) - State exists
+- [`completeQuest`](src/features/user/store.ts:255-276) - Action exists
 
 **Issues:**
 1. Quest card shows "Start Quest" button but has no functionality
@@ -56,11 +56,11 @@ Connect "Start Quest" button to navigate to appropriate level based on quest typ
    - Code quest → Navigate to coding level
    - Copywriting quest → Navigate to copywriting level
    - Image quest → Skip (removed from MVP)
-3. Update [`index.tsx`](PromptPal/src/app/(tabs)/index.tsx:340-344) to handle quest start
+3. Update [`index.tsx`](src/app/(tabs)/index.tsx:340-344) to handle quest start
 4. Test navigation flow
 
 **Files to Modify:**
-- `PromptPal/src/app/(tabs)/index.tsx`
+- `src/app/(tabs)/index.tsx`
 
 **Acceptance Criteria:**
 - [ ] Clicking "Start Quest" navigates to appropriate level
@@ -78,7 +78,7 @@ Connect "Start Quest" button to navigate to appropriate level based on quest typ
 Integrate quest completion with game flow. When user completes a level that matches their daily quest, mark quest as complete.
 
 **Implementation Steps:**
-1. Add quest completion check to [`game/[id].tsx`](PromptPal/src/app/game/[id].tsx:1)
+1. Add quest completion check to [`game/[id].tsx`](src/app/game/[id].tsx:1)
 2. After level completion, check if level matches current quest type
 3. If match, call `completeQuest()` from user store
 4. Show quest completion modal with XP reward
@@ -86,8 +86,8 @@ Integrate quest completion with game flow. When user completes a level that matc
 6. Trigger streak update
 
 **Files to Modify:**
-- `PromptPal/src/app/game/[id].tsx`
-- `PromptPal/src/features/user/store.ts`
+- `src/app/game/[id].tsx`
+- `src/features/user/store.ts`
 
 **Acceptance Criteria:**
 - [ ] Quest completes when matching level is passed
@@ -114,7 +114,7 @@ Implement countdown timer that updates in real-time for quest expiration.
 5. Show "Expired" state when timeRemaining ≤ 0
 
 **Files to Modify:**
-- `PromptPal/src/app/(tabs)/index.tsx`
+- `src/app/(tabs)/index.tsx`
 
 **Acceptance Criteria:**
 - [ ] Timer updates every second
@@ -142,7 +142,7 @@ Create a screen showing completed quests and their rewards.
 4. Add to tab navigation
 
 **Files to Create:**
-- `PromptPal/src/app/(tabs)/quests.tsx`
+- `src/app/(tabs)/quests.tsx`
 
 **Acceptance Criteria:**
 - [ ] Screen shows completed quests
@@ -158,19 +158,19 @@ Create a screen showing completed quests and their rewards.
 ### Current Status
 
 **Components:** ✅ Complete
-- [`CodeRequirementsView`](PromptPal/src/features/game/components/CodeRequirementsView.tsx:1) - Problem display
-- [`CodeExecutionView`](PromptPal/src/features/game/components/CodeExecutionView.tsx:1) - Code runner
-- [`NanoAssistant`](PromptPal/src/features/game/components/NanoAssistant.tsx:1) - Hint system
+- [`CodeRequirementsView`](src/features/game/components/CodeRequirementsView.tsx:1) - Problem display
+- [`CodeExecutionView`](src/features/game/components/CodeExecutionView.tsx:1) - Code runner
+- [`NanoAssistant`](src/features/game/components/NanoAssistant.tsx:1) - Hint system
 
 **Levels:** ⚠️ Limited
 - Only 3 beginner coding levels exist
 - Need intermediate and advanced levels
 
 **Scoring:** ✅ Complete
-- [`codeScoring`](PromptPal/src/lib/scoring/codeScoring.ts:1) - Real AI scoring via Convex
+- [`codeScoring`](src/lib/scoring/codeScoring.ts:1) - Real AI scoring via Convex
 
 **Game Screen Integration:** ⚠️ Partial
-- [`game/[id].tsx`](PromptPal/src/app/game/[id].tsx:1) - Has coding flow but needs improvements
+- [`game/[id].tsx`](src/app/game/[id].tsx:1) - Has coding flow but needs improvements
 
 ### Tasks
 
@@ -264,7 +264,7 @@ Create 2 intermediate coding levels to expand content.
 ```
 
 **Files to Modify:**
-- `PromptPal/src/features/levels/data.ts`
+- `src/features/levels/data.ts`
 
 **Acceptance Criteria:**
 - [ ] 2 intermediate levels added
@@ -330,7 +330,7 @@ Create 1 advanced coding level.
 ```
 
 **Files to Modify:**
-- `PromptPal/src/features/levels/data.ts`
+- `src/features/levels/data.ts`
 
 **Acceptance Criteria:**
 - [ ] 1 advanced level added
@@ -357,7 +357,7 @@ Enhance the coding game screen with better visual feedback and user experience.
 6. Show hint cooldown timer
 
 **Files to Modify:**
-- `PromptPal/src/app/game/[id].tsx`
+- `src/app/game/[id].tsx`
 
 **Acceptance Criteria:**
 - [ ] Code has syntax highlighting
@@ -374,19 +374,19 @@ Enhance the coding game screen with better visual feedback and user experience.
 ### Current Status
 
 **Components:** ✅ Complete
-- [`CopyBriefView`](PromptPal/src/features/game/components/CopyBriefView.tsx:1) - Brief display
-- [`CopyAnalysisView`](PromptPal/src/features/game/components/CopyAnalysisView.tsx:1) - Metrics display
-- [`NanoAssistant`](PromptPal/src/features/game/components/NanoAssistant.tsx:1) - Hint system
+- [`CopyBriefView`](src/features/game/components/CopyBriefView.tsx:1) - Brief display
+- [`CopyAnalysisView`](src/features/game/components/CopyAnalysisView.tsx:1) - Metrics display
+- [`NanoAssistant`](src/features/game/components/NanoAssistant.tsx:1) - Hint system
 
 **Levels:** ⚠️ Limited
 - Only 3 beginner copywriting levels exist
 - Need intermediate and advanced levels
 
 **Scoring:** ✅ Complete
-- [`copyScoring`](PromptPal/src/lib/scoring/copyScoring.ts:1) - Real AI scoring via Convex
+- [`copyScoring`](src/lib/scoring/copyScoring.ts:1) - Real AI scoring via Convex
 
 **Game Screen Integration:** ⚠️ Partial
-- [`game/[id].tsx`](PromptPal/src/app/game/[id].tsx:1) - Has copywriting flow but needs improvements
+- [`game/[id].tsx`](src/app/game/[id].tsx:1) - Has copywriting flow but needs improvements
 
 ### Tasks
 
@@ -468,7 +468,7 @@ Create 2 intermediate copywriting levels.
 ```
 
 **Files to Modify:**
-- `PromptPal/src/features/levels/data.ts`
+- `src/features/levels/data.ts`
 
 **Acceptance Criteria:**
 - [ ] 2 intermediate levels added
@@ -525,7 +525,7 @@ Create 1 advanced copywriting level.
 ```
 
 **Files to Modify:**
-- `PromptPal/src/features/levels/data.ts`
+- `src/features/levels/data.ts`
 
 **Acceptance Criteria:**
 - [ ] 1 advanced level added
@@ -553,7 +553,7 @@ Enhance the copywriting game screen with better visual feedback.
 6. Add character count indicator
 
 **Files to Modify:**
-- `PromptPal/src/app/game/[id].tsx`
+- `src/app/game/[id].tsx`
 
 **Acceptance Criteria:**
 - [ ] Word count shows progress
@@ -570,12 +570,12 @@ Enhance the copywriting game screen with better visual feedback.
 ### Current Status
 
 **Profile Page:** ✅ Complete
-- [`profile.tsx`](PromptPal/src/app/(tabs)/profile.tsx:1) - User stats, usage quota, achievements
+- [`profile.tsx`](src/app/(tabs)/profile.tsx:1) - User stats, usage quota, achievements
 - Convex integration working
 - Circular progress indicators implemented
 
 **Library Page:** ✅ Complete
-- [`library.tsx`](PromptPal/src/app/(tabs)/library.tsx:1) - Learning modules, resources
+- [`library.tsx`](src/app/(tabs)/library.tsx:1) - Learning modules, resources
 - Convex integration working
 - User summary display implemented
 
@@ -595,7 +595,7 @@ Add minor enhancements to profile page for MVP polish.
 4. Improve achievement animations
 
 **Files to Modify:**
-- `PromptPal/src/app/(tabs)/profile.tsx`
+- `src/app/(tabs)/profile.tsx`
 
 **Acceptance Criteria:**
 - [ ] Edit profile button works
@@ -620,7 +620,7 @@ Implement search functionality in library screen.
 5. Debounce search input
 
 **Files to Modify:**
-- `PromptPal/src/app/(tabs)/library.tsx`
+- `src/app/(tabs)/library.tsx`
 
 **Acceptance Criteria:**
 - [ ] Search input works

@@ -152,7 +152,7 @@
 ## Verification Loop (Per Increment)
 1. Add one chunk only.
 2. Run local export sanity with the active full-mode profile: `EXPO_PUBLIC_BOOT_MODE=full npx expo export --platform ios`.
-3. Increment `PromptPal/app.json` iOS `buildNumber`.
+3. Increment `app.json` iOS `buildNumber`.
 4. Build IPA locally: `cd PromptPal && npx eas build --platform ios --profile <profile> --local --output ./build-<NN>-router.ipa`.
 5. Install on device and run the **device validation checklist** (see below).
 - If success: proceed to next increment.
@@ -185,4 +185,4 @@ cd PromptPal && EXPO_PUBLIC_BOOT_MODE=full npx expo export --platform ios
 cd PromptPal && npx eas build --platform ios --profile router --local --output ./build-63-router.ipa
 ```
 
-**EAS profile and env:** `PromptPal/eas.json` — `router` profile is the stable full-mode local build profile. Keep Clerk key and Convex URL in sync with the rest of the app.
+**EAS profile and env:** `eas.json` — `router` profile is the stable full-mode local build profile. Keep Clerk key and Convex URL in sync with the rest of the app.

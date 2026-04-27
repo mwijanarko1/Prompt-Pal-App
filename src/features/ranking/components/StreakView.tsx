@@ -25,7 +25,19 @@ export const ShareIcon = () => (
   </Svg>
 );
 
-export const StreakView = () => {
+type RankOverview = {
+  currentStreak: number;
+  perfectDays: number;
+  protectedStreakDays: number;
+  calendar: Array<{
+    date: string;
+    questsCompleted: number;
+    perfectDay: boolean;
+    streakProtected: boolean;
+  }>;
+} | undefined;
+
+export const StreakView = ({ overview }: { overview?: RankOverview }) => {
   const today = new Date();
   const [displayMonth, setDisplayMonth] = useState(today.getMonth());
   const [displayYear, setDisplayYear] = useState(today.getFullYear());
@@ -52,8 +64,6 @@ export const StreakView = () => {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
 
-  const STREAK_COUNT = 472;
-
   const handlePrevMonth = () => {
     if (displayMonth === 0) {
       setDisplayMonth(11);
@@ -62,6 +72,13 @@ export const StreakView = () => {
       setDisplayMonth((m) => m - 1);
     }
   };
+
+  const activityByDay = new Map(
+    (overview?.calendar ?? []).map((activity) => [
+      Number(activity.date.slice(-2)),
+      activity,
+    ]),
+  );
 
   const handleNextMonth = () => {
     if (displayMonth === 11) {
@@ -81,7 +98,7 @@ export const StreakView = () => {
       <View style={styles.greenBanner}>
         <View style={styles.bannerContent}>
           <View>
-            <Text style={styles.giantNumber}>{STREAK_COUNT}</Text>
+            <Text style={styles.giantNumber}>{overview?.currentStreak ?? 0}</Text>
             <Text style={styles.giantSub}>day streak!</Text>
           </View>
           <View style={styles.flameContainer}>
@@ -133,7 +150,7 @@ export const StreakView = () => {
               style={styles.statIcon} 
               contentFit="contain" 
             />
-            <Text style={styles.statValueText}>10</Text>
+            <Text style={styles.statValueText}>{overview?.perfectDays ?? 0}</Text>
           </View>
           <Text style={styles.statCardLabelText}>Days practiced</Text>
         </View>
@@ -143,7 +160,7 @@ export const StreakView = () => {
             <View style={styles.freezeIconBg}>
               <Ionicons name="chatbubble" size={16} color="#FFFFFF" />
             </View>
-            <Text style={styles.statValueText}>10</Text>
+            <Text style={styles.statValueText}>{overview?.protectedStreakDays ?? 0}</Text>
           </View>
           <Text style={styles.statCardLabelText}>Freezes used</Text>
         </View>
@@ -159,8 +176,12 @@ export const StreakView = () => {
 
         <View style={styles.calGrid}>
           {calendarCells.map((day, idx) => {
-            const isToday = day === 10; 
-            const isHighlighted = day === 13;
+            const activity = day === null ? undefined : activityByDay.get(day);
+            const isToday =
+              day === today.getDate() &&
+              displayMonth === today.getMonth() &&
+              displayYear === today.getFullYear();
+            const isHighlighted = !!activity?.perfectDay || !!activity?.streakProtected || (activity?.questsCompleted ?? 0) > 0;
             
             return (
               <View key={idx} style={styles.calCell}>
@@ -414,4 +435,3 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 });
-

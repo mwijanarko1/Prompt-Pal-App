@@ -524,7 +524,7 @@ Next step options:
 
 Upload to TestFlight using Transporter (no EAS build minutes).
 Or upload via CLI (also no build minutes):
-npx eas submit --platform ios --path "/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/build-1771337922097.ipa"
+npx eas submit --platform ios --path "/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/build-1771337922097.ipa"
 Once it’s in TestFlight, install and confirm whether gesture mode still crashes. If it still crashes, we’ll pull the crash log from that build.
 
 If you want a device-installable IPA (no TestFlight), I can add an internal/ad-hoc build profile and generate that locally.
@@ -540,7 +540,7 @@ build-1771339142134.ipa
 Next:
 
 Upload to TestFlight:
-npx eas submit --platform ios --path "/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/build-1771339142134.ipa"
+npx eas submit --platform ios --path "/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/build-1771339142134.ipa"
 Install from TestFlight and confirm if gesture mode still crashes.
 If you want me to submit it now, say the word and I’ll run the upload.
 
@@ -3221,7 +3221,7 @@ I fixed this locally:
 
 Re-enabled New Architecture in app.json ("newArchEnabled": true)
 Added dynamic router isolation config in app.config.js
-Router profile now points Expo Router to isolated routes in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/src/router-app (via eas.json + plugin root)
+Router profile now points Expo Router to isolated routes in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/src/router-app (via eas.json + plugin root)
 Run this again:
 
 cd "/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal" && EXPO_PUBLIC_BOOT_MODE=router npx eas build --platform ios --profile router --local

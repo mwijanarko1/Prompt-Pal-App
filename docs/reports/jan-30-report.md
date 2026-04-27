@@ -24,10 +24,10 @@ The team has made significant progress on the core infrastructure and backend sy
 
 #### ✅ M1: ImageScoringService Implementation
 **Status:** COMPLETE  
-**File:** [`src/lib/scoring/imageScoring.ts`](../PromptPal/src/lib/scoring/imageScoring.ts) (245 lines)
+**File:** [`src/lib/scoring/imageScoring.ts`](../../src/lib/scoring/imageScoring.ts) (245 lines)
 
 **Implemented Features:**
-- ✅ Uses [`AIProxyClient.compareImages()`](../PromptPal/src/lib/aiProxy.ts) for AI-powered image comparison
+- ✅ Uses [`AIProxyClient.compareImages()`](../../src/lib/aiProxy.ts) for AI-powered image comparison
 - ✅ Real similarity scoring algorithm (0-100 scale)
 - ✅ Keyword matching and scoring from hidden prompt keywords
 - ✅ Style matching score calculation
@@ -52,7 +52,7 @@ interface ImageScoringResult {
 
 #### ✅ M2: CodeScoringService Implementation
 **Status:** COMPLETE  
-**File:** [`src/lib/scoring/codeScoring.ts`](../PromptPal/src/lib/codeScoring.ts) (486 lines)
+**File:** [`src/lib/scoring/codeScoring.ts`](../../src/lib/codeScoring.ts) (486 lines)
 
 **Implemented Features:**
 - ✅ Syntax validation for Python 3.10 and JavaScript
@@ -79,7 +79,7 @@ interface CodeScoringResult {
 
 #### ✅ M3: CopyScoringService Implementation
 **Status:** COMPLETE  
-**File:** [`src/lib/scoring/copyScoring.ts`](../PromptPal/src/lib/copyScoring.ts) (517 lines)
+**File:** [`src/lib/scoring/copyScoring.ts`](../../src/lib/copyScoring.ts) (517 lines)
 
 **Implemented Features:**
 - ✅ AI-powered analysis of tone, persuasion, clarity, audience fit, creativity, engagement
@@ -106,7 +106,7 @@ interface CopyScoringResult {
 
 #### ✅ M4: Backend Progress Sync
 **Status:** COMPLETE  
-**File:** [`src/lib/syncManager.ts`](../PromptPal/src/lib/syncManager.ts) (509 lines)
+**File:** [`src/lib/syncManager.ts`](../../src/lib/syncManager.ts) (509 lines)
 
 **Implemented Features:**
 - ✅ Existing sync manager fully implemented
@@ -124,13 +124,13 @@ interface CopyScoringResult {
 
 #### ✅ M5: Prerequisites System
 **Status:** COMPLETE  
-**Files:** [`src/features/levels/data.ts`](../PromptPal/src/features/levels/data.ts), [`src/features/game/store.ts`](../PromptPal/src/features/game/store.ts)
+**Files:** [`src/features/levels/data.ts`](../../src/features/levels/data.ts), [`src/features/game/store.ts`](../../src/features/game/store.ts)
 
 **Implemented Features:**
-- ✅ `prerequisites: string[]` field added to [`Level`](../PromptPal/src/features/game/store.ts:9) interface
-- ✅ [`isLevelUnlocked()`](../PromptPal/src/features/game/store.ts:184) function implemented in game store
-- ✅ [`checkAndUnlockLevels()`](../PromptPal/src/features/game/store.ts:198) function to auto-unlock levels
-- ✅ [`isLevelUnlocked()`](../PromptPal/src/features/levels/data.ts:386) function in levels data module
+- ✅ `prerequisites: string[]` field added to [`Level`](../../src/features/game/store.ts:9) interface
+- ✅ [`isLevelUnlocked()`](../../src/features/game/store.ts:184) function implemented in game store
+- ✅ [`checkAndUnlockLevels()`](../../src/features/game/store.ts:198) function to auto-unlock levels
+- ✅ [`isLevelUnlocked()`](../../src/features/levels/data.ts:386) function in levels data module
 - ✅ All level definitions include prerequisites
 - ✅ Level selection can show locked/unlocked state (logic ready, UI pending)
 
@@ -140,7 +140,7 @@ interface CopyScoringResult {
 
 #### ✅ S1: NanoAssistant Hint System
 **Status:** COMPLETE  
-**File:** [`src/lib/nanoAssistant.ts`](../PromptPal/src/lib/nanoAssistant.ts) (552 lines)
+**File:** [`src/lib/nanoAssistant.ts`](../../src/lib/nanoAssistant.ts) (552 lines)
 
 **Implemented Features:**
 - ✅ AI-powered hint generation based on current prompt, module type, level difficulty
@@ -184,7 +184,7 @@ class NanoAssistant {
 
 #### ✅ K1: Image Challenge Levels (PARTIAL)
 **Status:** 60% COMPLETE (3 of 5 levels created)  
-**File:** [`src/features/levels/data.ts`](../PromptPal/src/features/levels/data.ts)
+**File:** [`src/features/levels/data.ts`](../../src/features/levels/data.ts)
 
 **Created Levels:**
 - ✅ `image-1-easy` - "Brass Key" (beginner, passingScore: 75)
@@ -205,7 +205,7 @@ class NanoAssistant {
 
 #### ✅ K2: Code Challenge Levels (PARTIAL)
 **Status:** 60% COMPLETE (3 of 5 levels created)  
-**File:** [`src/features/levels/data.ts`](../PromptPal/src/features/levels/data.ts)
+**File:** [`src/features/levels/data.ts`](../../src/features/levels/data.ts)
 
 **Created Levels:**
 - ✅ `code-1-easy` - "Sum Function" (beginner, 3 test cases)
@@ -227,7 +227,7 @@ class NanoAssistant {
 
 #### ✅ K3: Copywriting Challenge Levels (PARTIAL)
 **Status:** 60% COMPLETE (3 of 5 levels created)  
-**File:** [`src/features/levels/data.ts`](../PromptPal/src/features/levels/data.ts)
+**File:** [`src/features/levels/data.ts`](../../src/features/levels/data.ts)
 
 **Created Levels:**
 - ✅ `copywriting-1-easy` - "Product Description" (beginner, 50-150 words)
@@ -252,7 +252,7 @@ class NanoAssistant {
 
 ### S3: Enhanced ResultModal
 **Status:** 40% COMPLETE  
-**File:** [`src/components/ui/ResultModal.tsx`](../PromptPal/src/components/ui/ResultModal.tsx) (94 lines)
+**File:** [`src/components/ui/ResultModal.tsx`](../../src/components/ui/ResultModal.tsx) (94 lines)
 
 **Implemented:**
 - ✅ Basic modal structure with score display
@@ -397,11 +397,11 @@ class NanoAssistant {
 
 **Missing Features:**
 - ❌ After level completion, offer "Next Level" button
-- ❌ Use [`getNextLevel()`](../PromptPal/src/features/levels/data.ts:366) function (function exists in data.ts)
+- ❌ Use [`getNextLevel()`](../../src/features/levels/data.ts:366) function (function exists in data.ts)
 - ❌ Handle case when no next level exists
 - ❌ Unlock next level automatically on completion
 
-**Note:** The [`getNextLevel()`](../PromptPal/src/features/levels/data.ts:366) function exists in levels/data.ts, but is not integrated into the game screen.
+**Note:** The [`getNextLevel()`](../../src/features/levels/data.ts:366) function exists in levels/data.ts, but is not integrated into the game screen.
 
 ---
 

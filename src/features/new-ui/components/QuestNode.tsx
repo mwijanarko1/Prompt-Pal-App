@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 const LevelCompleteImg = require('../../../../assets/Level.png');
 const LevelCurrentImg = require('../../../../assets/Level-1.png');
 
-export type NodeStatus = 'completed' | 'current' | 'locked' | 'special';
+export type NodeStatus = 'completed' | 'current' | 'locked' | 'special' | 'unlocked';
 
 interface QuestNodeProps {
   status: NodeStatus;
@@ -15,13 +15,19 @@ interface QuestNodeProps {
   offset?: number; // horizontal offset from center
 }
 
-export const QuestNode = ({ status, label, onPress, offset = 0 }: QuestNodeProps) => {
+export const QuestNode = ({
+  status,
+  label,
+  onPress,
+  offset = 0,
+}: QuestNodeProps) => {
   const getBackgroundColor = () => {
     switch (status) {
       case 'completed': return 'transparent'; // Using image
       case 'current': return 'transparent'; // Using image
       case 'locked': return '#E5E5E5';
       case 'special': return '#58CC02';
+      case 'unlocked': return '#FFFFFF';
       default: return '#E5E5E5';
     }
   };
@@ -32,6 +38,7 @@ export const QuestNode = ({ status, label, onPress, offset = 0 }: QuestNodeProps
       case 'current': return 'transparent';
       case 'locked': return '#CFCFCF';
       case 'special': return '#46A310';
+      case 'unlocked': return '#58CC02';
       default: return '#CFCFCF';
     }
   };
@@ -62,6 +69,8 @@ export const QuestNode = ({ status, label, onPress, offset = 0 }: QuestNodeProps
         return <Ionicons name="briefcase" size={28} color="#AFAFAF" />;
       case 'special':
         return <Ionicons name="sparkles" size={32} color="#FFFFFF" />;
+      case 'unlocked':
+        return <Ionicons name="play" size={28} color="#58CC02" />;
       default:
         return null;
     }
@@ -75,12 +84,12 @@ export const QuestNode = ({ status, label, onPress, offset = 0 }: QuestNodeProps
           <View style={styles.tooltipArrow} />
         </View>
       )}
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={[
-          styles.node, 
-          { 
-            backgroundColor: getBackgroundColor(), 
+          styles.node,
+          {
+            backgroundColor: getBackgroundColor(),
             borderColor: getBorderColor(),
             borderBottomWidth: (status === 'completed' || status === 'current') ? 0 : (status === 'locked' ? 4 : 8),
           }

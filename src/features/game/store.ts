@@ -51,6 +51,7 @@ export interface Level {
 	promptChecklist?: string[];
 	// Onboarding-style code lessons (prompt-for-UI)
 	instruction?: string;
+	whatUserSees?: string;
 	starterCode?: string;
 	grading?: {
 		method?: string;

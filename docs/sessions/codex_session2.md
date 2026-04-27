@@ -111,9 +111,9 @@ What I changed:
 
 Recorded Build 39 as stable and added Build 40 plan in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/tasks/todo.md:222
 Logged Build 39 feedback + Build 40 in progress in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/docs/plans/safe_mode_plan.md:52
-Re-enabled real Ranking screen behind isolation stage switch in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/src/router-app/(tabs)/ranking.tsx:3
-Set router env to EXPO_PUBLIC_RANKING_ISO_STAGE=full in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/eas.json:50
-Bumped iOS build number to 40 in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/app.json:22
+Re-enabled real Ranking screen behind isolation stage switch in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/src/router-app/(tabs)/ranking.tsx:3
+Set router env to EXPO_PUBLIC_RANKING_ISO_STAGE=full in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/eas.json:50
+Bumped iOS build number to 40 in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/app.json:22
 Local sanity export passed.
 Run local build:
 
@@ -152,9 +152,9 @@ Switch across all tabs repeatedly, return to Profile.
 Relaunch app and confirm session still persists.
 Staged changes are in:
 
-/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/src/router-app/(tabs)/profile.tsx:5
-/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/eas.json:51
-/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/app.json:22
+/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/src/router-app/(tabs)/profile.tsx:5
+/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/eas.json:51
+/Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/app.json:22
 If this passes, next is Build 42: exit router isolation (src/router-app -> src/app) and do final stability validation.
 
 
@@ -208,10 +208,10 @@ ObjCTurboModule::performVoidMethodInvocation on app launch.
 
 I’ve already prepared Build 43 to isolate/fix launch stability:
 
-Added full-lite boot path in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/src/app/_layout.tsx:49
-New stable root wrapper in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/src/lib/NormalRootLite.tsx:1
-Router profile now uses EXPO_PUBLIC_BOOT_MODE=full-lite in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/eas.json:47
-iOS build number bumped to 43 in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/app.json:22
+Added full-lite boot path in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/src/app/_layout.tsx:49
+New stable root wrapper in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/src/lib/NormalRootLite.tsx:1
+Router profile now uses EXPO_PUBLIC_BOOT_MODE=full-lite in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/eas.json:47
+iOS build number bumped to 43 in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/app.json:22
 Local sanity export passed on src/app root.
 Run this local build:
 
@@ -275,9 +275,9 @@ Next step is Build 44 (theme fix while keeping launch stable).
 
 I already staged it:
 
-NormalRootLite now matches normal wrappers + forces dark scheme in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/src/lib/NormalRootLite.tsx:40
-iOS build bumped to 44 in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/app.json:22
-router profile stays on full-lite in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/PromptPal/eas.json:47
+NormalRootLite now matches normal wrappers + forces dark scheme in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/src/lib/NormalRootLite.tsx:40
+iOS build bumped to 44 in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/app.json:22
+router profile stays on full-lite in /Users/mikhail/Documents/CURSOR CODES/In Progress/Prompt Pal App/eas.json:47
 Local sanity export passed.
 Run:
 

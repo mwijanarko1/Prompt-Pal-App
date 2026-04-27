@@ -74,7 +74,7 @@ function NativeTabShell() {
 				<Tabs.Screen
 					name="index"
 					options={{
-						tabBarLabel: "Quest",
+						tabBarLabel: "Quests",
 						tabBarIcon: ({ color, focused }) => (
 							<QuestsIcon width={24} height={24} isActive={focused} />
 						),
@@ -92,7 +92,7 @@ function NativeTabShell() {
 				<Tabs.Screen
 					name="cart"
 					options={{
-						tabBarLabel: "Cart",
+						tabBarLabel: "Store",
 						tabBarIcon: ({ color, focused }) => (
 							<CartIcon width={24} height={24} isActive={focused} />
 						),

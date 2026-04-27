@@ -46,7 +46,7 @@ This file must be included in the app bundle and is automatically scanned during
 
 **Option A: Create PrivacyInfo.xcprivacy for Expo**
 
-Create a new file at `PromptPal/ios/PrivacyInfo.xcprivacy`:
+Create a new file at `ios/PrivacyInfo.xcprivacy` (after `expo prebuild`, or the equivalent path in your native project):
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>

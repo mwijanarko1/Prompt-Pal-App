@@ -11,10 +11,12 @@ import Animated, {
 	withTiming,
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
+import { useMutation } from "convex/react";
 
 import { OnboardingScreenWrapper } from "../components/OnboardingScreenWrapper";
 import { useOnboardingStore } from "../store";
 import { ONBOARDING_COLORS } from "../theme";
+import { api } from "../../../../convex/_generated/api.js";
 
 const BADGE_ICON_MAP: Record<
 	string,
@@ -32,8 +34,11 @@ const BADGE_ICON_MAP: Record<
 };
 
 export function CompleteScreen() {
-	const { completeOnboarding, xpEarned, badges, addBadge } =
+	const { completeOnboarding, xpEarned, badges, addBadge, selectedModule } =
 		useOnboardingStore();
+	const completeBackendOnboarding = useMutation(
+		api.questProduct.completeOnboarding,
+	);
 	const pulseScale = useSharedValue(1);
 
 	useEffect(() => {
@@ -54,8 +59,23 @@ export function CompleteScreen() {
 		transform: [{ scale: pulseScale.value }],
 	}));
 
-	const handleStart = () => {
+	const handleStart = async () => {
 		void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+		try {
+			await completeBackendOnboarding({
+				selectedTrackId:
+					selectedModule === "coding" ||
+					selectedModule === "image-generation" ||
+					selectedModule === "copywriting"
+						? selectedModule
+						: "coding",
+				experienceLevel: "beginner",
+				reasonForLearning: "onboarding-complete",
+				selectedGoals: badges.length > 0 ? badges : ["prompt-apprentice"],
+			});
+		} catch {
+			// Local completion remains available offline; backend will re-sync on replay.
+		}
 		completeOnboarding();
 	};
 

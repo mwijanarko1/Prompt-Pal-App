@@ -289,7 +289,7 @@ Users read marketing briefs and write prompts to generate persuasive copy. The s
 - **Codebase Map**: `docs/CODEBASE_MAP.md` - Architecture overview
 - **API Docs**: `docs/reference/API_DOCS.md` - Backend API documentation
 - **Phase Plans**: `docs/phases/phase-1.md` through `phase-6.md`
-- **Scoring README**: `PromptPal/src/lib/scoring/README.md`
+- **Scoring README**: `src/lib/scoring/README.md`
 
 ---
 

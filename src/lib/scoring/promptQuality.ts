@@ -2,7 +2,7 @@ import {
 	calculateTokenCoverage,
 	getMatchedChecklistItems,
 	uniqueChecklistTokens,
-} from "@/lib/scaffolding/checklistMatching";
+} from "../scaffolding/checklistMatching";
 
 export interface PromptQualityAssessment {
 	score: number;

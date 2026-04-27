@@ -12,6 +12,7 @@ import {
 	Platform,
 	InputAccessoryView,
 	TextInput,
+	useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -30,6 +31,7 @@ import { useUserProgressStore } from "@/features/user/store";
 import { useConvexAI } from "@/hooks/useConvexAI";
 import { convexHttpClient } from "@/lib/convex-client";
 import { api } from "../../../../convex/_generated/api.js";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { getAIErrorPresentation } from "@/lib/aiErrors";
 import { logger } from "@/lib/logger";
 import { NanoAssistant } from "@/lib/nanoAssistant";
@@ -43,11 +45,10 @@ import {
 } from "@/features/game/components/PracticeStyleChallenge";
 import { HtmlPreview } from "@/features/game/components/HtmlPreview";
 import { CopyTargetPreview } from "@/features/game/components/CopyTargetPreview";
-import { BeginnerTemplatePromptInput } from "@/features/game/components/BeginnerTemplatePromptInput";
+import { QuestPromptInputCard } from "@/features/game/components/QuestPromptInputCard";
 import {
 	findFirstPlaceholderRange,
 	HINT_XP_COST,
-	PromptScaffoldHelper,
 } from "@/features/game/components/PromptScaffold";
 import type { CodeTestResult } from "@/lib/scoring/codeScoring";
 import type { CopyScoringResult } from "@/lib/scoring/copyScoring";
@@ -56,8 +57,57 @@ import { getChecklistMatchResult } from "@/lib/scaffolding/checklistMatching";
 import {
 	getInitialPromptStateForLevel,
 	getLevelChecklistItems,
+	getOrdinalMatchedChecklistItemsForBeginnerTemplate,
 	isBeginnerTemplateLocked,
 } from "@/features/game/utils/scaffold";
+import {
+	getCodingLessonTargetHtml,
+	getLessonTargetBrief,
+	hasMeaningfulHtmlPreview,
+} from "@/features/game/utils/lessonTarget";
+
+function mapQuestLessonToLevel(lesson: any): Level {
+	return {
+		id: lesson.id,
+		title: lesson.title,
+		description:
+			lesson.contentPayload?.description ??
+			lesson.objective ??
+			lesson.title,
+		type: lesson.lessonType,
+		difficulty: lesson.difficulty,
+		passingScore: lesson.evaluationPayload?.passingScore ?? 70,
+		unlocked: true,
+		order: lesson.nodeOrder,
+		points: lesson.rewardXp,
+		targetImageUrl: lesson.targetPayload?.targetImageUrl,
+		targetImageUrlForEvaluation: lesson.targetPayload?.targetImageUrl,
+		hiddenPromptKeywords: lesson.evaluationPayload?.hiddenPromptKeywords,
+		style: lesson.targetPayload?.style,
+		instruction: lesson.contentPayload?.instruction,
+		whatUserSees: lesson.targetPayload?.whatUserSees,
+		requirementBrief: lesson.contentPayload?.requirementBrief,
+		starterCode: lesson.scaffoldPayload?.starterCode,
+		grading: lesson.evaluationPayload?.grading,
+		failState: lesson.resultPayload?.failState,
+		successState: lesson.resultPayload?.successState,
+		lessonTakeaway: lesson.teachingPayload?.takeaway,
+		starterContext: lesson.scaffoldPayload?.starterContext,
+		briefTitle: lesson.contentPayload?.briefTitle,
+		briefProduct: lesson.contentPayload?.briefProduct,
+		briefTarget: lesson.contentPayload?.briefTarget,
+		briefTone: lesson.contentPayload?.briefTone,
+		briefGoal: lesson.contentPayload?.briefGoal,
+		wordLimit: lesson.evaluationPayload?.wordLimit,
+		requiredElements: lesson.targetPayload?.requiredElements,
+		metrics: lesson.evaluationPayload?.metrics,
+		scaffoldType: lesson.scaffoldPayload?.scaffoldType,
+		scaffoldTemplate: lesson.scaffoldPayload?.scaffoldTemplate,
+		checklistItems: lesson.scaffoldPayload?.checklistItems,
+		promptChecklist: lesson.scaffoldPayload?.promptChecklist,
+		hints: lesson.contentPayload?.hints ?? [],
+	};
+}
 
 const { height: screenHeight } = Dimensions.get("window");
 
@@ -176,6 +226,9 @@ export default function QuestScreen() {
 		{ start: number; end?: number } | undefined
 	>(undefined);
 	const [beginnerSlotsFilled, setBeginnerSlotsFilled] = useState(true);
+	const [beginnerSlotTextForChecklist, setBeginnerSlotTextForChecklist] =
+		useState("");
+	const [beginnerSlotValues, setBeginnerSlotValues] = useState<string[]>([]);
 
 	// Refs for keyboard scrolling
 	const scrollViewRef = useRef<ScrollView>(null);
@@ -187,6 +240,11 @@ export default function QuestScreen() {
 	const [keyboardHeight, setKeyboardHeight] = useState(0);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const { height: viewportHeight } = useWindowDimensions();
+	const targetPreviewHeight = useMemo(
+		() => Math.min(Math.max(Math.round(viewportHeight * 0.32), 220), 420),
+		[viewportHeight],
+	);
 	const visibleHints = useMemo(() => level?.hints ?? [], [level?.hints]);
 	const codeVisibleBrief = useMemo(
 		() => [level?.moduleTitle, level?.description].filter(Boolean).join("\n\n"),
@@ -217,7 +275,7 @@ export default function QuestScreen() {
 	const inputAccessoryId = "promptInputAccessory";
 
 	const { loseLife, startLevel, completeLevel, syncToBackend, lives: livesAvailable } = useGameStore();
-	const { updateStreak, addXP, spendXP, setCurrentQuest, xp } =
+	const { updateStreak, addXP, spendXP, setCurrentQuest, xp, learningModules } =
 		useUserProgressStore();
 
 	const checklistItems = useMemo(() => (level ? getLevelChecklistItems(level) : []), [level]);
@@ -225,10 +283,28 @@ export default function QuestScreen() {
 		() => (level ? isBeginnerTemplateLocked(level) : false),
 		[level],
 	);
-	const matchedChecklistItems = useMemo(
-		() => (level && prompt ? getChecklistMatchResult(prompt, checklistItems).matchedItems : []),
-		[prompt, checklistItems, level],
-	);
+	const matchedChecklistItems = useMemo(() => {
+		if (!level) return [];
+		if (beginnerLocked && level.scaffoldTemplate) {
+			const ordinalMatches = getOrdinalMatchedChecklistItemsForBeginnerTemplate(
+				level.scaffoldTemplate,
+				checklistItems,
+				beginnerSlotValues,
+			);
+			if (ordinalMatches) return ordinalMatches;
+		}
+		const source = beginnerLocked ? beginnerSlotTextForChecklist : prompt;
+		return source
+			? getChecklistMatchResult(source, checklistItems).matchedItems
+			: [];
+	}, [
+		beginnerLocked,
+		beginnerSlotTextForChecklist,
+		beginnerSlotValues,
+		checklistItems,
+		level,
+		prompt,
+	]);
 
 	const noHintsLeft = useMemo(() => {
 		if (!level || !level.id) return false;
@@ -240,6 +316,18 @@ export default function QuestScreen() {
 	}, [level]);
 
 	const canAffordHint = (xp || 0) >= HINT_XP_COST;
+	const headerProgressPercent = useMemo(() => {
+		if (!level) return 0;
+
+		const moduleId = getModuleIdFromLevelType(level.type || "image");
+		const moduleProgress = learningModules?.find((module) => module.id === moduleId)?.progress;
+		if (typeof moduleProgress === "number") {
+			return Math.max(0, Math.min(100, moduleProgress));
+		}
+
+		const levelOrder = level.order ?? 1;
+		return Math.max(0, Math.min(100, levelOrder * 10));
+	}, [learningModules, level]);
 
 	// Helper to determine XP reward for a level
 
@@ -249,6 +337,32 @@ export default function QuestScreen() {
 			setError(null);
 
 			try {
+				let questRun = null;
+				try {
+					questRun = await convexHttpClient.query(
+						api.questProduct.getQuestRun,
+						{ runId: id as Id<"questRuns"> },
+					);
+				} catch {
+					questRun = null;
+				}
+
+				if (questRun?.lesson) {
+					const processedLevel = mapQuestLessonToLevel(questRun.lesson);
+					setQuest({
+						id: id as string,
+						title: questRun.lesson.title,
+						xpReward: questRun.run.rewardXp,
+						completed: questRun.run.status === "completed",
+						isQuestRun: true,
+					});
+					setLevel(processedLevel);
+					startLevel(processedLevel.id);
+					NanoAssistant.resetHintsForLevel(processedLevel.id);
+					setHints([]);
+					return;
+				}
+
 				// 1. Get Quest data from Convex
 				const apiQuest = await convexHttpClient.query(
 					api.queries.getDailyQuestById,
@@ -331,6 +445,8 @@ export default function QuestScreen() {
 	useEffect(() => {
 		const nextPrompt = getInitialPromptStateForLevel(level);
 		setPrompt(nextPrompt);
+		setBeginnerSlotTextForChecklist("");
+		setBeginnerSlotValues([]);
 		setPromptSelection(undefined);
 		hasEditedPromptRef.current = false;
 		setBeginnerSlotsFilled(!isBeginnerTemplateLocked(level));
@@ -387,6 +503,14 @@ export default function QuestScreen() {
 
 	const handleBeginnerSlotsFilledChange = useCallback((filled: boolean) => {
 		setBeginnerSlotsFilled(filled);
+	}, []);
+
+	const handleBeginnerSlotValuesJoined = useCallback((joined: string) => {
+		setBeginnerSlotTextForChecklist(joined);
+	}, []);
+
+	const handleBeginnerSlotValuesArray = useCallback((values: string[]) => {
+		setBeginnerSlotValues(values);
 	}, []);
 
 	// Keyboard handling - keep input visible and avoid unexpected dismissals
@@ -591,14 +715,30 @@ export default function QuestScreen() {
 				if (finalScore >= level.passingScore) {
 					let shouldAwardXp = true;
 					if (user?.id && quest) {
-						const result = await convexHttpClient.mutation(
-							api.mutations.completeDailyQuest,
-							{
-								questId: quest.id,
-								score: finalScore,
-							},
-						);
-						if (result?.alreadyCompleted) shouldAwardXp = false;
+						if ((quest as any).isQuestRun) {
+							await convexHttpClient.mutation(api.questProduct.submitQuestAttempt, {
+								runId: quest.id as Id<"questRuns">,
+								submissionPayload: {
+									prompt,
+									imageUrl: generatedImageUrl,
+									score: finalScore,
+								},
+							});
+							const rewardResult = await convexHttpClient.mutation(
+								api.questProduct.claimQuestRewards,
+								{ runId: quest.id as Id<"questRuns"> },
+							);
+							if (rewardResult?.alreadyClaimed) shouldAwardXp = false;
+						} else {
+							const result = await convexHttpClient.mutation(
+								api.mutations.completeDailyQuest,
+								{
+									questId: quest.id,
+									score: finalScore,
+								},
+							);
+							if (result?.alreadyCompleted) shouldAwardXp = false;
+						}
 					}
 					if (user?.id) {
 						const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
@@ -737,14 +877,30 @@ export default function QuestScreen() {
 				if (userPassed) {
 					let shouldAwardXp = true;
 					if (user?.id && quest) {
-						const result = await convexHttpClient.mutation(
-							api.mutations.completeDailyQuest,
-							{
-								questId: quest.id,
-								score: finalScore,
-							},
-						);
-						if (result?.alreadyCompleted) shouldAwardXp = false;
+						if ((quest as any).isQuestRun) {
+							await convexHttpClient.mutation(api.questProduct.submitQuestAttempt, {
+								runId: quest.id as Id<"questRuns">,
+								submissionPayload: {
+									prompt,
+									code: generatedCodeText,
+									score: finalScore,
+								},
+							});
+							const rewardResult = await convexHttpClient.mutation(
+								api.questProduct.claimQuestRewards,
+								{ runId: quest.id as Id<"questRuns"> },
+							);
+							if (rewardResult?.alreadyClaimed) shouldAwardXp = false;
+						} else {
+							const result = await convexHttpClient.mutation(
+								api.mutations.completeDailyQuest,
+								{
+									questId: quest.id,
+									score: finalScore,
+								},
+							);
+							if (result?.alreadyCompleted) shouldAwardXp = false;
+						}
 					}
 					if (user?.id) {
 						const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
@@ -842,14 +998,30 @@ export default function QuestScreen() {
 				if (finalScore >= level.passingScore) {
 					let shouldAwardXp = true;
 					if (user?.id && quest) {
-						const result = await convexHttpClient.mutation(
-							api.mutations.completeDailyQuest,
-							{
-								questId: quest.id,
-								score: finalScore,
-							},
-						);
-						if (result?.alreadyCompleted) shouldAwardXp = false;
+						if ((quest as any).isQuestRun) {
+							await convexHttpClient.mutation(api.questProduct.submitQuestAttempt, {
+								runId: quest.id as Id<"questRuns">,
+								submissionPayload: {
+									prompt,
+									copy: generatedCopyText,
+									score: finalScore,
+								},
+							});
+							const rewardResult = await convexHttpClient.mutation(
+								api.questProduct.claimQuestRewards,
+								{ runId: quest.id as Id<"questRuns"> },
+							);
+							if (rewardResult?.alreadyClaimed) shouldAwardXp = false;
+						} else {
+							const result = await convexHttpClient.mutation(
+								api.mutations.completeDailyQuest,
+								{
+									questId: quest.id,
+									score: finalScore,
+								},
+							);
+							if (result?.alreadyCompleted) shouldAwardXp = false;
+						}
 					}
 					if (user?.id) {
 						const nextAttemptsCount = (attemptHistory?.length ?? 0) + 1;
@@ -894,9 +1066,6 @@ export default function QuestScreen() {
 	const renderNewHeader = () => {
 		const totalLives = 3;
 
-		// Simple progress calculation (can be refined based on module levels)
-		const progress = 70; // Hardcoded for now, or calculate if needed
-
 		return (
 			<SafeAreaView className="bg-white" edges={["top"]}>
 				<View className="px-6 py-4 flex-row items-center justify-between">
@@ -907,7 +1076,7 @@ export default function QuestScreen() {
 					{/* Progress Bar Container */}
 					<View className="flex-1 h-3 bg-surfaceVariant/30 rounded-full overflow-hidden mr-4">
 						<View
-							style={{ width: `${progress}%` }}
+							style={{ width: `${headerProgressPercent}%` }}
 							className="h-full bg-success rounded-full"
 						/>
 					</View>
@@ -968,6 +1137,115 @@ export default function QuestScreen() {
 		</View>
 	);
 
+	const renderLessonTarget = () => {
+		if (!level) return null;
+
+		const starterCode = (level as { starterCode?: string }).starterCode;
+		const codingTargetHtml = getCodingLessonTargetHtml(level);
+		const targetBrief = getLessonTargetBrief(level);
+		const criteria =
+			(level as { grading?: { criteria?: { description: string }[] } }).grading
+				?.criteria?.map((criterion) => criterion.description)
+				.filter(Boolean) ?? [];
+
+		if (level.type === "image" && level.targetImageUrl) {
+			return (
+				<Image
+					source={
+						typeof level.targetImageUrl === "number"
+							? level.targetImageUrl
+							: { uri: level.targetImageUrl as string }
+					}
+					className="w-full h-full rounded-2xl"
+					resizeMode="cover"
+				/>
+			);
+		}
+
+		if (
+			level.type === "copywriting" &&
+			(targetBrief.primary || targetBrief.secondary || criteria.length > 0)
+		) {
+			return (
+				<CopyTargetPreview
+					instruction={[targetBrief.primary, targetBrief.secondary]
+						.filter(Boolean)
+						.join("\n\n")}
+					criteria={criteria}
+					context={formatStarterContext(
+						level.starterContext as Record<string, unknown>,
+					)}
+				/>
+			);
+		}
+
+		if (level.type === "code") {
+			return (
+				<HtmlPreview
+					html={
+						codingTargetHtml ??
+						(hasMeaningfulHtmlPreview(starterCode) ? starterCode ?? "" : "")
+					}
+					height={targetPreviewHeight}
+				/>
+			);
+		}
+
+		return (
+			<ScrollView
+				className="w-full"
+				style={{ maxHeight: targetPreviewHeight }}
+				showsVerticalScrollIndicator={false}
+				bounces={false}
+			>
+				<View className="w-full rounded-2xl bg-white border border-outline/10 p-4">
+					{targetBrief.primary ? (
+						<View className="mb-4">
+							<Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[2px] mb-2">
+								What You See
+							</Text>
+							<Text className="text-onSurface text-[15px] leading-6 font-semibold">
+								{targetBrief.primary}
+							</Text>
+						</View>
+					) : null}
+
+					{targetBrief.secondary ? (
+						<View className="mb-4">
+							<Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[2px] mb-2">
+								Your Task
+							</Text>
+							<Text className="text-onSurface text-[14px] leading-6">
+								{targetBrief.secondary}
+							</Text>
+						</View>
+					) : null}
+
+					{checklistItems.length > 0 ? (
+						<View>
+							<Text className="text-onSurfaceVariant text-[10px] font-black uppercase tracking-[2px] mb-2">
+								Include
+							</Text>
+							{checklistItems.map((item) => (
+								<View key={item} className="flex-row items-start mb-2">
+									<Ionicons
+										name="checkmark-circle-outline"
+										size={15}
+										color="#58CC02"
+										style={{ marginRight: 8, marginTop: 2 }}
+									/>
+									<Text className="text-onSurface text-[13px] leading-5 flex-1">
+										{item}
+									</Text>
+								</View>
+							))}
+						</View>
+					) : null}
+				</View>
+			</ScrollView>
+		);
+	};
+
 	const renderNewUI = () => (
 		<View className="flex-1 bg-white">
 			{renderNewHeader()}
@@ -1001,24 +1279,13 @@ export default function QuestScreen() {
 								Match This Exactly
 							</Text>
 
-							<View className="min-h-[220px] items-center justify-center rounded-2xl bg-surfaceVariant/5">
-								{level.type === "image" && (
-									<Image
-										source={typeof level.targetImageUrl === "number" ? level.targetImageUrl : { uri: level.targetImageUrl as string }}
-										className="w-full h-full rounded-2xl"
-										resizeMode="contain"
-									/>
-								)}
-								{level.type === "code" && (
-									<HtmlPreview html={generatedCode ?? (level as { starterCode?: string }).starterCode ?? ""} height={220} />
-								)}
-								{level.type === "copywriting" && (
-									<CopyTargetPreview
-										instruction={(level as { instruction?: string }).instruction || ""}
-										criteria={(level as { grading?: { criteria?: { description: string }[] } }).grading?.criteria?.map((c) => c.description) ?? []}
-										context={formatStarterContext(level.starterContext as Record<string, unknown>)}
-									/>
-								)}
+							<View
+								className="w-full rounded-2xl bg-surfaceVariant/5 overflow-hidden"
+								style={{ minHeight: 220, height: targetPreviewHeight }}
+							>
+								<View className="w-full h-full">
+									{renderLessonTarget()}
+								</View>
 							</View>
 						</Card>
 					</View>
@@ -1053,25 +1320,24 @@ export default function QuestScreen() {
 							Your Prompt
 						</Text>
 
-						<View className="bg-surfaceVariant/5 border border-outline/20 rounded-[24px] p-6 min-h-[160px]">
-							<TextInput
-								ref={promptInputRef}
-								value={prompt}
-								onChangeText={handlePromptChange}
-								onFocus={handlePromptFocus}
-								placeholder="e.g., Create a pill-shaped button with a cyan..."
-								placeholderTextColor="#8E8E93"
-								multiline
-								style={{
-									textAlignVertical: "top",
-									fontSize: 18,
-									color: "#000000",
-									backgroundColor: "transparent",
-									flex: 1,
-									padding: 0
-								}}
-							/>
-						</View>
+						<QuestPromptInputCard
+							prompt={prompt}
+							onChangePrompt={handlePromptChange}
+							promptPlaceholder="e.g., Create a pill-shaped button with a cyan..."
+							scaffoldType={level.scaffoldType}
+							scaffoldTemplate={level.scaffoldTemplate}
+							beginnerTemplateLocked={beginnerLocked}
+							onBeginnerTemplateSlotsFilledChange={handleBeginnerSlotsFilledChange}
+							onBeginnerSlotValuesJoinedChange={handleBeginnerSlotValuesJoined}
+							onBeginnerSlotValuesArrayChange={handleBeginnerSlotValuesArray}
+							checklistItems={checklistItems}
+							matchedChecklistItems={matchedChecklistItems}
+							inputRef={promptInputRef}
+							onPromptFocus={handlePromptFocus}
+							inputAccessoryViewID={
+								Platform.OS === "ios" ? inputAccessoryId : undefined
+							}
+						/>
 					</View>
 
 					{/* Results Feedback (if any) */}

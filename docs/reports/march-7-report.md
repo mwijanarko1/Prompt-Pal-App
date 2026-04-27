@@ -69,7 +69,7 @@ Overall, the project appears to have moved forward from the February 9 state, bu
 
 - **React/Clerk compatibility and App Store setup were improved.**
   - On February 12, React was updated for Clerk compatibility and EAS/App Store config was updated.
-  - `PrivacyInfo.xcprivacy` and `PromptPal/docs/ios-app-store-compliance-report.md` were added, which are concrete release-readiness artifacts.
+  - `PrivacyInfo.xcprivacy` and `docs/ios-app-store-compliance-report.md` were added, which are concrete release-readiness artifacts.
 
 - **The workspace migrated from npm to Bun.**
   - The March 4 migration replaced `package-lock.json` with `bun.lock` and updated app/workspace docs and scripts.

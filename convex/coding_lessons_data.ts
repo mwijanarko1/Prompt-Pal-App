@@ -84,9 +84,9 @@ const codingLessonsBase = [
 		id: CODE_IDS[0],
 		title: "Describe the outcome, not the code",
 		instruction:
-			"This page needs a hero section. Craft a prompt that describes what you want the user to see—a headline, supporting text, and a button. Use your own words; don't copy this instruction.",
+			"This page needs a hero section. Craft a prompt that describes what you want the user to see: a headline, supporting text, and a button. Use your own words; don't copy this instruction.",
 		whatUserSees:
-			"A blank webpage. The body is empty. Nothing at the top yet—no headline, no subtext, no call to action.",
+			"A blank webpage. The body is empty. Nothing at the top yet: no headline, no subtext, no call to action.",
 		hint: "Describe what the user sees: the headline text, the subtext, and what the button says and does. Don't describe the HTML or code.",
 		starterCode: "<html>\n  <body>\n  </body>\n</html>",
 		grading: {
@@ -140,7 +140,7 @@ const codingLessonsBase = [
 				"Good. You described what the user sees and AI filled it in. That's how every feature starts.",
 		},
 		lessonTakeaway:
-			"Describe what appears on screen—headline, text, button—not the HTML or code structure.",
+			"Describe what appears on screen (headline, text, button), not the HTML or code structure.",
 	},
 	{
 		id: CODE_IDS[1],
@@ -148,7 +148,7 @@ const codingLessonsBase = [
 		instruction:
 			"This page needs a navigation bar. Craft a prompt that tells AI what to build and that you're using Tailwind for styling. Use your own words.",
 		whatUserSees:
-			"A page with Tailwind CSS loaded. The body is empty—no navbar, no links, nothing to navigate yet.",
+			"A page with Tailwind CSS loaded. The body is empty: no navbar, no links, nothing to navigate yet.",
 		hint: "Explicitly tell AI you're using Tailwind CSS. AI doesn't know your stack unless you say so.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body>\n  </body>\n</html>',
@@ -207,9 +207,9 @@ const codingLessonsBase = [
 		id: CODE_IDS[2],
 		title: "Scope to one change at a time",
 		instruction:
-			"This page needs a contact form below the heading. Craft a prompt that asks for name, email, and message fields plus a submit button—and explicitly tells AI to leave the existing heading untouched. Use your own words.",
+			"This page needs a contact form below the heading. Craft a prompt that asks for name, email, and message fields plus a submit button, and explicitly tells AI to leave the existing heading untouched. Use your own words.",
 		whatUserSees:
-			"A contact page with a bold 'Contact Us' heading at the top. Nothing below it—no form fields, no submit button yet.",
+			"A contact page with a bold 'Contact Us' heading at the top. Nothing below it: no form fields, no submit button yet.",
 		hint: "Ask only for the form. Tell AI to leave the heading exactly as it is.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body>\n    <h1 class="text-2xl font-bold p-8">Contact Us</h1>\n  </body>\n</html>',
@@ -270,7 +270,7 @@ const codingLessonsBase = [
 		instruction:
 			"The Sign Up button does nothing when clicked. Craft a prompt that describes what the user should see or experience when they click it (e.g. a modal, a form, a message). Describe the outcome, not the code. Use your own words.",
 		whatUserSees:
-			"A page with a blue Sign Up button. When you click it, nothing happens—no modal, no redirect, no feedback.",
+			"A page with a blue Sign Up button. When you click it, nothing happens: no modal, no redirect, no feedback.",
 		hint: "Describe what the user sees and experiences (e.g. 'show a modal with email and password fields'). Don't mention event listeners or JavaScript.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body class="p-8">\n    <button class="bg-blue-500 text-white px-4 py-2 rounded">Sign Up</button>\n  </body>\n</html>',
@@ -380,7 +380,7 @@ const codingLessonsBase = [
 		instruction:
 			"This form has a bug: it submits when the email field is empty. Craft a prompt that describes what's wrong, where it happens, and what should happen instead. Use your own words.",
 		whatUserSees:
-			"A form with an email field and a Submit button. If you leave the email empty and click Submit, it still shows 'Form submitted!'—no validation, no error message.",
+			"A form with an email field and a Submit button. If you leave the email empty and click Submit, it still shows 'Form submitted!': no validation, no error message.",
 		hint: "Include three things: what's wrong (submits when empty), where (the email field), and what should happen instead (show error, block submit).",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body class="p-8">\n    <form id="contactForm" class="space-y-4">\n      <input type="text" placeholder="Email" class="border p-2 w-full rounded" />\n      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Submit</button>\n    </form>\n    <script>\n      document.getElementById(\'contactForm\').addEventListener(\'submit\', function(e) {\n        e.preventDefault();\n        alert(\'Form submitted!\');\n      });\n    </script>\n  </body>\n</html>',
@@ -432,7 +432,7 @@ const codingLessonsBase = [
 		id: CODE_IDS[6],
 		title: "Ask for a plan before code",
 		instruction:
-			"You want to add a dark mode toggle. Craft a prompt that asks AI to plan the approach first—steps, components, edge cases—without writing any code. Use your own words.",
+			"You want to add a dark mode toggle. Craft a prompt that asks AI to plan the approach first (steps, components, edge cases) without writing any code. Use your own words.",
 		whatUserSees:
 			"A simple app with a header ('My App') and main content ('Welcome to my app.'). White background, black text. No dark mode toggle yet.",
 		hint: "Say something like 'Plan how to add dark mode before writing code. List the steps and any edge cases (e.g. saving the user's preference).'",
@@ -489,7 +489,7 @@ const codingLessonsBase = [
 		instruction:
 			"This page fetches users but has no error or empty-state handling. Craft a prompt that names both edge cases and what the user should see in each. Use your own words.",
 		whatUserSees:
-			"A 'Users' page that fetches names from an API and shows them in a list. When the request succeeds, you see names. When it fails or returns nothing, you see nothing—no error message, no empty state.",
+			"A 'Users' page that fetches names from an API and shows them in a list. When the request succeeds, you see names. When it fails or returns nothing, you see nothing: no error message, no empty state.",
 		hint: "List both edge cases explicitly: 'When the request fails, show X. When the list is empty, show Y.' AI won't add them unless you name them.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body class="p-8">\n    <h1 class="text-2xl font-bold mb-4">Users</h1>\n    <ul id="userList" class="space-y-2"></ul>\n    <script>\n      fetch(\'https://jsonplaceholder.typicode.com/users\')\n        .then(res => res.json())\n        .then(users => {\n          const list = document.getElementById(\'userList\');\n          users.forEach(user => {\n            const li = document.createElement(\'li\');\n            li.textContent = user.name;\n            list.appendChild(li);\n          });\n        });\n    </script>\n  </body>\n</html>',
@@ -599,7 +599,7 @@ const codingLessonsBase = [
 		instruction:
 			"This app has an authStore with a logout() method but no logout button. Craft a prompt that tells AI about the existing authStore and asks for a navbar button that calls it. Use your own words.",
 		whatUserSees:
-			"A dark header bar with 'My App' on the left and links (Dashboard, Settings) on the right. No logout button. The app has an authStore with a logout function—but the UI doesn't use it yet.",
+			"A dark header bar with 'My App' on the left and links (Dashboard, Settings) on the right. No logout button. The app has an authStore with a logout function, but the UI doesn't use it yet.",
 		hint: "Tell AI that authStore exists and has a logout() method. Without that, it will write generic code that doesn't connect to your app.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body>\n    <header class="bg-gray-800 text-white p-4 flex items-center justify-between">\n      <h1 class="text-xl font-bold">My App</h1>\n      <nav class="flex gap-4">\n        <a href="#" class="text-gray-300">Dashboard</a>\n        <a href="#" class="text-gray-300">Settings</a>\n      </nav>\n    </header>\n    <script>\n      const authStore = {\n        user: { name: \'Mikhail\' },\n        logout: function() {\n          this.user = null;\n          alert(\'Logged out\');\n        }\n      };\n    </script>\n  </body>\n</html>',
@@ -651,10 +651,10 @@ const codingLessonsBase = [
 		id: CODE_IDS[10],
 		title: "Describe the design in plain language",
 		instruction:
-			"This pricing card looks plain. Craft a prompt that describes how you want it to look—colors, spacing, hover effects—using only plain language, no class names or CSS. Describe it as you would to a designer. Use your own words.",
+			"This pricing card looks plain. Craft a prompt that describes how you want it to look (colors, spacing, hover effects), using only plain language, no class names or CSS. Describe it as you would to a designer. Use your own words.",
 		whatUserSees:
-			"A gray page with a centered white card: 'Pro Plan', '$29/mo', a feature list, and a blue Get Started button. It works but looks plain—no hover effects, no visual polish.",
-		hint: "Say things like 'make the button darken on hover' or 'add more space between the price and the list'—not 'add hover:bg-blue-600' or 'mb-4'.",
+			"A gray page with a centered white card: 'Pro Plan', '$29/mo', a feature list, and a blue Get Started button. It works but looks plain: no hover effects, no visual polish.",
+		hint: "Say things like 'make the button darken on hover' or 'add more space between the price and the list', not 'add hover:bg-blue-600' or 'mb-4'.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body class="p-16 bg-gray-100 flex justify-center">\n    <div class="border p-4 w-64 bg-white">\n      <h2 class="text-lg font-bold">Pro Plan</h2>\n      <p class="text-2xl">$29/mo</p>\n      <ul>\n        <li>Feature one</li>\n        <li>Feature two</li>\n        <li>Feature three</li>\n      </ul>\n      <button class="bg-blue-500 text-white px-4 py-2 mt-4">Get Started</button>\n    </div>\n  </body>\n</html>',
 		grading: {
@@ -706,7 +706,7 @@ const codingLessonsBase = [
 		id: CODE_IDS[11],
 		title: "Brief AI when it loses track",
 		instruction:
-			"AI has lost context. Craft a prompt that (1) briefly summarizes what this app is and what's already built, then (2) asks for an 'Add task' button. Don't copy this instruction—put it in your own words.",
+			"AI has lost context. Craft a prompt that (1) briefly summarizes what this app is and what's already built, then (2) asks for an 'Add task' button. Don't copy this instruction; put it in your own words.",
 		whatUserSees:
 			"A TaskFlow app: blue header with title and Logout button, main area with 'Your Tasks' and a list (Buy groceries, Finish project report). You want to add a new feature but AI has lost context.",
 		hint: "Structure your prompt: 'This is a task app. It has [X, Y, Z]. Add [specific feature].' A clear briefing gets better output than jumping straight to the request.",
@@ -762,7 +762,7 @@ const codingLessonsBase = [
 		instruction:
 			"This login form may have security and UX issues. Craft a prompt that asks AI to audit it for specific things: hardcoded secrets, missing error handling, missing loading state. Give it a checklist. Use your own words.",
 		whatUserSees:
-			"A login form with username, password, and Login button. The code submits to an API—but there's a hardcoded API key, no error handling if the request fails, and no loading state.",
+			"A login form with username, password, and Login button. The code submits to an API, but there's a hardcoded API key, no error handling if the request fails, and no loading state.",
 		hint: "Give AI a checklist: 'Check for hardcoded values, missing error handling, and missing loading state.' Specific requests get specific findings.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body class="p-8">\n    <form id="loginForm" class="space-y-4 max-w-sm">\n      <input type="text" id="username" placeholder="Username" class="border p-2 w-full rounded" />\n      <input type="password" id="password" placeholder="Password" class="border p-2 w-full rounded" />\n      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded w-full">Login</button>\n    </form>\n    <script>\n      document.getElementById(\'loginForm\').addEventListener(\'submit\', function(e) {\n        e.preventDefault();\n        const username = document.getElementById(\'username\').value;\n        const password = document.getElementById(\'password\').value;\n        fetch(\'http://api.myapp.com/login\', {\n          method: \'POST\',\n          body: JSON.stringify({ username, password, apiKey: \'12345-hardcoded-key\' })\n        }).then(res => res.json()).then(data => {\n          window.location.href = \'/dashboard\';\n        });\n      });\n    </script>\n  </body>\n</html>',
@@ -815,9 +815,9 @@ const codingLessonsBase = [
 		id: CODE_IDS[13],
 		title: "Spec first, then prompt",
 		instruction:
-			"Write a short spec for a task manager (purpose, who uses it, at least two features, Tailwind). Then use that spec as your prompt—but rephrase it in your own words; don't paste the spec verbatim.",
+			"Write a short spec for a task manager (purpose, who uses it, at least two features, Tailwind). Then use that spec as your prompt, but rephrase it in your own words; don't paste the spec verbatim.",
 		whatUserSees:
-			"A blank page. Tailwind is loaded. Nothing built yet—you're starting from scratch with a spec and a prompt.",
+			"A blank page. Tailwind is loaded. Nothing built yet; you're starting from scratch with a spec and a prompt.",
 		hint: "Example: 'A task manager for individuals. Users can add tasks and mark them complete. Use Tailwind. Build the full structure.' Then paste it as your prompt.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body>\n  </body>\n</html>',
@@ -869,9 +869,9 @@ const codingLessonsBase = [
 		id: CODE_IDS[14],
 		title: "Pack everything into one prompt",
 		instruction:
-			"Build a user profile card in one prompt. Your prompt must cover: Tailwind, fetching from jsonplaceholder.typicode.com/users/1, loading state, error state, and what the card displays. Craft it in your own words—don't copy this list verbatim.",
+			"Build a user profile card in one prompt. Your prompt must cover: Tailwind, fetching from jsonplaceholder.typicode.com/users/1, loading state, error state, and what the card displays. Craft it in your own words; don't copy this list verbatim.",
 		whatUserSees:
-			"A gray page with Tailwind loaded. Nothing on it—no profile card, no data. You're building the whole feature in one prompt.",
+			"A gray page with Tailwind loaded. Nothing on it: no profile card, no data. You're building the whole feature in one prompt.",
 		hint: "Include every requirement in one prompt: stack, API URL, loading state, error state, and what the card should display. Leave nothing for AI to guess.",
 		starterCode:
 			'<html>\n  <head>\n    <script src="https://cdn.tailwindcss.com"></script>\n  </head>\n  <body class="p-8 bg-gray-100">\n  </body>\n</html>',

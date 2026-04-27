@@ -83,6 +83,8 @@ export default defineSchema({
 	userStatistics: defineTable({
 		userId: v.string(), // References users.id
 		totalXp: v.number(),
+		lifetimeXp: v.optional(v.number()),
+		walletXp: v.optional(v.number()),
 		currentLevel: v.number(),
 		currentStreak: v.number(),
 		longestStreak: v.number(),
@@ -95,6 +97,235 @@ export default defineSchema({
 		.index("by_user", ["userId"])
 		.index("by_rank", ["globalRank"])
 		.index("by_xp", ["totalXp"]),
+
+	// ===== QUEST-FIRST PRODUCT SYSTEM =====
+
+	learningTracks: defineTable({
+		id: v.string(),
+		title: v.string(),
+		subtitle: v.string(),
+		description: v.string(),
+		iconKey: v.string(),
+		themeKey: v.string(),
+		sortOrder: v.number(),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_track_id", ["id"])
+		.index("by_active_order", ["isActive", "sortOrder"]),
+
+	lessonDefinitions: defineTable({
+		id: v.string(),
+		trackId: v.string(),
+		lessonType: v.union(
+			v.literal("code"),
+			v.literal("image"),
+			v.literal("copywriting"),
+		),
+		mode: v.union(
+			v.literal("teaching"),
+			v.literal("practice"),
+			v.literal("milestone"),
+			v.literal("boss"),
+			v.literal("daily"),
+		),
+		title: v.string(),
+		subtitle: v.string(),
+		objective: v.string(),
+		difficulty: v.union(
+			v.literal("beginner"),
+			v.literal("intermediate"),
+			v.literal("advanced"),
+		),
+		nodeOrder: v.number(),
+		estimatedTimeSeconds: v.number(),
+		heartsCost: v.number(),
+		rewardXp: v.number(),
+		masteryThreshold: v.number(),
+		contentPayload: v.any(),
+		targetPayload: v.any(),
+		scaffoldPayload: v.any(),
+		evaluationPayload: v.any(),
+		resultPayload: v.any(),
+		teachingPayload: v.any(),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_lesson_id", ["id"])
+		.index("by_track_order", ["trackId", "nodeOrder"])
+		.index("by_track_active", ["trackId", "isActive"]),
+
+	questNodes: defineTable({
+		id: v.string(),
+		trackId: v.string(),
+		lessonId: v.string(),
+		lessonTitle: v.optional(v.string()),
+		lessonSubtitle: v.optional(v.string()),
+		difficulty: v.optional(
+			v.union(
+				v.literal("beginner"),
+				v.literal("intermediate"),
+				v.literal("advanced"),
+			),
+		),
+		nodeType: v.union(
+			v.literal("standard"),
+			v.literal("milestone"),
+			v.literal("boss"),
+			v.literal("reward"),
+		),
+		pathOrder: v.number(),
+		unlockRule: v.any(),
+		badgeLabel: v.string(),
+		visualMetadata: v.any(),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_node_id", ["id"])
+		.index("by_track_order", ["trackId", "pathOrder"])
+		.index("by_lesson", ["lessonId"]),
+
+	userQuestPathProgress: defineTable({
+		userId: v.string(),
+		trackId: v.string(),
+		currentNodeOrder: v.number(),
+		highestUnlockedNodeOrder: v.number(),
+		activeNodeId: v.string(),
+		completedNodeIds: v.array(v.string()),
+		masteredNodeIds: v.array(v.string()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_user_track", ["userId", "trackId"])
+		.index("by_user", ["userId"]),
+
+	questRuns: defineTable({
+		userId: v.string(),
+		trackId: v.string(),
+		nodeId: v.string(),
+		lessonId: v.string(),
+		status: v.union(
+			v.literal("started"),
+			v.literal("submitted"),
+			v.literal("completed"),
+			v.literal("failed"),
+		),
+		startedAt: v.number(),
+		submittedAt: v.optional(v.number()),
+		completedAt: v.optional(v.number()),
+		attemptCount: v.number(),
+		heartsRemaining: v.number(),
+		timeSpentMs: v.number(),
+		finalScore: v.optional(v.number()),
+		rewardXp: v.number(),
+		rewardClaimed: v.boolean(),
+		resultSummary: v.optional(v.any()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_user", ["userId"])
+		.index("by_user_status", ["userId", "status"])
+		.index("by_lesson", ["lessonId"]),
+
+	questAttempts: defineTable({
+		runId: v.id("questRuns"),
+		userId: v.string(),
+		lessonId: v.string(),
+		submissionPayload: v.any(),
+		evaluationPayload: v.any(),
+		score: v.number(),
+		passed: v.boolean(),
+		feedback: v.array(v.string()),
+		matchedCriteria: v.array(v.string()),
+		createdAt: v.number(),
+	})
+		.index("by_run", ["runId"])
+		.index("by_user", ["userId"])
+		.index("by_lesson", ["lessonId"]),
+
+	perkCatalog: defineTable({
+		id: v.string(),
+		slug: v.string(),
+		name: v.string(),
+		description: v.string(),
+		perkType: v.union(
+			v.literal("streak_freeze"),
+			v.literal("extra_heart"),
+			v.literal("xp_boost"),
+			v.literal("skip_token"),
+		),
+		costXp: v.number(),
+		effectValue: v.number(),
+		durationSeconds: v.optional(v.number()),
+		sortOrder: v.number(),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_slug", ["slug"])
+		.index("by_active_order", ["isActive", "sortOrder"]),
+
+	userPerkInventory: defineTable({
+		userId: v.string(),
+		perkId: v.string(),
+		perkType: v.string(),
+		quantity: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_user", ["userId"])
+		.index("by_user_perk", ["userId", "perkId"])
+		.index("by_user_type", ["userId", "perkType"]),
+
+	activePerkEffects: defineTable({
+		userId: v.string(),
+		perkId: v.string(),
+		perkType: v.string(),
+		targetContext: v.optional(v.any()),
+		effectValue: v.number(),
+		startedAt: v.number(),
+		expiresAt: v.optional(v.number()),
+		consumedAt: v.optional(v.number()),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_user", ["userId"])
+		.index("by_user_type", ["userId", "perkType"])
+		.index("by_user_active", ["userId", "isActive"]),
+
+	dailyActivity: defineTable({
+		userId: v.string(),
+		date: v.string(),
+		questsCompleted: v.number(),
+		xpEarned: v.number(),
+		streakProtected: v.boolean(),
+		perfectDay: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_user_date", ["userId", "date"])
+		.index("by_user", ["userId"]),
+
+	onboardingProfiles: defineTable({
+		userId: v.string(),
+		status: v.union(
+			v.literal("not_started"),
+			v.literal("in_progress"),
+			v.literal("completed"),
+		),
+		experienceLevel: v.optional(v.string()),
+		reasonForLearning: v.optional(v.string()),
+		selectedTrackId: v.optional(v.string()),
+		selectedGoals: v.optional(v.array(v.string())),
+		completedAt: v.optional(v.number()),
+		version: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_user", ["userId"]),
 
 	// ===== LEVELS & CHALLENGES SYSTEM =====
 

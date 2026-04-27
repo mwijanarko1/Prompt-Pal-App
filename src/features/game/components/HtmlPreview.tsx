@@ -1,7 +1,8 @@
-import { StyleSheet, Platform } from "react-native";
+import { StyleSheet, Platform, View } from "react-native";
 import { WebView } from "react-native-webview";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { sanitizeHtmlForWebView } from "@/lib/htmlSanitizer";
+import type React from "react";
 
 interface HtmlPreviewProps {
 	html: string;
@@ -51,19 +52,30 @@ export function HtmlPreview({ html, height = 200 }: HtmlPreviewProps) {
 			entering={FadeIn.duration(400)}
 			style={[styles.container, { height, minHeight: Math.min(120, height) }]}
 		>
-			<WebView
-				source={{ html: wrappedHtml }}
-				originWhitelist={["*"]}
-				style={styles.webview}
-				scrollEnabled={true}
-				showsVerticalScrollIndicator={true}
-				showsHorizontalScrollIndicator={false}
-				javaScriptEnabled={true}
-				domStorageEnabled={true}
-				scalesPageToFit={false}
-				bounces={true}
-				nestedScrollEnabled={true}
-			/>
+			{Platform.OS === "web" ? (
+				<View style={styles.webContainer}>
+					<iframe
+						title="HTML Preview"
+						srcDoc={wrappedHtml}
+						sandbox="allow-scripts allow-same-origin"
+						style={webFrameStyle}
+					/>
+				</View>
+			) : (
+				<WebView
+					source={{ html: wrappedHtml }}
+					originWhitelist={["*"]}
+					style={styles.webview}
+					scrollEnabled={true}
+					showsVerticalScrollIndicator={true}
+					showsHorizontalScrollIndicator={false}
+					javaScriptEnabled={true}
+					domStorageEnabled={true}
+					scalesPageToFit={false}
+					bounces={true}
+					nestedScrollEnabled={true}
+				/>
+			)}
 		</Animated.View>
 	);
 }
@@ -88,4 +100,15 @@ const styles = StyleSheet.create({
 		backgroundColor: "transparent",
 		...(Platform.OS === "android" && { opacity: 0.99 }),
 	},
+	webContainer: {
+		flex: 1,
+		backgroundColor: "transparent",
+	},
 });
+
+const webFrameStyle: React.CSSProperties = {
+	width: "100%",
+	height: "100%",
+	border: "none",
+	backgroundColor: "transparent",
+};

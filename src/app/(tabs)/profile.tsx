@@ -1,16 +1,15 @@
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Text, ActivityIndicator, Alert, Linking, Dimensions } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Text, ActivityIndicator, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useUser, useAuth, useClerk } from '@clerk/clerk-expo';
-import { useUserProgressStore } from '@/features/user/store';
-import { StatCapsule } from '@/features/new-ui/components/StatCapsule';
+import { useClerk } from '@clerk/clerk-expo';
 import { XpIcon, StreakIcon } from '@/features/new-ui/components/CustomIcons';
-import { convexHttpClient, refreshAuth, clearAuth } from "@/lib/convex-client";
+import { clearAuth } from "@/lib/convex-client";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from 'expo-router';
 import Svg, { Circle } from "react-native-svg";
+import { useQuery } from "convex/react";
 
 const { width } = Dimensions.get('window');
 
@@ -43,36 +42,9 @@ const CircularProgress = ({ size = 80, strokeWidth = 6, percentage = 0, color = 
 };
 
 export default function ProfileScreen() {
-  const { user } = useUser();
-  const { isLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
   const router = useRouter();
-  const { level, xp, currentStreak } = useUserProgressStore();
-
-  const [loading, setLoading] = useState(true);
-  const [achievements, setAchievements] = useState<any[]>([]);
-  const [usage, setUsage] = useState<any>(null);
-
-  useEffect(() => {
-    const loadProfileData = async () => {
-      if (!isLoaded || !isSignedIn) return;
-      try {
-        setLoading(true);
-        const [achievementsData, usageData] = await Promise.all([
-          convexHttpClient.query(api.queries.getUserAchievements, {}),
-          convexHttpClient.query(api.queries.getUserUsage, { appId: "prompt-pal" }),
-        ]);
-        setAchievements(achievementsData || []);
-        setUsage(usageData);
-      } catch (error) {
-        console.error("Failed to load profile data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadProfileData();
-  }, [isLoaded, isSignedIn]);
+  const profile = useQuery(api.questProduct.getProfileOverview, {});
 
   const handleSignOut = async () => {
     try {
@@ -84,7 +56,7 @@ export default function ProfileScreen() {
     }
   };
 
-  if (loading) {
+  if (!profile) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#58CC02" />
@@ -92,9 +64,8 @@ export default function ProfileScreen() {
     );
   }
 
-  const textUsagePercent = usage && usage.limits.textCalls > 0
-    ? (usage.used.textCalls / usage.limits.textCalls) * 100
-    : 0;
+  const textUsagePercent = 0;
+  const avatarUrl = profile.user.avatarUrl;
 
   return (
     <View style={styles.container}>
@@ -116,32 +87,38 @@ export default function ProfileScreen() {
         <View style={styles.profileCard}>
           <View style={styles.avatarWrapper}>
             <View style={styles.avatarBorder}>
-              <Image source={{ uri: user?.imageUrl }} style={styles.avatar} />
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback]}>
+                  <Ionicons name="person" size={48} color="#58CC02" />
+                </View>
+              )}
             </View>
             <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeText}>{level}</Text>
+              <Text style={styles.levelBadgeText}>{profile.stats.level}</Text>
             </View>
           </View>
 
-          <Text style={styles.userName}>{user?.fullName || 'Architect'}</Text>
-          <Text style={styles.userEmail}>{user?.primaryEmailAddress?.emailAddress}</Text>
+          <Text style={styles.userName}>{profile.user.name}</Text>
+          <Text style={styles.userEmail}>{profile.user.email}</Text>
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <StreakIcon width={24} height={28} />
-              <Text style={styles.statValue}>{currentStreak}</Text>
+              <Text style={styles.statValue}>{profile.stats.currentStreak}</Text>
               <Text style={styles.statLabel}>Days</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.statItem}>
               <XpIcon width={24} height={28} />
-              <Text style={styles.statValue}>{xp}</Text>
+              <Text style={styles.statValue}>{profile.stats.lifetimeXp}</Text>
               <Text style={styles.statLabel}>Total XP</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.statItem}>
               <Ionicons name="trophy" size={24} color="#FFD700" />
-              <Text style={styles.statValue}>{achievements.length}</Text>
+              <Text style={styles.statValue}>{profile.achievements.length}</Text>
               <Text style={styles.statLabel}>Awards</Text>
             </View>
           </View>
@@ -155,7 +132,7 @@ export default function ProfileScreen() {
             <View style={styles.quotaInfo}>
               <Text style={styles.quotaTitle}>Text Prompts</Text>
               <Text style={styles.quotaSubtitle}>
-                {usage?.used.textCalls} / {usage?.limits.textCalls} used today
+                Usage quota will appear here when the plan service reports it
               </Text>
               <View style={styles.progressBarBg}>
                 <View style={[styles.progressBarFill, { width: `${textUsagePercent}%` }]} />
@@ -171,7 +148,7 @@ export default function ProfileScreen() {
             <TouchableOpacity><Text style={styles.viewAll}>View All</Text></TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.achievementScroll}>
-            {achievements.length > 0 ? achievements.map((item, index) => (
+            {profile.achievements.length > 0 ? profile.achievements.map((item: any, index: number) => (
               <View key={index} style={styles.badgeItem}>
                 <View style={styles.badgeIconContainer}>
                    <Text style={{ fontSize: 30 }}>{item.icon || '✨'}</Text>
@@ -255,6 +232,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 56,
+  },
+  avatarFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ECFFE5",
   },
   levelBadge: {
     position: 'absolute',

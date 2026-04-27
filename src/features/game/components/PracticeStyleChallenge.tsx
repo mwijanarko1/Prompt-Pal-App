@@ -43,6 +43,10 @@ interface PracticeStyleChallengeProps {
 	/** Beginner + template: fixed scaffold text, editable `[slot]` fields only. */
 	beginnerTemplateLocked?: boolean;
 	onBeginnerTemplateSlotsFilledChange?: (allFilled: boolean) => void;
+	/** Beginner template: slot text only, for live checklist matching. */
+	onBeginnerSlotValuesJoinedChange?: (joinedSlotText: string) => void;
+	/** Per-slot values for ordinal checklist matching. */
+	onBeginnerSlotValuesArrayChange?: (values: string[]) => void;
 	checklistItems?: string[];
 	matchedChecklistItems?: string[];
 	charCount: number;
@@ -136,6 +140,8 @@ export function PracticeStyleChallenge({
 	scaffoldTemplate,
 	beginnerTemplateLocked = false,
 	onBeginnerTemplateSlotsFilledChange,
+	onBeginnerSlotValuesJoinedChange,
+	onBeginnerSlotValuesArrayChange,
 	checklistItems,
 	matchedChecklistItems,
 	charCount,
@@ -367,6 +373,8 @@ export function PracticeStyleChallenge({
 							<BeginnerTemplatePromptInput
 								template={scaffoldTemplate}
 								onChangePrompt={onChangePrompt}
+								onSlotValuesJoinedChange={onBeginnerSlotValuesJoinedChange}
+								onSlotValuesArrayChange={onBeginnerSlotValuesArrayChange}
 								onAllSlotsFilledChange={onBeginnerTemplateSlotsFilledChange}
 								onPromptFocus={onPromptFocus}
 								inputAccessoryViewID={inputAccessoryViewID}
